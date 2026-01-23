@@ -1,70 +1,72 @@
 # Deployment Guide
 
-This project is ready for deployment on VPS or PaaS platforms (like Koyeb, Render, Railway).
+This project is fully configured for deployment on **Koyeb**.
 
 ## Prerequisites
 
-- **MongoDB Atlas**: You need a MongoDB connection string.
-- **Redis**: Required for background tasks (Celery).
-- **Telegram API**: App ID and Hash from my.telegram.org.
+1.  **GitHub Repository**: Push this project to a GitHub repository.
+2.  **MongoDB Atlas**: Create a cluster and get your connection string (`mongodb+srv://...`).
+3.  **Redis**: Get a Redis connection string (e.g., from Upstash or Koyeb Redis).
+4.  **Telegram API**: Get your `API_ID` and `API_HASH` from [my.telegram.org](https://my.telegram.org).
 
-## Environment Variables
+---
 
-Configure these variables in your deployment environment:
+## Step 1: Deploy Backend (Koyeb)
 
-### Backend
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `PROJECT_NAME` | App Name | `Student Library` |
-| `API_V1_STR` | API Prefix | `/api/v1` |
-| `SECRET_KEY` | Security Key | Generate with `openssl rand -hex 32` |
-| `ALGORITHM` | JWT Algo | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Token Validity | `11520` (8 days) |
-| `DATABASE_URL` | MongoDB URI | `mongodb+srv://user:pass@cluster.mongodb.net/dbname` |
-| `REDIS_URL` | Redis URI | `redis://user:pass@host:port/0` |
-| `TELEGRAM_API_ID` | Telegram App ID | `123456` |
-| `TELEGRAM_API_HASH` | Telegram Hash | `abcdef123456...` |
-| `TELEGRAM_BOT_TOKEN` | Bot Token | `123456:ABC-DEF...` |
-| `TELEGRAM_CHANNEL_ID` | Channel ID | `-1001234567890` |
-| `CORS_ORIGINS` | Frontend URL | `https://your-frontend-domain.com` |
+1.  Log in to [Koyeb](https://app.koyeb.com).
+2.  Click **Create App** (or select existing).
+3.  Click **Create Service**.
+4.  Select **GitHub** as the source.
+5.  Select your repository.
+6.  **Builder Configuration**:
+    *   **Builder**: Dockerfile
+    *   **Dockerfile Location**: `backend/Dockerfile.prod` (Important: include the folder path)
+    *   **Privileged**: Unchecked
+7.  **Service Name**: e.g., `student-lib-backend`
+8.  **Ports**: Change to `8000` (HTTP)
+9.  **Environment Variables**: Add the following:
 
-### Frontend
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `NEXT_PUBLIC_API_URL` | Backend URL | `https://your-backend-domain.com` |
+| Variable | Value (Example) |
+|----------|-----------------|
+| `PROJECT_NAME` | `Student Library` |
+| `API_V1_STR` | `/api/v1` |
+| `SECRET_KEY` | *(Generate a random string)* |
+| `ALGORITHM` | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `10080` |
+| `DATABASE_URL` | `mongodb+srv://user:pass@...` |
+| `REDIS_URL` | `redis://default:pass@...` |
+| `TELEGRAM_API_ID` | `123456` |
+| `TELEGRAM_API_HASH` | `abcdef123...` |
+| `TELEGRAM_BOT_TOKEN` | `123456:ABC-DEF...` |
+| `TELEGRAM_CHANNEL_ID` | `-100123...` |
+| `CORS_ORIGINS` | `https://student-lib-frontend.koyeb.app` (You can add `*` first, then update later) |
 
-## Deployment Options
+10. Click **Deploy**.
+11. **Copy the Public URL** of your new backend service (e.g., `https://student-lib-backend-org.koyeb.app`).
 
-### Option 1: Docker (VPS / Koyeb)
+---
 
-The project includes production Dockerfiles.
+## Step 2: Deploy Frontend (Koyeb)
 
-**Backend:**
-1.  Use `backend/Dockerfile.prod`.
-2.  Expose port `8000`.
-3.  Command: `gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000`
+1.  In the same Koyeb App, click **Create Service**.
+2.  Select **GitHub** and your repository again.
+3.  **Builder Configuration**:
+    *   **Builder**: Dockerfile
+    *   **Dockerfile Location**: `frontend/Dockerfile.prod`
+4.  **Service Name**: e.g., `student-lib-frontend`
+5.  **Ports**: Change to `3000` (HTTP)
+6.  **Environment Variables**:
 
-**Frontend:**
-1.  Use `frontend/Dockerfile.prod` (ensure `NEXT_PUBLIC_API_URL` is set at build time or runtime depending on setup, Next.js static generation requires it at build time usually, but client-side fetch uses runtime if configured).
-2.  Expose port `3000`.
+| Variable | Value |
+|----------|-------|
+| `NEXT_PUBLIC_API_URL` | `https://student-lib-backend-org.koyeb.app` (Your Backend URL from Step 1) |
 
-### Option 2: Manual (VPS)
+7.  Click **Deploy**.
 
-**Backend:**
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --daemon
-# Start Celery
-celery -A app.core.celery_app worker --loglevel=info --detach
-```
+---
 
-**Frontend:**
-```bash
-cd frontend
-npm install
-npm run build
-npm start
-```
+## Step 3: Final Configuration
+
+1.  Go back to your **Backend Service** settings on Koyeb.
+2.  Update `CORS_ORIGINS` to match your **Frontend Public URL** (e.g., `https://student-lib-frontend-org.koyeb.app`).
+3.  Redeploy the Backend for changes to take effect.

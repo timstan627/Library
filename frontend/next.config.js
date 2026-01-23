@@ -1,11 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: true,
-    output: 'standalone',
+    output: 'export',
     env: {
-        NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+        NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '', # Empty string allows relative paths if hosted on same domain
     },
     images: {
+        unoptimized: true,
         remotePatterns: [
             {
                 protocol: 'https',

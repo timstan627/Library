@@ -135,15 +135,41 @@ app.mount("/metrics", metrics_app)
 app.include_router(api_router, prefix="/api/v1")
 
 
-# Root endpoint
-@app.get("/", tags=["Root"])
-async def root():
-    """Root endpoint."""
-    return {
-        "name": settings.app_name,
-        "version": "1.0.0",
-        "docs": "/docs" if settings.debug else "Disabled",
-    }
+# Root endpoint - Moved to allow SPA fallback
+# @app.get("/", tags=["Root"])
+# async def root():
+#     return {"message": "API is running"}
+
+# Serve Frontend Static Files (SPA)
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+# Mount assets (if they exist) - handled by Docker copy
+static_dir = "static"
+if os.path.exists(static_dir):
+    # Mount _next folder for Next.js assets
+    if os.path.exists(os.path.join(static_dir, "_next")):
+         app.mount("/_next", StaticFiles(directory=os.path.join(static_dir, "_next")), name="next_assets")
+
+    # Catch-all for SPA (must be last)
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        # 1. Check if file exists in static folder (e.g. favicon.ico, images)
+        file_path = os.path.join(static_dir, full_path)
+        if os.path.isfile(file_path):
+             return FileResponse(file_path)
+        
+        # 2. If valid API path (and not caught by router), return 404 (don't serve index.html)
+        if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("openapi"):
+            raise HTTPException(status_code=404, detail="Not Found")
+
+        # 3. Fallback to index.html for SPA routing
+        index_path = os.path.join(static_dir, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+            
+        return {"error": "Frontend not found (static folder missing)"}
 
 
 # Public stats endpoint for home page live counts
