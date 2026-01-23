@@ -1,0 +1,85 @@
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+.venv/
+ENV/
+
+# Node
+node_modules/
+.next/
+out/
+.nuxt/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+coverage.xml
+*.cover
+
+# Logs
+logs/
+*.log
+
+# Docker
+.docker/
+
+# Telegram session files
+*.session
+*.session-journal
+
+# Database
+*.db
+*.sqlite3
+
+# Generated
+*.pyc
+*.pyo
+.mypy_cache/
+
+# Secrets
+secrets/
+*.pem
+*.key
+
+# Uploads (local dev)
+uploads/
+temp/
