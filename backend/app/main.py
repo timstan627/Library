@@ -21,6 +21,8 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logging.getLogger("pymongo").setLevel(logging.WARNING)
+logging.getLogger("pyrogram").setLevel(logging.WARNING)
+logging.getLogger("uvicorn").setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 
