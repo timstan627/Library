@@ -1,64 +1,99 @@
-# Ultimate Student Resource Library
+# Student Resource Library
 
-Enterprise-grade student resource library with **Telegram-based unlimited cloud storage**.
+A modern, production-ready student resource sharing platform with **Telegram-based unlimited cloud storage**.
 
-## 🚀 Features
+## Features
 
-- **Unlimited Storage** - Files stored in Telegram channels with backup redundancy
-- **Advanced Search** - Full-text search with PostgreSQL tsvector
-- **Role-based Access** - Students, moderators, and admin roles
-- **2FA Support** - TOTP-based multi-factor authentication
-- **Dark Theme UI** - MediaPeek-inspired modern dark interface
-- **Real-time Analytics** - Download tracking and resource popularity
+- **Unlimited File Storage** - Files stored in Telegram channels (no storage limits)
+- **Full-Text Search** - Search by title, description, course code, and tags
+- **Role-Based Access** - Students, Moderators, and Admins
+- **Two-Factor Authentication** - TOTP-based MFA support
+- **Modern Dark UI** - Beautiful, responsive interface
+- **File Preview** - View PDFs and images before downloading
+- **Ratings & Reviews** - Community-driven quality feedback
 
-## 📋 Tech Stack
+## Tech Stack
 
 ### Backend
-- **FastAPI** - High-performance async Python framework
-- **PostgreSQL 15** - Primary database with full-text search
-- **Redis 7** - Caching and Celery broker
-- **SQLAlchemy 2.0** - Async ORM with connection pooling
-- **Pyrogram** - Telegram API integration
-- **Celery** - Background task processing
+| Technology | Purpose |
+|------------|---------|
+| **FastAPI** | High-performance async Python API |
+| **MongoDB** | Document database (via Beanie ODM) |
+| **Pyrogram** | Telegram MTProto API for file storage |
+| **JWT** | Secure authentication tokens |
 
 ### Frontend
-- **Next.js 14** - React framework with App Router
-- **TypeScript** - Type-safe JavaScript
-- **Tailwind CSS** - Utility-first CSS framework
-- **React Query** - Data fetching and caching
-- **Framer Motion** - Animations
+| Technology | Purpose |
+|------------|---------|
+| **Next.js 14** | React framework with App Router |
+| **TypeScript** | Type-safe development |
+| **Tailwind CSS** | Utility-first styling |
+| **Axios** | API client |
 
-## 🛠️ Quick Start
+### Infrastructure
+| Component | Purpose |
+|-----------|---------|
+| **Nginx** | Reverse proxy and load balancing |
+| **Supervisor** | Process management |
+| **Docker** | Containerization |
+
+## Project Structure
+
+```
+├── backend/
+│   ├── app/
+│   │   ├── api/v1/          # REST API endpoints
+│   │   ├── core/            # Config, security, database
+│   │   ├── models/          # MongoDB document models
+│   │   ├── schemas/         # Pydantic request/response schemas
+│   │   ├── services/        # Business logic (Telegram, cache)
+│   │   └── tasks/           # Background task functions
+│   └── requirements.txt
+├── frontend/
+│   ├── app/                 # Next.js App Router pages
+│   ├── components/          # Reusable React components
+│   └── lib/                 # API client, auth context
+├── Dockerfile               # Unified container build
+├── nginx.conf               # Routing configuration
+├── supervisord.conf         # Process management
+└── DEPLOY.md                # Deployment instructions
+```
+
+## Local Development
 
 ### Prerequisites
-- Docker & Docker Compose
-- Node.js 20+ (for local frontend dev)
-- Python 3.11+ (for local backend dev)
+- Node.js 20+
+- Python 3.11+
+- MongoDB (local or Atlas)
+- Telegram API credentials
 
-### 1. Clone & Configure
+### Backend Setup
 
 ```bash
-git clone <repository-url>
-cd Students
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
 
-# Copy environment template
+# Copy and configure environment
 cp .env.example .env
+# Edit .env with your credentials
 
-# Configure your Telegram credentials in .env
-# Required: TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_BOT_TOKEN, TELEGRAM_PRIMARY_CHANNEL
+# Run development server
+uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. Start with Docker
+### Frontend Setup
 
 ```bash
-# Start all services
-docker-compose up -d
+cd frontend
+npm install
 
-# View logs
-docker-compose logs -f
+# Run development server
+npm run dev
 ```
 
-### 3. Access
+### Access Points
 
 | Service | URL |
 |---------|-----|
@@ -66,89 +101,71 @@ docker-compose logs -f
 | Backend API | http://localhost:8000 |
 | API Docs | http://localhost:8000/docs |
 
-## 📁 Project Structure
+## Environment Variables
 
-```
-├── backend/
-│   ├── app/
-│   │   ├── api/v1/          # API endpoints
-│   │   ├── core/            # Config, security, database
-│   │   ├── models/          # SQLAlchemy models
-│   │   ├── schemas/         # Pydantic schemas
-│   │   ├── services/        # Business logic
-│   │   └── tasks/           # Celery background tasks
-│   ├── alembic/             # Database migrations
-│   └── requirements.txt
-├── frontend/
-│   ├── app/                 # Next.js pages
-│   ├── components/          # React components
-│   └── lib/                 # Utilities
-├── docker-compose.yml
-└── .env.example
-```
-
-## 🔐 Environment Variables
-
-See `.env.example` for all available options:
+### Required
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `REDIS_URL` | Redis connection string |
-| `TELEGRAM_API_ID` | Telegram API ID |
+| `DATABASE_URL` | MongoDB connection string |
+| `SECRET_KEY` | Random string for JWT signing |
+| `TELEGRAM_API_ID` | Telegram API ID from my.telegram.org |
 | `TELEGRAM_API_HASH` | Telegram API Hash |
 | `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather |
 | `TELEGRAM_PRIMARY_CHANNEL` | Channel ID for file storage |
-| `JWT_SECRET_KEY` | Secret for JWT tokens |
 
-## 🗄️ Database Migrations
+### Optional
 
-```bash
-# Generate new migration
-alembic revision --autogenerate -m "Description"
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEBUG` | `true` | Enable debug mode |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | JWT token lifetime |
+| `MAX_FILE_SIZE_MB` | `50` | Maximum upload size |
+| `ENABLE_MFA` | `true` | Enable 2FA support |
 
-# Apply migrations
-alembic upgrade head
+## API Endpoints
 
-# Rollback one step
-alembic downgrade -1
-```
+### Authentication
+- `POST /api/v1/auth/register` - Create account
+- `POST /api/v1/auth/login` - Get JWT tokens
+- `POST /api/v1/auth/refresh` - Refresh access token
+- `POST /api/v1/auth/logout` - Revoke session
 
-## 🧪 Running Tests
+### Resources
+- `GET /api/v1/resources` - List all resources
+- `GET /api/v1/resources/{slug}` - Get resource details
+- `POST /api/v1/resources/upload` - Upload new file
+- `GET /api/v1/resources/{id}/download` - Download file
+- `GET /api/v1/search` - Full-text search
 
-```bash
-# Backend tests
-cd backend
-pytest
+### User
+- `GET /api/v1/users/me` - Current user profile
+- `PUT /api/v1/users/me` - Update profile
+- `GET /api/v1/users/me/resources` - User's uploads
 
-# Frontend tests
-cd frontend
-npm test
-```
+### Admin
+- `GET /api/v1/admin/dashboard` - Platform statistics
+- `GET /api/v1/admin/users` - User management
+- `GET /api/v1/admin/moderation` - Content moderation queue
 
-## 📦 API Endpoints
+## UI Pages
 
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/v1/auth/register` | User registration |
-| `POST /api/v1/auth/login` | JWT authentication |
-| `GET /api/v1/resources` | List resources |
-| `POST /api/v1/resources/upload` | Upload file |
-| `GET /api/v1/search` | Full-text search |
-| `GET /api/v1/admin/dashboard` | Admin statistics |
+| Page | Path | Access |
+|------|------|--------|
+| Home | `/` | Public |
+| Browse | `/browse` | Public |
+| Resource Detail | `/resources/[slug]` | Public |
+| Upload | `/upload` | Authenticated |
+| Profile | `/profile` | Authenticated |
+| Settings | `/settings` | Authenticated |
+| Admin Dashboard | `/admin` | Admin only |
 
-## 🎨 UI Pages
+## Deployment
 
-| Page | Path | Description |
-|------|------|-------------|
-| Home | `/` | Landing page with features |
-| Browse | `/browse` | Search and filter resources |
-| Upload | `/upload` | Drag-and-drop upload |
-| Resource | `/resources/[slug]` | Resource detail with ratings |
-| Profile | `/profile` | User profile and uploads |
-| Settings | `/settings` | Account settings and MFA |
-| Admin | `/admin` | Dashboard and moderation |
+See **[DEPLOY.md](./DEPLOY.md)** for complete deployment instructions.
 
-## 📄 License
+**Quick Summary**: This project uses a single Docker container that runs the frontend, backend, and nginx together. Deploy to Koyeb or any Docker-compatible platform.
+
+## License
 
 MIT License - see LICENSE file for details.

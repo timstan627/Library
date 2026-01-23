@@ -1,72 +1,139 @@
 # Deployment Guide
 
-This project is fully configured for deployment on **Koyeb**.
+This project is configured for **single-container deployment** - everything runs in one Docker container.
+
+## What's Included
+
+The Docker container bundles:
+- ✅ **Backend** (FastAPI on port 8000)
+- ✅ **Frontend** (Next.js on port 3000)
+- ✅ **Nginx** (Reverse proxy on port 80)
+- ✅ **Supervisor** (Process management)
 
 ## Prerequisites
 
-1.  **GitHub Repository**: Push this project to a GitHub repository.
-2.  **MongoDB Atlas**: Create a cluster and get your connection string (`mongodb+srv://...`).
-3.  **Redis**: Get a Redis connection string (e.g., from Upstash or Koyeb Redis).
-4.  **Telegram API**: Get your `API_ID` and `API_HASH` from [my.telegram.org](https://my.telegram.org).
+Before deploying, you need:
 
----
+1. **MongoDB Database**
+   - Sign up at [MongoDB Atlas](https://www.mongodb.com/atlas) (free tier available)
+   - Create a cluster and get your connection string
 
-## Step 1: Deploy Backend (Koyeb)
+2. **Telegram API Credentials**
+   - Go to [my.telegram.org](https://my.telegram.org)
+   - Create an application to get API ID and Hash
+   - Create a bot via [@BotFather](https://t.me/BotFather) for the token
+   - Create a private channel and get its ID (starts with -100)
 
-1.  Log in to [Koyeb](https://app.koyeb.com).
-2.  Click **Create App** (or select existing).
-3.  Click **Create Service**.
-4.  Select **GitHub** as the source.
-5.  Select your repository.
-6.  **Builder Configuration**:
-    *   **Builder**: Dockerfile
-    *   **Dockerfile Location**: `backend/Dockerfile.prod` (Important: include the folder path)
-    *   **Privileged**: Unchecked
-7.  **Service Name**: e.g., `student-lib-backend`
-8.  **Ports**: Change to `8000` (HTTP)
-9.  **Environment Variables**: Add the following:
+## Environment Variables
 
-| Variable | Value (Example) |
-|----------|-----------------|
-| `PROJECT_NAME` | `Student Library` |
-| `API_V1_STR` | `/api/v1` |
-| `SECRET_KEY` | *(Generate a random string)* |
-| `ALGORITHM` | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `10080` |
-| `DATABASE_URL` | `mongodb+srv://user:pass@...` |
-| `REDIS_URL` | `redis://default:pass@...` |
-| `TELEGRAM_API_ID` | `123456` |
-| `TELEGRAM_API_HASH` | `abcdef123...` |
-| `TELEGRAM_BOT_TOKEN` | `123456:ABC-DEF...` |
-| `TELEGRAM_CHANNEL_ID` | `-100123...` |
-| `CORS_ORIGINS` | `https://student-lib-frontend.koyeb.app` (You can add `*` first, then update later) |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | MongoDB connection string |
+| `SECRET_KEY` | ✅ | Random string (32+ characters) |
+| `TELEGRAM_API_ID` | ✅ | From my.telegram.org |
+| `TELEGRAM_API_HASH` | ✅ | From my.telegram.org |
+| `TELEGRAM_BOT_TOKEN` | ✅ | From @BotFather |
+| `TELEGRAM_PRIMARY_CHANNEL` | ✅ | Channel ID for file storage |
+| `NEXT_PUBLIC_API_URL` | ❌ | Leave empty for same-origin |
 
-10. Click **Deploy**.
-11. **Copy the Public URL** of your new backend service (e.g., `https://student-lib-backend-org.koyeb.app`).
+## Deploy to Koyeb
 
----
+### Step 1: Push to GitHub
+```bash
+git add .
+git commit -m "Ready for deployment"
+git push origin main
+```
 
-## Step 2: Deploy Frontend (Koyeb)
+### Step 2: Create Koyeb Service
 
-1.  In the same Koyeb App, click **Create Service**.
-2.  Select **GitHub** and your repository again.
-3.  **Builder Configuration**:
-    *   **Builder**: Dockerfile
-    *   **Dockerfile Location**: `frontend/Dockerfile.prod`
-4.  **Service Name**: e.g., `student-lib-frontend`
-5.  **Ports**: Change to `3000` (HTTP)
-6.  **Environment Variables**:
+1. Log in to [Koyeb](https://app.koyeb.com)
+2. Click **Create Service**
+3. Select **GitHub** as source
+4. Choose your repository
 
-| Variable | Value |
-|----------|-------|
-| `NEXT_PUBLIC_API_URL` | `https://student-lib-backend-org.koyeb.app` (Your Backend URL from Step 1) |
+### Step 3: Configure Build
 
-7.  Click **Deploy**.
+| Setting | Value |
+|---------|-------|
+| **Builder** | Dockerfile |
+| **Dockerfile path** | `Dockerfile` (default) |
+| **Port** | `80` |
 
----
+### Step 4: Add Environment Variables
 
-## Step 3: Final Configuration
+Go to **Environment Variables** section and add all required variables from the table above.
 
-1.  Go back to your **Backend Service** settings on Koyeb.
-2.  Update `CORS_ORIGINS` to match your **Frontend Public URL** (e.g., `https://student-lib-frontend-org.koyeb.app`).
-3.  Redeploy the Backend for changes to take effect.
+### Step 5: Deploy
+
+Click **Deploy** and wait for the build to complete (3-5 minutes).
+
+Your app will be available at: `https://your-app-name.koyeb.app`
+
+## Deploy to Other Platforms
+
+### Railway
+
+1. Connect GitHub repository
+2. Add environment variables
+3. Set port to `80`
+4. Deploy
+
+### Render
+
+1. Create new Web Service
+2. Connect repository
+3. Set Docker as environment
+4. Add environment variables
+5. Deploy
+
+### VPS (Manual)
+
+```bash
+# Clone repository
+git clone <your-repo-url>
+cd Students
+
+# Build image
+docker build -t student-library .
+
+# Run container
+docker run -d \
+  -p 80:80 \
+  -e DATABASE_URL="mongodb+srv://..." \
+  -e SECRET_KEY="your-secret-key" \
+  -e TELEGRAM_API_ID="123456" \
+  -e TELEGRAM_API_HASH="abc123..." \
+  -e TELEGRAM_BOT_TOKEN="123:ABC..." \
+  -e TELEGRAM_PRIMARY_CHANNEL="-100..." \
+  student-library
+```
+
+## Troubleshooting
+
+### Build Fails
+- Check Docker logs: `docker logs <container-id>`
+- Ensure Dockerfile is in repository root
+
+### Database Connection Error
+- Verify DATABASE_URL is correct
+- Check MongoDB Atlas IP whitelist (add 0.0.0.0/0 for cloud deployments)
+
+### Telegram Not Working
+- Verify all Telegram credentials are correct
+- Make sure bot is added to the channel as admin
+- Channel ID must include the -100 prefix
+
+### 502 Bad Gateway
+- Backend might be starting slowly, wait 30 seconds
+- Check application logs for errors
+
+## Health Check
+
+Once deployed, verify these endpoints:
+
+| Endpoint | Expected Response |
+|----------|-------------------|
+| `/` | Homepage loads |
+| `/api/v1/stats` | JSON with resource counts |
+| `/health` | `{"status": "healthy"}` |

@@ -1,6 +1,7 @@
 """
 Student Resource Library - FastAPI Application
 """
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
@@ -23,6 +24,29 @@ logging.getLogger("pymongo").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
+async def periodic_tasks_loop():
+    """Simple loop for periodic background tasks (Celery-free)."""
+    from app.tasks import cleanup_expired_sessions, cleanup_soft_deleted_resources, aggregate_daily_stats
+    
+    # Wait a bit before first run to let DB stabilize
+    await asyncio.sleep(60)
+    
+    while True:
+        try:
+            logger.info("Running periodic background tasks...")
+            await cleanup_expired_sessions()
+            await cleanup_soft_deleted_resources()
+            await aggregate_daily_stats()
+            
+            # Sleep for 24 hours
+            await asyncio.sleep(86400)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in periodic tasks loop: {e}")
+            await asyncio.sleep(3600)  # Retry in an hour if crash
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
@@ -37,6 +61,8 @@ async def lifespan(app: FastAPI):
     from app.services.telegram import telegram_service
     await telegram_service.connect()
     
+    # Start periodic tasks
+    asyncio.create_task(periodic_tasks_loop())
     
     yield
     
@@ -135,41 +161,15 @@ app.mount("/metrics", metrics_app)
 app.include_router(api_router, prefix="/api/v1")
 
 
-# Root endpoint - Moved to allow SPA fallback
-# @app.get("/", tags=["Root"])
-# async def root():
-#     return {"message": "API is running"}
-
-# Serve Frontend Static Files (SPA)
-import os
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-
-# Mount assets (if they exist) - handled by Docker copy
-static_dir = "static"
-if os.path.exists(static_dir):
-    # Mount _next folder for Next.js assets
-    if os.path.exists(os.path.join(static_dir, "_next")):
-         app.mount("/_next", StaticFiles(directory=os.path.join(static_dir, "_next")), name="next_assets")
-
-    # Catch-all for SPA (must be last)
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_spa(full_path: str):
-        # 1. Check if file exists in static folder (e.g. favicon.ico, images)
-        file_path = os.path.join(static_dir, full_path)
-        if os.path.isfile(file_path):
-             return FileResponse(file_path)
-        
-        # 2. If valid API path (and not caught by router), return 404 (don't serve index.html)
-        if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("openapi"):
-            raise HTTPException(status_code=404, detail="Not Found")
-
-        # 3. Fallback to index.html for SPA routing
-        index_path = os.path.join(static_dir, "index.html")
-        if os.path.exists(index_path):
-            return FileResponse(index_path)
-            
-        return {"error": "Frontend not found (static folder missing)"}
+# Root endpoint
+@app.get("/", tags=["Root"])
+async def root():
+    """Root endpoint."""
+    return {
+        "name": settings.app_name,
+        "version": "1.0.0",
+        "docs": "/docs" if settings.debug else "Disabled",
+    }
 
 
 # Public stats endpoint for home page live counts

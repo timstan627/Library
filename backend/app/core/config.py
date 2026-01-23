@@ -22,14 +22,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     debug: bool = True
     
-    # Database
-    database_url: str = "postgresql+asyncpg://admin:password@db:5432/student_library"
-    db_pool_size: int = 20
-    db_max_overflow: int = 10
-    
-    # Redis
-    redis_url: str = "redis://redis:6379/0"
-    celery_broker_url: str = "redis://redis:6379/1"
+    # Database (MongoDB)
+    database_url: str = "mongodb://localhost:27017/student_library"
     
     # Security
     secret_key: str = "change-this-in-production"
@@ -61,7 +55,7 @@ class Settings(BaseSettings):
     
     # Features
     enable_mfa: bool = True
-    enable_rate_limiting: bool = True
+    enable_rate_limiting: bool = False
     enable_sentry: bool = False
     sentry_dsn: Optional[str] = None
     
