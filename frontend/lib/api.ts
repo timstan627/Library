@@ -1,0 +1,186 @@
+import axios, { AxiosRequestConfig } from 'axios'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+// Request deduplication tracking
+const pendingRequests = new Map<string, Promise<any>>()
+
+function getRequestKey(config: AxiosRequestConfig): string {
+    return `${config.method}:${config.url}:${JSON.stringify(config.params || {})}:${JSON.stringify(config.data || {})}`
+}
+
+export const api = axios.create({
+    baseURL: `${API_URL}/api/v1`,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    timeout: 30000, // 30 second timeout
+})
+
+// Request interceptor with deduplication
+api.interceptors.request.use(
+    (config) => {
+        if (typeof window !== 'undefined') {
+            const token = localStorage.getItem('access_token')
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`
+            }
+        }
+        return config
+    },
+    (error) => {
+        return Promise.reject(error)
+    }
+)
+
+// Response interceptor with comprehensive error handling
+api.interceptors.response.use(
+    (response) => {
+        // Clear from pending requests on success
+        const key = getRequestKey(response.config)
+        pendingRequests.delete(key)
+        return response
+    },
+    async (error) => {
+        const originalRequest = error.config
+        const key = originalRequest ? getRequestKey(originalRequest) : null
+
+        // Clear from pending requests on error
+        if (key) pendingRequests.delete(key)
+
+        // Network error detection
+        if (!error.response) {
+            const networkError = new Error('Network error. Please check your connection.')
+                ; (networkError as any).isNetworkError = true
+            return Promise.reject(networkError)
+        }
+
+        // HIGH-002: Force logout on 403 (access revoked, banned, demoted)
+        if (error.response?.status === 403) {
+            localStorage.removeItem('access_token')
+            localStorage.removeItem('refresh_token')
+            if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/')) {
+                window.location.href = '/auth/login?reason=access_revoked'
+            }
+            return Promise.reject(error)
+        }
+
+        // Token refresh on 401
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true
+
+            try {
+                const refreshToken = localStorage.getItem('refresh_token')
+                if (refreshToken) {
+                    const response = await axios.post(`${API_URL}/api/v1/auth/refresh`, {
+                        refresh_token: refreshToken,
+                    })
+
+                    const { access_token, refresh_token } = response.data
+                    localStorage.setItem('access_token', access_token)
+                    localStorage.setItem('refresh_token', refresh_token)
+
+                    originalRequest.headers.Authorization = `Bearer ${access_token}`
+                    return api(originalRequest)
+                }
+            } catch (refreshError) {
+                localStorage.removeItem('access_token')
+                localStorage.removeItem('refresh_token')
+                if (typeof window !== 'undefined') {
+                    window.location.href = '/auth/login'
+                }
+            }
+        }
+
+        return Promise.reject(error)
+    }
+)
+
+/**
+ * Make a deduplicated API request.
+ * Prevents multiple identical requests from being sent simultaneously.
+ */
+export function deduplicatedRequest<T>(config: AxiosRequestConfig): Promise<T> {
+    const key = getRequestKey(config)
+
+    // Return existing promise if request is already pending
+    if (pendingRequests.has(key)) {
+        return pendingRequests.get(key)!
+    }
+
+    const promise = api.request<T>(config).finally(() => {
+        pendingRequests.delete(key)
+    })
+
+    pendingRequests.set(key, promise)
+    return promise as Promise<T>
+}
+
+// API helper functions
+export const apiHelpers = {
+    // Resources
+    getResources: (params?: any) => api.get('/resources', { params }),
+    getMyResources: (params?: { page?: number; size?: number }) =>
+        api.get('/resources/my', { params }),
+    getResource: (id: string) => api.get(`/resources/${id}`),
+    getResourceBySlug: (slug: string) => api.get(`/resources/slug/${slug}`),
+    uploadResource: (formData: FormData) =>
+        api.post('/resources/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 120000, // 2 minute timeout for uploads
+        }),
+    updateResource: (id: string, data: any) => api.put(`/resources/${id}`, data),
+    deleteResource: (id: string) => api.delete(`/resources/${id}`),
+
+    // Search
+    search: (params: any) => api.get('/search', { params }),
+    getFilters: () => api.get('/search/filters'),
+    getFilterOptions: () => api.get('/search/filters'), // Alias for getFilters
+    getPopular: (limit?: number) => api.get('/search/popular', { params: { limit } }),
+    getRecent: (limit?: number) => api.get('/search/recent', { params: { limit } }),
+
+    // Ratings
+    createRating: (resourceId: string, data: { value: number; review?: string }) =>
+        api.post(`/ratings/resources/${resourceId}`, data),
+    getResourceRatings: (resourceId: string, params?: any) =>
+        api.get(`/ratings/resources/${resourceId}`, { params }),
+
+    // Users
+    getProfile: () => api.get('/users/me'),
+    updateProfile: (data: any) => api.put('/users/me', data),
+    getStorageInfo: () => api.get('/users/me/storage'),
+
+    // Departments & Courses
+    getDepartments: () => api.get('/departments'),
+    getCourses: (departmentId?: string) => api.get('/courses', { params: { department_id: departmentId } }),
+
+    // Moderation (Admin)
+    getPendingModeration: (page = 1, size = 20) => api.get('/admin/moderation/pending', { params: { page, page_size: size } }),
+    moderateResource: (id: string, data: { action: 'approve' | 'reject'; rejection_reason?: string }) =>
+        api.post(`/admin/moderation/${id}/moderate`, data),
+    getModerationHistory: (page = 1, size = 20) => api.get('/admin/moderation/history', { params: { page, page_size: size } }),
+    getModerationStats: () => api.get('/admin/moderation/stats'),
+
+    // Admin - Departments
+    getDepartmentsAdmin: (page = 1, size = 50) => api.get('/admin/departments', { params: { page, page_size: size } }),
+    createDepartment: (data: any) => api.post('/admin/departments', data),
+    updateDepartment: (id: string, data: any) => api.put(`/admin/departments/${id}`, data),
+    deleteDepartment: (id: string) => api.delete(`/admin/departments/${id}`),
+    toggleDepartment: (id: string) => api.post(`/admin/departments/${id}/toggle`),
+
+    // Admin - Courses
+    getCoursesAdmin: (departmentId?: string, page = 1, size = 50) =>
+        api.get('/admin/courses', { params: { department_id: departmentId, page, page_size: size } }),
+    createCourse: (data: any) => api.post('/admin/courses', data),
+    updateCourse: (id: string, data: any) => api.put(`/admin/courses/${id}`, data),
+    deleteCourse: (id: string) => api.delete(`/admin/courses/${id}`),
+
+    // Admin - User Promotion
+    getTrustedUsers: () => api.get('/admin/users/trusted'),
+    promoteUser: (userId: string, data: { is_trusted: boolean }) =>
+        api.post(`/admin/users/${userId}/promote`, data),
+    getUserPromotionStatus: (userId: string) => api.get(`/admin/users/${userId}/promotion`),
+
+    // Admin - Audit Logs
+    getAuditLogs: (page = 1, size = 50) => api.get('/admin/audit-logs', { params: { page, size } }),
+}
