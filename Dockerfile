@@ -37,7 +37,8 @@ COPY --from=frontend-builder /app/frontend/.next/static ./frontend/.next/static
 
 # 3. Setup Configs
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY nginx.conf /etc/nginx/sites-available/default
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN rm -rf /etc/nginx/sites-enabled/default
 
 # 4. Environment
 ENV PYTHONPATH=/app/backend
