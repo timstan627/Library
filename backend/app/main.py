@@ -58,6 +58,7 @@ async def lifespan(app: FastAPI):
     logger.info("Database initialized")
     await seed_default_admin()
     logger.info("Default admin seeded")
+    logger.info("BACKGROUND: Ready to accept connections")
     
     # Connect Telegram Bot
     from app.services.telegram import telegram_service
