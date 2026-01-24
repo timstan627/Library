@@ -92,6 +92,7 @@ async def get_current_active_user(
             detail=f"User is banned: {user.ban_reason or 'No reason provided'}",
         )
     
+    print(f"AUTH_DEBUG: User {user.email} (ID: {user.id}) role is '{user.role}'")
     return user
 
 

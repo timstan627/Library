@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig } from 'axios'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
 // Request deduplication tracking
 const pendingRequests = new Map<string, Promise<any>>()
@@ -55,13 +55,10 @@ api.interceptors.response.use(
             return Promise.reject(networkError)
         }
 
-        // HIGH-002: Force logout on 403 (access revoked, banned, demoted)
+        // HIGH-002: Handle 403 (access denied) - Do NOT force logout, just show error
         if (error.response?.status === 403) {
-            localStorage.removeItem('access_token')
-            localStorage.removeItem('refresh_token')
-            if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/')) {
-                window.location.href = '/auth/login?reason=access_revoked'
-            }
+            // Simply let the caller handle the error (usually showing a permissions message)
+            console.warn('Access denied (403):', error.response?.data?.detail)
             return Promise.reject(error)
         }
 

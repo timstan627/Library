@@ -1,12 +1,11 @@
 'use client'
 
-import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ShieldX, Home, LogIn } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 
-function ForbiddenContent() {
+export default function ForbiddenPage() {
     const { isAuthenticated } = useAuth()
     const searchParams = useSearchParams()
     const returnUrl = searchParams.get('returnUrl') || '/'
@@ -49,13 +48,5 @@ function ForbiddenContent() {
                 </p>
             </div>
         </div>
-    )
-}
-
-export default function ForbiddenPage() {
-    return (
-        <Suspense fallback={<div className="container-custom py-20 text-center text-text-muted">Loading...</div>}>
-            <ForbiddenContent />
-        </Suspense>
     )
 }

@@ -14,6 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
+# lib/ (Too broad, blocking frontend/lib)
+# venv/lib/
 lib64/
 parts/
 sdist/

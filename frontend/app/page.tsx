@@ -20,7 +20,8 @@ export default function HomePage() {
     const router = useRouter()
 
     useEffect(() => {
-        fetch('http://localhost:8000/api/v1/stats')
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+        fetch(`${apiUrl}/api/v1/stats`)
             .then(res => res.json())
             .then(data => setStats(data))
             .catch(() => setStats({ resources: 0, users: 0, downloads: 0, courses: 0 }))

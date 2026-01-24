@@ -18,8 +18,20 @@ async def init_db():
     # Create Motor client
     client = AsyncIOMotorClient(
         settings.database_url,
-        uuidRepresentation="standard"
+        uuidRepresentation="standard",
+        serverSelectionTimeoutMS=5000 # 5 second timeout for local dev
     )
+    
+    # Verify connection
+    try:
+        await client.admin.command('ping')
+        print("✓ MongoDB connection successful")
+    except Exception as e:
+        print(f"✗ MongoDB connection failed: {e}")
+        print("  Please ensure MongoDB is running at " + settings.database_url)
+        # We don't raise here so the app can still start (though it will fail on queries)
+        # Or we can raise if we want to stop early. User wants "fixes", so better info is good.
+    
     
     # Get database name from connection string or default
     db_name = "student_library"
@@ -109,10 +121,15 @@ async def init_db():
     except Exception:
         pass # Index might not exist or other error, safe to ignore
 
-    await init_beanie(
-        database=client[db_name],
-        document_models=document_models
-    )
+    try:
+        await init_beanie(
+            database=client[db_name],
+            document_models=document_models
+        )
+        print("✓ Beanie initialized with models")
+    except Exception as e:
+        print(f"✗ Beanie initialization FAILED: {e}")
+        print("  Backend will continue to run but database operations will fail.")
 
 async def close_db():
     """Close database connections."""

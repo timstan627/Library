@@ -32,15 +32,12 @@ class TelegramStorageService:
         self.backup_channel = settings.telegram_backup_channel
         
         # Connection settings
-        self._lock: Optional[asyncio.Lock] = None
+        self._lock = asyncio.Lock()
     
     async def connect(self) -> bool:
         """Initialize and connect Telegram client."""
         if self.is_connected:
             return True
-            
-        if self._lock is None:
-            self._lock = asyncio.Lock()
         
         async with self._lock:
             if self.is_connected:

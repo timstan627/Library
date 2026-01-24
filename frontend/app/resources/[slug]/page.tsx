@@ -128,7 +128,8 @@ export default function ResourceDetailPage() {
             // Update view count locally
             setResource(prev => prev ? { ...prev, views: prev.views + 1 } : null)
         } catch (err: any) {
-            setError(err.response?.data?.detail || 'Preview failed')
+            console.error('Preview failed:', err)
+            alert('Preview failed. ' + (err.response?.data?.detail || ''))
         } finally {
             setPreviewing(false)
         }
@@ -171,7 +172,9 @@ export default function ResourceDetailPage() {
             // Update download count
             setResource(prev => prev ? { ...prev, downloads: prev.downloads + 1 } : null)
         } catch (err: any) {
-            setError(err.response?.data?.detail || 'Download failed')
+            console.error('Download failed:', err)
+            // Do not set global error, just show toast or alert for download specifically
+            alert('Download failed. Please check backend logs or Telegram configuration.')
         } finally {
             setDownloading(false)
             setShowPasswordPrompt(false)

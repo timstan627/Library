@@ -4,16 +4,16 @@ uvicorn[standard]==0.27.0
 python-multipart==0.0.9
 
 # Database
-motor==3.4.0
-pymongo==4.6.3
 beanie==1.25.0
+motor==3.3.2
 
-# Redis & Caching (REMOVED: Using In-Memory Cache)
-gunicorn==21.2.0
+# Redis & Caching
+redis==5.0.1
+hiredis==2.3.2
 
-# Background Tasks (REMOVED Celery: Using FastAPI BackgroundTasks)
-# celery==5.3.6
-# celery[redis]==5.3.6
+# Celery Background Tasks
+celery==5.3.6
+celery[redis]==5.3.6
 
 # Telegram
 pyrofork==2.3.38

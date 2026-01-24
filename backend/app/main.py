@@ -1,7 +1,6 @@
 """
 Student Resource Library - FastAPI Application
 """
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
@@ -21,32 +20,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logging.getLogger("pymongo").setLevel(logging.WARNING)
-logging.getLogger("pyrogram").setLevel(logging.WARNING)
-logging.getLogger("uvicorn").setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-async def periodic_tasks_loop():
-    """Simple loop for periodic background tasks (Celery-free)."""
-    from app.tasks import cleanup_expired_sessions, cleanup_soft_deleted_resources, aggregate_daily_stats
-    
-    # Wait a bit before first run to let DB stabilize
-    await asyncio.sleep(60)
-    
-    while True:
-        try:
-            logger.info("Running periodic background tasks...")
-            await cleanup_expired_sessions()
-            await cleanup_soft_deleted_resources()
-            await aggregate_daily_stats()
-            
-            # Sleep for 24 hours
-            await asyncio.sleep(86400)
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            logger.error(f"Error in periodic tasks loop: {e}")
-            await asyncio.sleep(3600)  # Retry in an hour if crash
 
 
 @asynccontextmanager
@@ -58,14 +32,11 @@ async def lifespan(app: FastAPI):
     logger.info("Database initialized")
     await seed_default_admin()
     logger.info("Default admin seeded")
-    logger.info("BACKGROUND: Ready to accept connections")
     
     # Connect Telegram Bot
     from app.services.telegram import telegram_service
     await telegram_service.connect()
     
-    # Start periodic tasks
-    asyncio.create_task(periodic_tasks_loop())
     
     yield
     
@@ -89,7 +60,7 @@ app = FastAPI(
 # CORS middleware - Added FIRST so it executes LAST in the chain
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://0.0.0.0:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -111,7 +82,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions and ensure CORS headers are present."""
     origin = request.headers.get("origin", "*")
     headers = dict(exc.headers or {})
-    if origin in ["http://localhost:3000", "http://127.0.0.1:3000"]:
+    if origin in ["http://localhost:3000", "http://127.0.0.1:3000", "http://0.0.0.0:3000"]:
         headers.update({
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",
@@ -129,7 +100,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.exception(f"Unhandled exception: {exc}")
     origin = request.headers.get("origin", "*")
     headers = {}
-    if origin in ["http://localhost:3000", "http://127.0.0.1:3000"]:
+    if origin in ["http://localhost:3000", "http://127.0.0.1:3000", "http://0.0.0.0:3000"]:
         headers.update({
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",

@@ -18,12 +18,18 @@ class Settings(BaseSettings):
     
     # Application
     app_name: str = "Student Resource Library"
-    app_url: str = "http://localhost:3000"
+    app_url: str = "http://127.0.0.1:3000"
     environment: str = "development"
     debug: bool = True
     
-    # Database (MongoDB)
-    database_url: str = "mongodb://localhost:27017/student_library"
+    # Database
+    database_url: str = "mongodb+srv://f2l1:f2l1@cluster0.hhi78fm.mongodb.net/student_library?retryWrites=true&w=majority&appName=Cluster0"
+    db_pool_size: int = 20
+    db_max_overflow: int = 10
+    
+    # Redis
+    redis_url: str = "redis://redis:6379/0"
+    celery_broker_url: str = "redis://redis:6379/1"
     
     # Security
     secret_key: str = "change-this-in-production"
@@ -33,12 +39,12 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     
     # Telegram
-    telegram_api_id: Optional[int] = None
-    telegram_api_hash: Optional[str] = None
-    telegram_bot_token: Optional[str] = None
-    telegram_primary_channel: Optional[int] = None
-    telegram_backup_channel: Optional[int] = None
-    telegram_owner_id: Optional[int] = None
+    telegram_api_id: Optional[int] = 16501053
+    telegram_api_hash: Optional[str] = "d8c9b01c863dabacc484c2c06cdd0f6e"
+    telegram_bot_token: Optional[str] = "8385481456:AAFk2g6SPQGmCN-1lXFZjspV8ZLhh1MpoF0"
+    telegram_primary_channel: Optional[int] = -1002284190309
+    telegram_backup_channel: Optional[int] = -1002284190309
+    telegram_owner_id: Optional[int] = 5422016608
     
     # Email (SMTP)
     smtp_host: str = "smtp.gmail.com"
@@ -55,7 +61,7 @@ class Settings(BaseSettings):
     
     # Features
     enable_mfa: bool = True
-    enable_rate_limiting: bool = False
+    enable_rate_limiting: bool = True
     enable_sentry: bool = False
     sentry_dsn: Optional[str] = None
     

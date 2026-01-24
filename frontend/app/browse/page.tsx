@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Search, Filter, X, Download, Star, Eye, FileText } from 'lucide-react'
 import Link from 'next/link'
@@ -26,7 +26,7 @@ interface Resource {
     uploader_name?: string
 }
 
-function BrowseContent() {
+export default function BrowsePage() {
     const searchParams = useSearchParams()
     const router = useRouter()
 
@@ -296,13 +296,5 @@ function BrowseContent() {
                 </div>
             )}
         </div>
-    )
-}
-
-export default function BrowsePage() {
-    return (
-        <Suspense fallback={<SkeletonResourceGrid count={6} />}>
-            <BrowseContent />
-        </Suspense>
     )
 }

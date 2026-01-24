@@ -22,8 +22,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.requests: Dict[str, list] = defaultdict(list)
     
     async def dispatch(self, request: Request, call_next):
-        # Skip rate limiting if disabled or for health checks
-        if not settings.enable_rate_limiting or request.url.path in ["/health", "/metrics"]:
+        # Skip rate limiting for health checks
+        if request.url.path in ["/health", "/metrics"]:
             return await call_next(request)
         
         # Get client IP
