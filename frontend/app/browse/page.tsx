@@ -26,7 +26,9 @@ interface Resource {
     uploader_name?: string
 }
 
-export default function BrowsePage() {
+import { Suspense } from 'react'
+
+function BrowseContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
 
@@ -296,5 +298,13 @@ export default function BrowsePage() {
                 </div>
             )}
         </div>
+    )
+}
+
+export default function BrowsePage() {
+    return (
+        <Suspense fallback={<div className="container-custom py-20 text-center">Loading...</div>}>
+            <BrowseContent />
+        </Suspense>
     )
 }
