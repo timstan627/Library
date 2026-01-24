@@ -136,13 +136,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const refreshUser = async () => {
         try {
+            console.log('Refreshing user...')
             const response = await api.get('/auth/me')
+            console.log('Refresh response:', response.status, response.data)
             if (response.data) {
                 setUser(response.data)
+                console.log('User set successfully')
             }
         } catch (error: any) {
+            console.error('Refresh failed:', error)
             // Only logout if explicitly unauthorized, not on transient server/network errors
             if (error.response?.status === 401 || error.response?.status === 403) {
+                console.warn('Unauthorized, logging out')
                 logout()
             } else {
                 console.error('Background refresh failed:', error.message)

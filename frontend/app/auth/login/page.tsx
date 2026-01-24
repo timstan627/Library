@@ -77,10 +77,12 @@ export default function LoginPage() {
             // Check for returnUrl
             const searchParams = new URLSearchParams(window.location.search)
             const returnUrl = searchParams.get('returnUrl')
+
+            // Force hard navigation to ensure auth state is synced cleanly
             if (returnUrl && returnUrl.startsWith('/')) {
-                router.push(returnUrl)
+                window.location.href = returnUrl
             } else {
-                router.push('/')
+                window.location.href = '/'
             }
         } catch (err: any) {
             if (err.message === 'MFA_REQUIRED') {
