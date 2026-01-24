@@ -19,7 +19,7 @@ from app.schemas.user import (
 )
 from app.api.v1.deps import get_current_user, get_current_active_user
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

@@ -8,7 +8,7 @@ from app.models.user import User
 from app.schemas.user import UserResponse, UserUpdate, PasswordChangeRequest
 from app.api.v1.deps import get_current_active_user
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 
 @router.get("/me", response_model=UserResponse)

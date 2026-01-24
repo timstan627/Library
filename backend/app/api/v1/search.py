@@ -14,10 +14,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 
-@router.get("/", response_model=SearchResponse)
+@router.get("", response_model=SearchResponse)
 async def search_resources(
     q: Optional[str] = Query(None, max_length=200),
     course_code: Optional[str] = None,
@@ -119,6 +119,7 @@ async def search_resources(
         query = query.sort("-downloads")
             
     total = await query.count()
+    logger.info(f"Search query '{q or ''}' returned {total} results")
     resources = await query.skip((page - 1) * size).limit(size).to_list()
     
     pages = (total + size - 1) // size if total > 0 else 0
