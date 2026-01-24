@@ -35,6 +35,7 @@ COPY --from=frontend-builder /app/frontend/.next/static ./frontend/.next/static
 
 # Copy Nginx config
 COPY nginx.conf /etc/nginx/sites-available/default
+RUN ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
 # Expose ports (Mainly 80 for Koyeb)
 EXPOSE 80
