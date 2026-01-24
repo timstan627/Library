@@ -45,9 +45,9 @@ EXPOSE 3000
 COPY <<EOF /app/start.sh
 #!/bin/sh
 # Start Backend
-cd /app/backend && uvicorn app.main:app --host 127.0.0.1 --port 8000 &
-# Start Frontend
-cd /app/frontend && HOSTNAME=127.0.0.1 node server.js &
+cd /app/backend && uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+# Start Frontend - Explicitly set PORT to 3000 to avoid clash with Nginx on 80
+cd /app/frontend && PORT=3000 HOSTNAME=0.0.0.0 node server.js &
 # Start Nginx
 nginx -g "daemon off;"
 EOF
