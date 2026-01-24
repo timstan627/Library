@@ -139,37 +139,34 @@ async def get_filter_options():
     """Get available filter options for the search UI."""
     # Aggregations to get distinct values
     
-    courses = await Resource.find(
-        Resource.is_deleted == False, 
-        Resource.visibility == "public"
-    ).distinct("course_code")
+    courses = await Resource.get_motor_collection().distinct(
+        "course_code", 
+        {"is_deleted": False, "visibility": "public"}
+    )
     courses.sort()
     
-    departments = await Resource.find(
-        Resource.is_deleted == False, 
-        Resource.visibility == "public",
-        Resource.department != None
-    ).distinct("department")
+    departments = await Resource.get_motor_collection().distinct(
+        "department", 
+        {"is_deleted": False, "visibility": "public", "department": {"$ne": None}}
+    )
     departments.sort()
     
-    semesters = await Resource.find(
-        Resource.is_deleted == False, 
-        Resource.visibility == "public",
-        Resource.semester != None
-    ).distinct("semester")
+    semesters = await Resource.get_motor_collection().distinct(
+        "semester", 
+        {"is_deleted": False, "visibility": "public", "semester": {"$ne": None}}
+    )
     semesters.sort()
     
-    branches = await Resource.find(
-        Resource.is_deleted == False, 
-        Resource.visibility == "public",
-        Resource.branch != None
-    ).distinct("branch")
+    branches = await Resource.get_motor_collection().distinct(
+        "branch", 
+        {"is_deleted": False, "visibility": "public", "branch": {"$ne": None}}
+    )
     branches.sort()
     
-    file_types = await Resource.find(
-        Resource.is_deleted == False, 
-        Resource.visibility == "public"
-    ).distinct("file_extension")
+    file_types = await Resource.get_motor_collection().distinct(
+        "file_extension", 
+        {"is_deleted": False, "visibility": "public"}
+    )
     file_types.sort()
     
     # Tags would need unwinding
