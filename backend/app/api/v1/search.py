@@ -138,49 +138,54 @@ async def search_resources(
 @router.get("/filters", response_model=FilterOptions)
 async def get_filter_options():
     """Get available filter options for the search UI."""
-    # Aggregations to get distinct values
-    
-    courses = await Resource.get_motor_collection().distinct(
-        "course_code", 
-        {"is_deleted": False, "visibility": "public"}
-    )
-    courses.sort()
-    
-    departments = await Resource.get_motor_collection().distinct(
-        "department", 
-        {"is_deleted": False, "visibility": "public", "department": {"$ne": None}}
-    )
-    departments.sort()
-    
-    semesters = await Resource.get_motor_collection().distinct(
-        "semester", 
-        {"is_deleted": False, "visibility": "public", "semester": {"$ne": None}}
-    )
-    semesters.sort()
-    
-    branches = await Resource.get_motor_collection().distinct(
-        "branch", 
-        {"is_deleted": False, "visibility": "public", "branch": {"$ne": None}}
-    )
-    branches.sort()
-    
-    file_types = await Resource.get_motor_collection().distinct(
-        "file_extension", 
-        {"is_deleted": False, "visibility": "public"}
-    )
-    file_types.sort()
-    
-    # Tags would need unwinding
-    tags = ["notes", "exam", "syllabus", "assignments", "lecture", "tutorial", "solved"]
-    
-    return FilterOptions(
-        courses=courses,
-        departments=departments,
-        semesters=semesters,
-        branches=branches,
-        tags=tags,
-        file_types=file_types,
-    )
+    try:
+        # Helper to safely get distinct values
+        async def get_distinct(field: str, conditions: dict) -> List[str]:
+            try:
+                # Try optimized distinct
+                values = await Resource.get_motor_collection().distinct(field, conditions)
+                if not values:
+                    # Fallback: strict find (manual distinct) if distinct returns empty
+                    logger.warning(f"Distinct '{field}' returned empty, trying manual aggregation")
+                    cursor = Resource.get_motor_collection().find(conditions, {field: 1})
+                    values = await cursor.distinct(field) # Motor cursor also has distinct support usually
+                
+                # Filter out None/Empty and sort
+                clean_values = [v for v in values if v]
+                clean_values.sort()
+                return clean_values
+            except Exception as e:
+                logger.error(f"Error fetching distinct '{field}': {e}")
+                return []
+
+        base_query = {"is_deleted": False, "visibility": "public"}
+        
+        # Parallel fetch could be better but keep it simple for now to avoid async complexity issues
+        courses = await get_distinct("course_code", base_query)
+        departments = await get_distinct("department", base_query)
+        semesters = await get_distinct("semester", base_query)
+        branches = await get_distinct("branch", base_query)
+        file_types = await get_distinct("file_extension", base_query)
+        
+        # Tags (static for now, dynamic unwinding is expensive on large datasets without aggregation)
+        tags = ["notes", "exam", "syllabus", "assignments", "lecture", "tutorial", "solved"]
+        
+        logger.info(f"Filters loaded: {len(courses)} courses, {len(departments)} depts")
+        
+        return FilterOptions(
+            courses=courses,
+            departments=departments,
+            semesters=semesters,
+            branches=branches,
+            tags=tags,
+            file_types=file_types,
+        )
+    except Exception as e:
+        logger.error(f"Failed to load filters: {e}")
+        # Return empty structure instead of 500
+        return FilterOptions(
+            courses=[], departments=[], semesters=[], branches=[], tags=[], file_types=[]
+        )
 
 
 @router.get("/popular")

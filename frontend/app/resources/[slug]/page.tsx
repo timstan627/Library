@@ -173,8 +173,8 @@ export default function ResourceDetailPage() {
             setResource(prev => prev ? { ...prev, downloads: prev.downloads + 1 } : null)
         } catch (err: any) {
             console.error('Download failed:', err)
-            // Do not set global error, just show toast or alert for download specifically
-            alert('Download failed. Please check backend logs or Telegram configuration.')
+            const errorMessage = err.response?.data?.detail || err.message || 'Download failed'
+            alert(`Download failed: ${errorMessage}\n\nPlease check backend logs if this persists.`)
         } finally {
             setDownloading(false)
             setShowPasswordPrompt(false)

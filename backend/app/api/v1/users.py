@@ -11,11 +11,17 @@ from app.api.v1.deps import get_current_active_user
 router = APIRouter(redirect_slashes=False)
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 @router.get("/me", response_model=UserResponse)
 async def get_profile(
     current_user: User = Depends(get_current_active_user),
 ):
     """Get current user profile."""
+    # Debug: log user data to check for missing fields
+    logger.info(f"Returning profile for user {current_user.email}: quota={current_user.storage_quota_bytes}, used={current_user.storage_used_bytes}")
     return current_user
 
 

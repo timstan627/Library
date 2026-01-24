@@ -148,30 +148,31 @@ export default function ProfilePage() {
                             <div className="w-10 h-10 bg-accent-primary/10 rounded-lg flex items-center justify-center">
                                 <HardDrive className="w-5 h-5 text-accent-primary" />
                             </div>
-                            {storage && (
+                            {storage ? (
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-text-secondary">Storage Used</span>
                                         <span className="font-medium text-text-primary">
-                                            {storage.used_mb.toFixed(1)} MB / Unlimited
+                                            {(storage.used_mb || 0).toFixed(1)} MB / {(storage.quota_mb || 100 * 1024).toFixed(0)} MB
                                         </span>
                                     </div>
                                     <div className="w-full h-2 bg-background-tertiary rounded-full overflow-hidden">
                                         <div
                                             className="h-full bg-accent-primary rounded-full transition-all duration-500"
-                                            style={{ width: `${storage.used_bytes > 0 ? '5' : '0'}%` }}
+                                            style={{ width: `${storage.usage_percent || 0}%` }}
                                         />
                                     </div>
                                     <p className="text-xs text-green-500 mt-2 flex items-center">
                                         <Shield className="w-3 h-3 mr-1" />
-                                        Unlimited Storage
+                                        {(storage.quota_mb || 0) > 100000 ? 'Unlimited Storage' : 'Standard Storage'}
                                     </p>
                                 </div>
-                            )}
-                            {!storage && (
+                            ) : (
                                 <div>
                                     <p className="text-text-secondary text-sm">Storage Used</p>
-                                    <p className="text-text-primary font-semibold">... / ...</p>
+                                    <p className="text-text-primary font-semibold">
+                                        {user?.storage_used_bytes ? (user.storage_used_bytes / (1024 * 1024)).toFixed(1) : '0.0'} MB / ...
+                                    </p>
                                 </div>
                             )}
                         </div>
