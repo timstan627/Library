@@ -81,9 +81,9 @@ app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.rate_limit_
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions and ensure CORS headers are present."""
-    origin = request.headers.get("origin", "*")
+    origin = request.headers.get("origin")
     headers = dict(exc.headers or {})
-    if origin in ["http://localhost:3000", "http://127.0.0.1:3000", "http://0.0.0.0:3000"]:
+    if origin:
         headers.update({
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",
@@ -99,9 +99,9 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception(f"Unhandled exception: {exc}")
-    origin = request.headers.get("origin", "*")
+    origin = request.headers.get("origin")
     headers = {}
-    if origin in ["http://localhost:3000", "http://127.0.0.1:3000", "http://0.0.0.0:3000"]:
+    if origin:
         headers.update({
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",

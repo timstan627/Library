@@ -13,6 +13,8 @@ from app.api.v1.admin.courses import router as courses_router
 from app.api.v1.admin.moderation import router as moderation_router
 from app.api.v1.admin.dashboard import router as dashboard_router
 from app.api.v1.admin.seed import router as seed_router
+from app.api.v1.admin.users import router as users_router
+from app.api.v1.admin.resources import router as resources_router
 
 # Include all sub-routers
 router.include_router(departments_router, prefix="/departments", tags=["Admin - Departments"])

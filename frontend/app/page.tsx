@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Search, Upload, Download, FileText, Star, TrendingUp } from 'lucide-react'
+import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 
 interface Stats {
@@ -20,9 +21,8 @@ export default function HomePage() {
     const router = useRouter()
 
     useEffect(() => {
-        fetch('/api/v1/stats')
-            .then(res => res.json())
-            .then(data => setStats(data))
+        api.get('/stats')
+            .then(res => setStats(res.data))
             .catch(() => setStats({ resources: 0, users: 0, downloads: 0, courses: 0 }))
     }, [])
 

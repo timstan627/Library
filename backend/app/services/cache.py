@@ -4,7 +4,10 @@ Redis Cache Service for File Downloads
 import hashlib
 import logging
 from typing import Optional
-import redis.asyncio as redis
+
+# [MODIFIED FOR LOCAL WINDOWS RUN] Use fakeredis instead of real redis 
+# import redis.asyncio as redis 
+import fakeredis.aioredis as redis
 
 from app.core.config import settings
 
@@ -15,24 +18,30 @@ class CacheService:
     """Redis-based caching service for file downloads."""
     
     def __init__(self):
-        self.redis_client: Optional[redis.Redis] = None
+        self.redis_client: Optional[redis.FakeRedis] = None
         self._connected = False
     
     async def connect(self) -> bool:
-        """Connect to Redis."""
+        """Connect to Redis (Production) or FakeRedis (Development)."""
         if self._connected and self.redis_client:
             return True
         
         try:
-            self.redis_client = redis.from_url(
-                settings.redis_url,
-                encoding="utf-8",
-                decode_responses=False,  # We're storing bytes
-            )
+            if settings.environment == "development" or not settings.redis_url:
+                import fakeredis.aioredis as fake_redis
+                self.redis_client = fake_redis.FakeRedis(decode_responses=False)
+                logger.info("FakeRedis cache connected (Mocked for local dev)")
+            else:
+                import redis.asyncio as real_redis
+                self.redis_client = real_redis.from_url(
+                    settings.redis_url, 
+                    decode_responses=False
+                )
+                logger.info(f"Redis connected to {settings.redis_url}")
+                
             # Test connection
             await self.redis_client.ping()
             self._connected = True
-            logger.info("Redis cache connected")
             return True
         except Exception as e:
             logger.warning(f"Redis connection failed: {e}")

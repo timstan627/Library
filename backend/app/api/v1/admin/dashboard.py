@@ -6,7 +6,7 @@ from app.models.resource import Resource
 
 router = APIRouter()
 
-@router.get("/dashboard")
+@router.get("")
 async def get_dashboard_stats(
     current_user: User = Depends(require_admin),
 ):
