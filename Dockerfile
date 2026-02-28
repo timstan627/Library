@@ -7,6 +7,7 @@ COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_API_URL=""
 RUN npm run build
 
 # --- Stage 2: Final Image ---
