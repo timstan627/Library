@@ -3,11 +3,7 @@ Redis Cache Service for File Downloads
 """
 import hashlib
 import logging
-from typing import Optional
-
-# [MODIFIED FOR LOCAL WINDOWS RUN] Use fakeredis instead of real redis 
-# import redis.asyncio as redis 
-import fakeredis.aioredis as redis
+from typing import Optional, Any
 
 from app.core.config import settings
 
@@ -18,7 +14,7 @@ class CacheService:
     """Redis-based caching service for file downloads."""
     
     def __init__(self):
-        self.redis_client: Optional[redis.FakeRedis] = None
+        self.redis_client: Optional[Any] = None
         self._connected = False
     
     async def connect(self) -> bool:
