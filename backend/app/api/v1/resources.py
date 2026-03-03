@@ -24,6 +24,7 @@ from app.schemas.resource import (
 )
 from app.api.v1.deps import get_current_user, get_current_active_user
 from app.services.telegram import telegram_service
+from app.services.download_manager import download_manager
 
 import logging
 logger = logging.getLogger(__name__)
@@ -229,7 +230,7 @@ async def preview_resource(
     current_user: Optional[User] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Stream a resource file for preview (inline)."""
+    """Stream a resource file for preview (inline) via hybrid download manager."""
     result = await db.execute(
         select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
     )
@@ -248,11 +249,11 @@ async def preview_resource(
         if not password or not security_manager.verify_password(password, resource.password_hash):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
     
-    # Stream file
+    # Stream via DownloadManager (disk cache + concurrency limit)
     try:
-        file_stream = telegram_service.stream_file(
+        file_stream = download_manager.stream_file(
             message_id=resource.telegram_message_id,
-            channel_id=resource.telegram_channel_id,
+            channel_id=resource.telegram_channel_id or 0,
         )
         
         return StreamingResponse(
@@ -275,7 +276,7 @@ async def download_resource(
     current_user: Optional[User] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Download a resource file."""
+    """Download a resource file via hybrid download manager (disk cache + streaming)."""
     result = await db.execute(
         select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
     )
@@ -294,14 +295,17 @@ async def download_resource(
         if not password or not security_manager.verify_password(password, resource.password_hash):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
     
-    # Download from Telegram
+    # Download via hybrid manager (disk cache + semaphore + streaming)
     try:
-        file_bytes = await telegram_service.download_file(
+        file_stream = download_manager.stream_file(
             message_id=resource.telegram_message_id,
-            channel_id=resource.telegram_channel_id,
+            channel_id=resource.telegram_channel_id or 0,
         )
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to download file: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to download file: {str(e)}"
+        )
     
     # Log download
     download_log = Download(
@@ -314,15 +318,13 @@ async def download_resource(
     resource.downloads += 1
     await db.flush()
     
-    # Return file
-    from io import BytesIO
-    file_stream = BytesIO(file_bytes)
-    
+    # Stream file from disk cache in chunks (low memory)
     return StreamingResponse(
         file_stream,
         media_type=resource.mime_type,
         headers={
-            "Content-Disposition": f'attachment; filename="{resource.file_name}"'
+            "Content-Disposition": f'attachment; filename="{resource.file_name}"',
+            "Content-Length": str(resource.file_size),
         }
     )
 

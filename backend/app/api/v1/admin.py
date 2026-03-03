@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, func, and_, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db, get_db_path, get_db_size
+from app.core.database import get_db, get_db_path, get_db_size, check_db_health, create_backup
 from app.models.user import User
 from app.models.resource import Resource
 from app.models.download import Download
@@ -66,6 +66,26 @@ async def get_database_stats(
         "resources": resource_count,
         "downloads": download_count,
     }
+
+
+@router.get("/db-health")
+async def get_db_health(
+    current_user: User = Depends(get_admin_user),
+):
+    """Runtime database health check — validates file, integrity, and connectivity."""
+    health = await check_db_health()
+    return health
+
+
+@router.post("/db-backup")
+async def trigger_db_backup(
+    current_user: User = Depends(get_admin_user),
+):
+    """Create a backup of the current database to student_library_backup.db."""
+    result = await create_backup()
+    if result["status"] == "error":
+        raise HTTPException(status_code=500, detail=result["message"])
+    return result
 
 
 @router.get("/resources")
