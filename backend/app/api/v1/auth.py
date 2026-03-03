@@ -1,13 +1,16 @@
 """
-Authentication API Routes
+Authentication API Routes (SQLAlchemy)
 """
-import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import security_manager
+from app.core.middleware import auth_rate_limiter
+from app.core.database import get_db
 from app.models.user import User, Session
 from app.schemas.user import (
     UserCreate,
@@ -25,10 +28,12 @@ router = APIRouter(redirect_slashes=False)
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: UserCreate,
+    db: AsyncSession = Depends(get_db),
 ):
     """Register a new user."""
     # Check if email already exists
-    if await User.find_one(User.email == user_data.email.lower()):
+    result = await db.execute(select(User).where(User.email == user_data.email.lower()))
+    if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
@@ -42,7 +47,13 @@ async def register(
         storage_quota_bytes=settings.storage_quota_bytes,
     )
     
-    await user.create()
+    db.add(user)
+    await db.flush()
+    await db.refresh(user)
+    
+    # Invalidate cached stats
+    from app.services.cache import cache_service
+    cache_service.invalidate_on_user_change()
     
     return user
 
@@ -51,14 +62,21 @@ async def register(
 async def login(
     login_data: UserLogin,
     request: Request,
+    db: AsyncSession = Depends(get_db),
 ):
     """Login with email and password."""
+    # Brute force protection
+    client_ip = request.client.host if request.client else "unknown"
+    auth_rate_limiter.check_and_record(client_ip, login_data.email)
+    
     # Find user
-    user = await User.find_one(User.email == login_data.email.lower())
+    result = await db.execute(select(User).where(User.email == login_data.email.lower()))
+    user = result.scalar_one_or_none()
     
     if not user or not security_manager.verify_password(
         login_data.password, user.password_hash
     ):
+        auth_rate_limiter.record_failure(client_ip, login_data.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -76,7 +94,7 @@ async def login(
             detail="Account is not active",
         )
     
-    # Check if MFA is required
+    # Check MFA
     if user.mfa_enabled:
         if not login_data.mfa_code:
             return TokenResponse(
@@ -96,17 +114,21 @@ async def login(
     
     # Create session
     session = Session(
-        user=user,
+        user_id=user.id,
         refresh_token_hash=security_manager.hash_api_key(tokens["refresh_token"]),
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days),
     )
-    await session.create()
+    db.add(session)
     
     # Update last login
     user.last_login_at = datetime.now(timezone.utc)
-    await user.save()
+    
+    await db.flush()
+    
+    # Clear failed attempts
+    auth_rate_limiter.clear(client_ip, login_data.email)
     
     return TokenResponse(
         access_token=tokens["access_token"],
@@ -119,15 +141,16 @@ async def login(
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
     request: dict,
+    db: AsyncSession = Depends(get_db),
 ):
     """Refresh access token using refresh token."""
-    refresh_token = request.get("refresh_token")
-    if not refresh_token:
+    refresh_tok = request.get("refresh_token")
+    if not refresh_tok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="refresh_token is required",
         )
-    payload = security_manager.verify_token(refresh_token, token_type="refresh")
+    payload = security_manager.verify_token(refresh_tok, token_type="refresh")
     
     if not payload:
         raise HTTPException(
@@ -137,14 +160,17 @@ async def refresh_token(
     
     user_id = payload.get("sub")
     
-    # Verify session exists and is not revoked
-    token_hash = security_manager.hash_api_key(refresh_token)
+    # Verify session exists
+    token_hash = security_manager.hash_api_key(refresh_tok)
     
-    session = await Session.find_one(
-        Session.refresh_token_hash == token_hash,
-        Session.is_revoked == False,
-        Session.expires_at > datetime.now(timezone.utc),
+    result = await db.execute(
+        select(Session).where(
+            Session.refresh_token_hash == token_hash,
+            Session.is_revoked == False,
+            Session.expires_at > datetime.now(timezone.utc),
+        )
     )
+    session = result.scalar_one_or_none()
     
     if not session:
         raise HTTPException(
@@ -155,11 +181,11 @@ async def refresh_token(
     # Generate new tokens
     tokens = security_manager.create_tokens(user_id)
     
-    # Update session with new refresh token
+    # Update session
     session.refresh_token_hash = security_manager.hash_api_key(tokens["refresh_token"])
     session.expires_at = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
     
-    await session.save()
+    await db.flush()
     
     return TokenResponse(
         access_token=tokens["access_token"],
@@ -172,20 +198,21 @@ async def refresh_token(
 @router.post("/logout")
 async def logout(
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Logout and revoke current session."""
-    # Revoke all sessions for this user
-    # In Beanie we deal with Links differently, querying sessions by user ID needs care if user is a link.
-    # But Session.user is a Link.
-    
-    sessions = await Session.find(
-        Session.user.id == current_user.id, 
-        Session.is_revoked == False
-    ).to_list()
+    result = await db.execute(
+        select(Session).where(
+            Session.user_id == current_user.id,
+            Session.is_revoked == False,
+        )
+    )
+    sessions = result.scalars().all()
     
     for session in sessions:
         session.is_revoked = True
-        await session.save()
+    
+    await db.flush()
     
     return {"message": "Logged out successfully"}
 
@@ -201,6 +228,7 @@ async def get_me(
 @router.post("/setup-mfa", response_model=MFASetupResponse)
 async def setup_mfa(
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Setup MFA for the current user."""
     if current_user.mfa_enabled:
@@ -209,14 +237,11 @@ async def setup_mfa(
             detail="MFA is already enabled",
         )
     
-    # Generate MFA secret
     secret = security_manager.generate_mfa_secret()
-    
-    # Store secret (not yet enabled)
     current_user.mfa_secret = secret
-    await current_user.save()
     
-    # Generate QR code
+    await db.flush()
+    
     qr_code = security_manager.generate_mfa_qr_code(
         secret, current_user.email, settings.app_name
     )
@@ -235,6 +260,7 @@ async def setup_mfa(
 async def verify_mfa(
     data: MFAVerifyRequest,
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Verify and enable MFA."""
     if not current_user.mfa_secret:
@@ -256,7 +282,7 @@ async def verify_mfa(
         )
     
     current_user.mfa_enabled = True
-    await current_user.save()
+    await db.flush()
     
     return {"message": "MFA enabled successfully"}
 
@@ -265,6 +291,7 @@ async def verify_mfa(
 async def disable_mfa(
     data: MFAVerifyRequest,
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Disable MFA."""
     if not current_user.mfa_enabled:
@@ -281,6 +308,6 @@ async def disable_mfa(
     
     current_user.mfa_enabled = False
     current_user.mfa_secret = None
-    await current_user.save()
+    await db.flush()
     
     return {"message": "MFA disabled successfully"}

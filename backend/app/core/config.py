@@ -22,20 +22,17 @@ class Settings(BaseSettings):
     environment: str = "development"
     debug: bool = True
     
-    # Database
-    database_url: str = "mongodb+srv://f2l1:f2l1@cluster0.hhi78fm.mongodb.net/student_library?retryWrites=true&w=majority&appName=Cluster0"
-    db_pool_size: int = 20
-    db_max_overflow: int = 10
+    # Database (SQLite — file path managed in app/core/database.py)
+    # database_url is no longer used; SQLite path is hardcoded in database.py
+    database_url: str = "sqlite+aiosqlite:///student_library.db"
     
-    # Redis
-    redis_url: str = "redis://redis:6379/0"
-    celery_broker_url: str = "redis://redis:6379/1"
+    # Cache is in-memory (app/services/cache.py) — no external services needed
     
     # Security
     secret_key: str = "change-this-in-production"
     jwt_secret_key: str = "change-this-jwt-secret"
     hmac_secret_key: str = "change-this-hmac-secret"
-    access_token_expire_minutes: int = 15
+    access_token_expire_minutes: int = 1440  # 24 hours
     refresh_token_expire_days: int = 30
     
     # Telegram

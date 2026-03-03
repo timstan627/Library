@@ -13,6 +13,16 @@ const nextConfig = {
             },
         ],
     },
+    // Proxy API requests to backend in development (Nginx handles this in prod)
+    async rewrites() {
+        const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000'
+        return [
+            {
+                source: '/api/:path*',
+                destination: `${backendUrl}/api/:path*`,
+            },
+        ]
+    },
 }
 
 module.exports = nextConfig

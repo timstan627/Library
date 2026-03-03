@@ -1,21 +1,18 @@
 """
-Base Model Mixins (MongoDB)
+Base Model Mixins (SQLAlchemy)
 """
 from datetime import datetime, timezone
-from typing import Optional
-from pydantic import Field, BaseModel
+from sqlalchemy import Column, DateTime, func
+from sqlalchemy.orm import Mapped, mapped_column
 
-class TimestampMixin(BaseModel):
+
+class TimestampMixin:
     """Mixin for created_at and updated_at timestamps."""
     
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    
-    class Settings:
-        # Beanie settings if needed
-        pass
-    
-    async def save(self, *args, **kwargs):
-        """Update updated_at timestamp on save."""
-        self.updated_at = datetime.now(timezone.utc)
-        return await super().save(*args, **kwargs)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc), nullable=False
+    )

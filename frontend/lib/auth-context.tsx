@@ -145,12 +145,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         } catch (error: any) {
             console.error('Refresh failed:', error)
-            // Only logout if explicitly unauthorized, not on transient server/network errors
+            // On 401, the axios interceptor will try to refresh the token automatically.
+            // If that also fails, it redirects to login. So we only clear user state here
+            // without removing tokens — the interceptor handles token lifecycle.
             if (error.response?.status === 401 || error.response?.status === 403) {
-                console.warn('Unauthorized, logging out')
-                logout()
+                console.warn('Auth check returned unauthorized — user state cleared')
+                setUser(null)
+                // Don't call logout() here — it would remove tokens before
+                // the axios interceptor has a chance to refresh them
             } else {
-                console.error('Background refresh failed:', error.message)
+                console.error('Background refresh failed (non-auth error):', error.message)
             }
         }
     }

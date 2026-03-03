@@ -76,7 +76,6 @@ function AdminDashboardContent() {
             title: 'Resources',
             desc: 'Manage all uploads',
             icon: FileText,
-            count: stats?.total_resources || 0,
             href: '/admin/resources',
             color: 'text-accent-primary',
             bg: 'bg-accent-primary/10'
@@ -226,11 +225,11 @@ function AdminDashboardContent() {
                         </div>
                         <div className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border-subtle">
                             <div className="w-2 h-2 rounded-full bg-green-500" />
-                            <span className="text-xs font-bold uppercase tracking-wider">Redis Cache</span>
+                            <span className="text-xs font-bold uppercase tracking-wider">In-Memory Cache</span>
                         </div>
                         <div className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border-subtle">
                             <div className="w-2 h-2 rounded-full bg-green-500" />
-                            <span className="text-xs font-bold uppercase tracking-wider">MongoDB</span>
+                            <span className="text-xs font-bold uppercase tracking-wider">SQLite DB</span>
                         </div>
                     </div>
                 </div>

@@ -1,226 +1,169 @@
 """
-Admin API - Course Management
+Admin API - Course Management (SQLAlchemy)
 """
-from typing import List
+import json
+import logging
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from beanie import PydanticObjectId
+from sqlalchemy import select, func, and_, delete as sql_delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_db
 from app.models.user import User
 from app.models.department import Department
 from app.models.course import Course
-from app.schemas.course import (
-    CourseCreate,
-    CourseUpdate,
-    CourseResponse,
-    CourseListResponse
-)
-from app.api.v1.deps import get_current_user, require_admin
+from app.models.resource import Resource
+from app.schemas.course import CourseCreate, CourseUpdate, CourseResponse, CourseListResponse
+from app.api.v1.deps import require_admin
 from app.models.audit_log import AuditLog
 
-router = APIRouter(prefix="/admin/courses", tags=["Admin - Courses"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
 
 
 @router.get("", response_model=CourseListResponse)
 async def list_courses(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    department_id: str | None = None,
-    is_active: bool | None = None,
+    department_id: Optional[str] = None,
+    is_active: Optional[bool] = None,
     current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
     """List all courses (admin only)."""
-    print(f"DEBUG: list_courses called with department_id={department_id}, is_active={is_active}")
-    
-    # Build query expressions
-    expressions = []
-    
+    filters = []
     if department_id:
-        try:
-            dept_obj_id = PydanticObjectId(department_id)
-            # Use Beanie expression for Link ID
-            expressions.append(Course.department.id == dept_obj_id)
-        except Exception as e:
-            print(f"DEBUG: Invalid department_id: {e}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid department ID")
-    
+        filters.append(Course.department_id == department_id)
     if is_active is not None:
-        expressions.append(Course.is_active == is_active)
+        filters.append(Course.is_active == is_active)
     
-    # Get total count
-    total = await Course.find(*expressions).count()
+    combined = and_(*filters) if filters else True
     
-    # Get paginated results WITHOUT eager loading to avoid cursor issues
-    courses = (
-        await Course.find(*expressions)
-        .sort("+code")
-        .skip((page - 1) * page_size)
-        .limit(page_size)
-        .to_list()
+    count_result = await db.execute(select(func.count()).select_from(Course).where(combined))
+    total = count_result.scalar()
+    
+    result = await db.execute(
+        select(Course).where(combined).order_by(Course.code)
+        .offset((page - 1) * page_size).limit(page_size)
     )
-    print(f"DEBUG: Expressions: {expressions}")
-    print(f"DEBUG: Total courses: {total}")
-    print(f"DEBUG: Fetched courses: {len(courses)}")
+    courses = result.scalars().all()
     
-    # Extract department IDs from Link references and batch query
-    from app.models.department import Department
-    dept_ids = []
-    for course in courses:
-        if hasattr(course.department, 'ref') and course.department.ref:
-            dept_ids.append(course.department.ref.id)
-    
-    # Fetch all departments in one query
-    departments = {}
+    # Batch fetch departments
+    dept_ids = {c.department_id for c in courses if c.department_id}
+    dept_map = {}
     if dept_ids:
-        dept_list = await Department.find({"_id": {"$in": dept_ids}}).to_list()
-        departments = {str(dept.id): dept for dept in dept_list}
+        dept_result = await db.execute(select(Department).where(Department.id.in_(dept_ids)))
+        dept_map = {d.id: d for d in dept_result.scalars().all()}
     
-    # Build response with department info
     results = []
     for course in courses:
-        dept_id = None
-        dept_name = None
-        
-        # Get department ID from Link reference
-        if hasattr(course.department, 'ref') and course.department.ref:
-            dept_id = str(course.department.ref.id)
-            if dept_id in departments:
-                dept_name = departments[dept_id].name
-            
-        results.append(
-            CourseResponse(
-                **course.model_dump(exclude={"id"}),
-                id=str(course.id),
-                department_id=dept_id,
-                department_name=dept_name
-            )
-        )
+        dept = dept_map.get(course.department_id)
+        results.append(CourseResponse(
+            id=str(course.id), name=course.name, code=course.code,
+            description=course.description, semester=course.semester,
+            credits=course.credits, is_active=course.is_active,
+            department_id=course.department_id,
+            department_name=dept.name if dept else None,
+            created_at=course.created_at, updated_at=course.updated_at,
+        ))
     
-    return CourseListResponse(
-        results=results,
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
+    return CourseListResponse(results=results, total=total, page=page, page_size=page_size)
 
 
 @router.post("", response_model=CourseResponse, status_code=status.HTTP_201_CREATED)
 async def create_course(
     data: CourseCreate,
     current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Create a new course (admin only)."""
-    # Verify department exists
-    try:
-        dept_obj_id = PydanticObjectId(data.department_id)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid department ID")
-    
-    department = await Department.get(dept_obj_id)
+    """Create a new course."""
+    dept_result = await db.execute(select(Department).where(Department.id == data.department_id))
+    department = dept_result.scalar_one_or_none()
     if not department:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
     
-    # Check for duplicate code
-    existing = await Course.find_one(Course.code == data.code)
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Course with code '{data.code}' already exists"
-        )
+    existing = await db.execute(select(Course).where(Course.code == data.code))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Course with code '{data.code}' already exists")
     
-    # Create course
-    course_dict = data.model_dump()
-    course_dict["department"] = department
-    del course_dict["department_id"]
+    course = Course(
+        department_id=data.department_id,
+        name=data.name, code=data.code, description=data.description,
+        semester=data.semester, credits=data.credits,
+        is_active=data.is_active if hasattr(data, 'is_active') else True,
+    )
+    db.add(course)
     
-    course = Course(**course_dict)
-    await course.create()
-    
-    # Audit log
     try:
-        audit = AuditLog(
-            action="create_course",
-            actor=current_user,
-            target_type="course",
-            target_id=str(course.id),
-            details={"name": course.name, "code": course.code, "department": department.name}
-        )
-        await audit.create()
+        audit = AuditLog(action="create_course", actor_id=current_user.id, target_type="course",
+                        target_id=str(course.id), details_json=json.dumps({"name": course.name, "code": course.code}))
+        db.add(audit)
     except Exception as e:
-        print(f"AUDIT LOG ERROR: {e}")
+        logger.error(f"Audit log error: {e}")
+    
+    await db.flush()
+    await db.refresh(course)
     
     return CourseResponse(
-        **course.model_dump(exclude={"id"}),
-        id=str(course.id),
-        department_id=str(department.id),
-        department_name=department.name
+        id=str(course.id), name=course.name, code=course.code,
+        description=course.description, semester=course.semester,
+        credits=course.credits, is_active=course.is_active,
+        department_id=course.department_id, department_name=department.name,
+        created_at=course.created_at, updated_at=course.updated_at,
     )
 
 
 @router.put("/{id}", response_model=CourseResponse)
 async def update_course(
-    id: str,
-    data: CourseUpdate,
+    id: str, data: CourseUpdate,
     current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Update a course (admin only)."""
-    try:
-        obj_id = PydanticObjectId(id)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ID")
-    
-    course = await Course.get(obj_id)
+    """Update a course."""
+    result = await db.execute(select(Course).where(Course.id == id))
+    course = result.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
     
-    await course.fetch_all_links()
-    
-    # Update department if provided
     if data.department_id:
-        try:
-            dept_obj_id = PydanticObjectId(data.department_id)
-        except Exception:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid department ID")
-        
-        department = await Department.get(dept_obj_id)
-        if not department:
+        dept_result = await db.execute(select(Department).where(Department.id == data.department_id))
+        if not dept_result.scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
-        
-        course.department = department
+        course.department_id = data.department_id
     
-    # Check for duplicate code if changing
     if data.code and data.code != course.code:
-        existing = await Course.find_one(Course.code == data.code)
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Course with code '{data.code}' already exists"
-            )
+        existing = await db.execute(select(Course).where(Course.code == data.code))
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Course with code '{data.code}' already exists")
     
-    # Update other fields
     update_data = data.model_dump(exclude_unset=True, exclude={"department_id"})
     for key, value in update_data.items():
         setattr(course, key, value)
     
-    await course.save()
-    
-    # Audit log
     try:
-        audit = AuditLog(
-            action="update_course",
-            actor=current_user,
-            target_type="course",
-            target_id=str(course.id),
-            details=update_data
-        )
-        await audit.create()
+        audit = AuditLog(action="update_course", actor_id=current_user.id, target_type="course",
+                        target_id=str(course.id), details_json=json.dumps(update_data))
+        db.add(audit)
     except Exception as e:
-        print(f"AUDIT LOG ERROR: {e}")
+        logger.error(f"Audit log error: {e}")
+    
+    await db.flush()
+    
+    # Get department name
+    dept_name = None
+    if course.department_id:
+        dept_result = await db.execute(select(Department).where(Department.id == course.department_id))
+        dept = dept_result.scalar_one_or_none()
+        if dept:
+            dept_name = dept.name
     
     return CourseResponse(
-        **course.model_dump(exclude={"id"}),
-        id=str(course.id),
-        department_id=str(course.department.id) if course.department else None,
-        department_name=course.department.name if course.department else None
+        id=str(course.id), name=course.name, code=course.code,
+        description=course.description, semester=course.semester,
+        credits=course.credits, is_active=course.is_active,
+        department_id=course.department_id, department_name=dept_name,
+        created_at=course.created_at, updated_at=course.updated_at,
     )
 
 
@@ -228,33 +171,23 @@ async def update_course(
 async def delete_course(
     id: str,
     current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Delete a course (admin only)."""
-    try:
-        obj_id = PydanticObjectId(id)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ID")
-    
-    course = await Course.get(obj_id)
+    """Delete a course."""
+    result = await db.execute(select(Course).where(Course.id == id))
+    course = result.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
     
-    # Cascade delete: Delete all resources associated with this course
-    from app.models.resource import Resource
-    # Delete all resources linked to this course
-    await Resource.find(Resource.course_id.id == obj_id).delete()
+    # Cascade delete resources
+    await db.execute(sql_delete(Resource).where(Resource.course_id == id))
+    await db.delete(course)
     
-    await course.delete()
-    
-    # Audit log
     try:
-        audit = AuditLog(
-            action="delete_course",
-            actor=current_user,
-            target_type="course",
-            target_id=id,
-            details={"name": course.name, "code": course.code}
-        )
-        await audit.create()
+        audit = AuditLog(action="delete_course", actor_id=current_user.id, target_type="course",
+                        target_id=id, details_json=json.dumps({"name": course.name, "code": course.code}))
+        db.add(audit)
     except Exception as e:
-        print(f"AUDIT LOG ERROR: {e}")
+        logger.error(f"Audit log error: {e}")
+    
+    await db.flush()

@@ -1,27 +1,28 @@
 """
-Users API Routes
+Users API Routes (SQLAlchemy)
 """
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select, func, and_
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_db
 from app.core.security import security_manager
 from app.models.user import User
+from app.models.resource import Resource
 from app.schemas.user import UserResponse, UserUpdate, PasswordChangeRequest
 from app.api.v1.deps import get_current_active_user
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(redirect_slashes=False)
 
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 @router.get("/me", response_model=UserResponse)
 async def get_profile(
     current_user: User = Depends(get_current_active_user),
 ):
     """Get current user profile."""
-    # Debug: log user data to check for missing fields
-    logger.info(f"Returning profile for user {current_user.email}: quota={current_user.storage_quota_bytes}, used={current_user.storage_used_bytes}")
     return current_user
 
 
@@ -29,16 +30,15 @@ async def get_profile(
 async def update_profile(
     data: UserUpdate,
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Update current user profile."""
     if data.display_name is not None:
         current_user.display_name = data.display_name
-    
     if data.avatar_url is not None:
         current_user.avatar_url = data.avatar_url
     
-    await current_user.save()
-    
+    await db.flush()
     return current_user
 
 
@@ -46,6 +46,7 @@ async def update_profile(
 async def change_password(
     data: PasswordChangeRequest,
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Change current user password."""
     if not security_manager.verify_password(data.current_password, current_user.password_hash):
@@ -55,7 +56,7 @@ async def change_password(
         )
     
     current_user.password_hash = security_manager.hash_password(data.new_password)
-    await current_user.save()
+    await db.flush()
     
     return {"message": "Password changed successfully"}
 
@@ -63,13 +64,37 @@ async def change_password(
 @router.get("/me/storage")
 async def get_storage_info(
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Get user storage information."""
+    """Get user storage information (recalculated from actual resources)."""
+    try:
+        result = await db.execute(
+            select(func.coalesce(func.sum(Resource.file_size), 0))
+            .where(
+                Resource.uploader_id == current_user.id,
+                Resource.is_deleted == False,
+            )
+        )
+        actual_used = result.scalar()
+    except Exception as e:
+        logger.warning(f"Could not recalculate storage for {current_user.email}: {e}")
+        actual_used = current_user.storage_used_bytes
+    
+    # Update user model if stale
+    if actual_used != current_user.storage_used_bytes:
+        logger.info(f"Storage recalc for {current_user.email}: {current_user.storage_used_bytes} -> {actual_used}")
+        current_user.storage_used_bytes = actual_used
+        await db.flush()
+    
+    quota = current_user.storage_quota_bytes
+    remaining = max(0, quota - actual_used)
+    usage_pct = (actual_used / quota * 100) if quota > 0 else 0
+    
     return {
-        "quota_bytes": current_user.storage_quota_bytes,
-        "used_bytes": current_user.storage_used_bytes,
-        "remaining_bytes": current_user.storage_remaining_bytes,
-        "usage_percent": current_user.storage_usage_percent,
-        "quota_mb": round(current_user.storage_quota_bytes / (1024 * 1024), 2),
-        "used_mb": round(current_user.storage_used_bytes / (1024 * 1024), 2),
+        "quota_bytes": quota,
+        "used_bytes": actual_used,
+        "remaining_bytes": remaining,
+        "usage_percent": round(usage_pct, 2),
+        "quota_mb": round(quota / (1024 * 1024), 2),
+        "used_mb": round(actual_used / (1024 * 1024), 2),
     }

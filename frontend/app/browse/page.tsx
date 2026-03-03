@@ -72,8 +72,11 @@ function BrowseContent() {
         }
     }
 
+    const [searchError, setSearchError] = useState('')
+
     const fetchResources = async () => {
         setLoading(true)
+        setSearchError('')
         try {
             const params = {
                 q: query || undefined,
@@ -85,8 +88,9 @@ function BrowseContent() {
             const response = await apiHelpers.search(params)
             setResources(response.data.results)
             setTotal(response.data.total)
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to fetch resources:', error)
+            setSearchError(error.response?.data?.detail || 'Failed to load resources. Please try again.')
         } finally {
             setLoading(false)
         }
@@ -95,7 +99,13 @@ function BrowseContent() {
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault()
         setPage(1)
-        fetchResources()
+        // Sync search params to URL for sharable links
+        const params = new URLSearchParams()
+        if (query) params.set('q', query)
+        if (department) params.set('department', department)
+        if (sortBy !== 'recent') params.set('sort_by', sortBy)
+        const newUrl = params.toString() ? `/browse?${params.toString()}` : '/browse'
+        router.push(newUrl, { scroll: false })
     }
 
     const formatFileSize = (bytes: number) => {
@@ -125,7 +135,7 @@ function BrowseContent() {
 
             {/* Search Bar */}
             <form onSubmit={handleSearch} className="mb-8">
-                <div className="flex gap-3">
+                <div className="flex items-stretch gap-3">
                     <div className="relative flex-1">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                         <input
@@ -133,7 +143,7 @@ function BrowseContent() {
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="Search by title, course code, or description..."
-                            className="input pl-12"
+                            className="input pl-12 h-full"
                         />
                     </div>
                     <button type="submit" className="btn btn-primary">
@@ -197,6 +207,13 @@ function BrowseContent() {
                     </div>
                 )}
             </form>
+
+            {/* Search Error */}
+            {searchError && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm animate-fade-in">
+                    ⚠️ {searchError}
+                </div>
+            )}
 
             {/* Results */}
             {loading ? (

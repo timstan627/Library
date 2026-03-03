@@ -1,27 +1,25 @@
 """
-Download Documents (MongoDB)
+Download Model (SQLAlchemy)
 """
+from uuid import uuid4
 from typing import Optional
-from uuid import UUID, uuid4
-from beanie import Document, Link
-from pydantic import Field
+from sqlalchemy import String, DateTime, Text, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.database import Base
 from app.models.base import TimestampMixin
-from app.models.user import User
-from app.models.resource import Resource
 
-class Download(Document, TimestampMixin):
-    """Download log document."""
+
+class Download(Base, TimestampMixin):
+    """Download log record."""
+    __tablename__ = "downloads"
     
-    id: UUID = Field(default_factory=uuid4)
-    user: Optional[Link[User]] = None
-    resource: Link[Resource]
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True, index=True)
+    resource_id: Mapped[str] = mapped_column(String, ForeignKey("resources.id"), nullable=False, index=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
-    class Settings:
-        name = "downloads"
-        indexes = [
-            "created_at",
-            "resource"
-        ]
+    # Relationships
+    user = relationship("User", lazy="selectin")
+    resource = relationship("Resource", lazy="selectin")

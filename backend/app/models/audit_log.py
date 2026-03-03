@@ -1,49 +1,46 @@
 """
-Audit Log Model - Track admin actions for compliance
+Audit Log Model (SQLAlchemy)
 """
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
-from beanie import Document, Link
-from pydantic import Field
-from pymongo import IndexModel, DESCENDING
+from uuid import uuid4
+from typing import Optional
+from sqlalchemy import String, DateTime, Text, ForeignKey, Index
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.user import User
+from app.core.database import Base
 
 
-class AuditLog(Document):
+class AuditLog(Base):
     """Audit trail for administrative actions."""
+    __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_target", "target_type", "target_id"),
+    )
     
-    action: str = Field(..., description="Action performed (e.g., 'promote_user', 'approve_resource')")
-    actor: Link[User] = Field(..., description="User who performed the action")
-    target_type: str = Field(..., description="Type of target entity (e.g., 'user', 'resource')")
-    target_id: str = Field(..., description="ID of the target entity")
-    details: Dict[str, Any] = Field(default_factory=dict, description="Additional action details")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    actor_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False, index=True)
+    target_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    target_id: Mapped[str] = mapped_column(String, nullable=False)
+    details_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
-    # Optional fields for context
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
+    # Relationships
+    actor = relationship("User", lazy="selectin")
     
-    class Settings:
-        name = "audit_logs"
-        indexes = [
-            IndexModel([("timestamp", DESCENDING)]),
-            "actor",
-            "action",
-            IndexModel([("target_type", 1), ("target_id", 1)]),
-        ]
+    @property
+    def details(self) -> dict:
+        import json
+        if self.details_json:
+            try:
+                return json.loads(self.details_json)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "action": "promote_user",
-                "actor": "admin_user_id",
-                "target_type": "user",
-                "target_id": "user_id",
-                "details": {
-                    "old_status": False,
-                    "new_status": True,
-                    "reason": "Consistent high-quality uploads"
-                }
-            }
-        }
+    @details.setter
+    def details(self, value: dict):
+        import json
+        self.details_json = json.dumps(value) if value else None

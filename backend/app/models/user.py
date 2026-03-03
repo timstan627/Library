@@ -1,59 +1,58 @@
 """
-User Documents (MongoDB)
+User Models (SQLAlchemy) — User, Session, APIKey
 """
-from datetime import datetime
-from typing import Optional, List, Annotated
-from uuid import UUID, uuid4
-from beanie import Document, Link
-from pydantic import Field, EmailStr
-from pymongo import IndexModel
+from datetime import datetime, timezone
+from uuid import uuid4
+from typing import Optional, List
+from sqlalchemy import String, Boolean, Integer, BigInteger, DateTime, Text, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.database import Base
 from app.models.base import TimestampMixin
 
-class User(Document, TimestampMixin):
-    """User account document."""
+
+class User(Base, TimestampMixin):
+    """User account."""
+    __tablename__ = "users"
     
     # Identity
-    id: UUID = Field(default_factory=uuid4)
-    email: str = Field(..., description="User email address")
-    email_verified: bool = False
-    password_hash: str
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     
     # Profile
-    display_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    display_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
     # Role & Permissions
-    role: str = "student" # student, moderator, admin
+    role: Mapped[str] = mapped_column(String(20), default="student")  # student, moderator, admin
     
-    # Trusted Contributor Status
-    is_trusted: bool = Field(default=False, description="Auto-approve uploads for trusted users")
-    promoted_at: Optional[datetime] = Field(None, description="When user was promoted to trusted")
-    promoted_by: Optional[str] = Field(None, description="Admin ID who promoted the user")
+    # Trusted Contributor
+    is_trusted: Mapped[bool] = mapped_column(Boolean, default=False)
+    promoted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    promoted_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     
     # MFA
-    mfa_secret: Optional[str] = None
-    mfa_enabled: bool = False
+    mfa_secret: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # Storage
-    storage_quota_bytes: int = 109_951_162_777_600 # 100TB (Unlimited)
-    storage_used_bytes: int = 0
+    storage_quota_bytes: Mapped[int] = mapped_column(BigInteger, default=109_951_162_777_600)  # 100TB
+    storage_used_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
     
     # Status
-    is_active: bool = True
-    is_banned: bool = False
-    ban_reason: Optional[str] = None
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_banned: Mapped[bool] = mapped_column(Boolean, default=False)
+    ban_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Activity
-    last_login_at: Optional[datetime] = None
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
-    class Settings:
-        name = "users"
-        indexes = [
-            IndexModel([("email", 1)], unique=True),
-            "created_at"
-        ]
-        
+    # Relationships
+    sessions = relationship("Session", back_populates="user", lazy="selectin")
+    resources = relationship("Resource", back_populates="uploader", foreign_keys="Resource.uploader_id", lazy="selectin")
+    
     @property
     def is_admin(self) -> bool:
         return self.role == "admin"
@@ -64,7 +63,6 @@ class User(Document, TimestampMixin):
     
     @property
     def can_auto_approve(self) -> bool:
-        """Check if user's uploads should be auto-approved."""
         return self.is_admin or self.is_moderator or self.is_trusted
     
     @property
@@ -78,35 +76,31 @@ class User(Document, TimestampMixin):
         return round((self.storage_used_bytes / self.storage_quota_bytes) * 100, 2)
 
 
-class Session(Document, TimestampMixin):
-    """User session document."""
+class Session(Base, TimestampMixin):
+    """User session."""
+    __tablename__ = "sessions"
     
-    id: UUID = Field(default_factory=uuid4)
-    user: Link[User]
-    refresh_token_hash: str
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    expires_at: datetime
-    is_revoked: bool = False
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False, index=True)
+    refresh_token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     
-    class Settings:
-        name = "sessions"
+    # Relationships
+    user = relationship("User", back_populates="sessions", lazy="selectin")
 
 
-class APIKey(Document, TimestampMixin):
-    """API Key document."""
+class APIKey(Base, TimestampMixin):
+    """API Key."""
+    __tablename__ = "api_keys"
     
-    id: UUID = Field(default_factory=uuid4)
-    user: Link[User]
-    name: str
-    key_hash: str = Field(..., description="Hashed API key")
-    scopes: List[str] = []
-    last_used_at: Optional[datetime] = None
-    expires_at: Optional[datetime] = None
-    is_active: bool = True
-    
-    class Settings:
-        name = "api_keys"
-        indexes = [
-            IndexModel([("key_hash", 1)], unique=True)
-        ]
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    scopes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON list stored as text
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)

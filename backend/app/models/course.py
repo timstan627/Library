@@ -1,48 +1,28 @@
 """
-Course Model - Academic course configuration
+Course Model (SQLAlchemy)
 """
 from datetime import datetime, timezone
+from uuid import uuid4
 from typing import Optional
-from beanie import Document, Link
-from pydantic import Field
-from pymongo import IndexModel, ASCENDING
+from sqlalchemy import String, Boolean, Integer, DateTime, Text, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.department import Department
+from app.core.database import Base
+from app.models.base import TimestampMixin
 
 
-class Course(Document):
+class Course(Base, TimestampMixin):
     """Academic course model linked to departments."""
+    __tablename__ = "courses"
     
-    department: Link[Department] = Field(..., description="Department this course belongs to")
-    name: str = Field(..., min_length=1, max_length=200, description="Course name")
-    code: str = Field(..., min_length=1, max_length=20, description="Course code")
-    description: Optional[str] = Field(None, max_length=1000)
-    semester: Optional[int] = Field(None, ge=1, le=8, description="Recommended semester")
-    credits: Optional[int] = Field(None, ge=1, le=10, description="Course credits")
-    is_active: bool = Field(default=True, description="Whether course is visible in dropdowns")
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    department_id: Mapped[str] = mapped_column(String, ForeignKey("departments.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    semester: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    credits: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     
-    # Metadata
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    
-    class Settings:
-        name = "courses"
-        indexes = [
-            IndexModel([("code", ASCENDING)], unique=True),
-            "department",
-            "is_active",
-            IndexModel([("department", ASCENDING), ("semester", ASCENDING)]),
-        ]
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "department": "department_id",
-                "name": "Data Structures and Algorithms",
-                "code": "CS201",
-                "description": "Introduction to fundamental data structures and algorithms",
-                "semester": 3,
-                "credits": 4,
-                "is_active": True
-            }
-        }
+    # Relationships
+    department = relationship("Department", back_populates="courses", lazy="selectin")

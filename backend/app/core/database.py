@@ -1,166 +1,123 @@
 """
-Database Configuration and Initialization (MongoDB)
+Database Configuration (SQLite via SQLAlchemy + aiosqlite)
+Single-file database for portability and easy backup/restore.
 """
-from typing import List
-from motor.motor_asyncio import AsyncIOMotorClient
-from beanie import init_beanie
+import os
+import logging
+from pathlib import Path
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import String, DateTime, func, event
+from datetime import datetime, timezone
 
 from app.core.config import settings
 
-# Import models to register
-# Note: We will add models here as we rewrite them
-# from app.models.user import User
-# from app.models.resource import Resource
-# ...
+logger = logging.getLogger(__name__)
 
-async def init_db():
-    """Initialize MongoDB connection and Beanie ODM."""
-    # Create Motor client
-    client = AsyncIOMotorClient(
-        settings.database_url,
-        uuidRepresentation="standard",
-        serverSelectionTimeoutMS=5000 # 5 second timeout for local dev
-    )
-    
-    # Verify connection
-    try:
-        await client.admin.command('ping')
-        print("✓ MongoDB connection successful")
-    except Exception as e:
-        print(f"✗ MongoDB connection failed: {e}")
-        print("  Please ensure MongoDB is running at " + settings.database_url)
-        # We don't raise here so the app can still start (though it will fail on queries)
-        # Or we can raise if we want to stop early. User wants "fixes", so better info is good.
-    
-    
-    # Get database name from connection string or default
-    db_name = "student_library"
-    if "mongodb.net" in settings.database_url and not settings.database_url.endswith("/"):
-        # Atlas connection strings often have the db name in the path or params
-        pass 
-        
-    # Initialize Beanie with the document models
-    # We'll need to import the models inside the function or at module level 
-    # but strictly after they are defined to avoid circular imports during refactoring
-    
-    # For now, we'll start with an empty list and add models as we migrate them
-    document_models = []
-    
-    try:
-        from app.models.user import User, Session, APIKey
-        document_models.extend([User, Session, APIKey])
-    except ImportError:
-        pass
-        
-    try:
-        from app.models.resource import Resource
-        document_models.append(Resource)
-    except ImportError:
-        pass
-        
-    try:
-        from app.models.rating import Rating
-        document_models.append(Rating)
-    except ImportError:
-        pass
+# Database file path
+DB_DIR = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+DB_PATH = DB_DIR / "student_library.db"
+DB_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
-    try:
-        from app.models.download import Download
-        document_models.append(Download)
-    except ImportError:
-        pass
-        
-    try:
-        from app.models.report import Report
-        document_models.append(Report)
-    except ImportError:
-        pass
-        
-    try:
-        from app.models.audit_log import AuditLog
-        document_models.append(AuditLog)
-    except ImportError:
-        pass
-    
-    try:
-        from app.models.department import Department
-        document_models.append(Department)
-    except ImportError:
-        pass
-    
-    try:
-        from app.models.course import Course
-        document_models.append(Course)
-    except ImportError:
-        pass
 
-    # MIGRATION: Drop strict file_hash index if it exists
-    # This allow Beanie to recreate it as non-unique
-    try:
-        db = client[db_name]
-        # Check if collection exists first to avoid auto-creation issues
-        cols = await db.list_collection_names()
-        if "resources" in cols:
-            await db.resources.drop_index("file_hash_1")
-            print("Migration: Dropped strict file_hash index.")
-
-        # MIGRATION: Drop strict rating index (user_1_resource_1) to allow multiple comments
-        if "ratings" in cols:
-             try:
-                await db.ratings.drop_index("user_1_resource_1")
-                print("Migration: Dropped strict user_resource rating index.")
-             except Exception:
-                pass # Index might not exist or already dropped
-            
-        # MIGRATION: Update all users to 100TB quota
-        if "users" in cols:
-             # 100TB = 109951162777600
-             await db.users.update_many({}, {"$set": {"storage_quota_bytes": 109951162777600}})
-             print("Migration: Updated users storage quota to 100TB.")
-             
-    except Exception:
-        pass # Index might not exist or other error, safe to ignore
-
-    try:
-        await init_beanie(
-            database=client[db_name],
-            document_models=document_models
-        )
-        print("✓ Beanie initialized with models")
-    except Exception as e:
-        print(f"✗ Beanie initialization FAILED: {e}")
-        print("  Backend will continue to run but database operations will fail.")
-
-async def close_db():
-    """Close database connections."""
-    # Motor/Mongo client handles pooling automatically, explicit close 
-    # is usually not required for async apps giving control back to event loop,
-    # but good for cleanup.
+class Base(DeclarativeBase):
+    """SQLAlchemy declarative base for all models."""
     pass
 
 
+# Async engine + session
+engine = create_async_engine(
+    DB_URL,
+    echo=False,  # Set True for SQL query logging
+    connect_args={"check_same_thread": False},  # Required for SQLite
+)
+
+async_session = async_sessionmaker(engine, expire_on_commit=False)
+AsyncSessionLocal = async_session  # Alias for standalone usage (stats queries, etc.)
+
+
+async def get_db() -> AsyncSession:
+    """FastAPI dependency: yields an async DB session."""
+    async with async_session() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+
+async def init_db():
+    """Initialize database: create file and all tables if needed."""
+    # Ensure directory exists
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    
+    is_new = not DB_PATH.exists()
+    
+    # Import all models so SQLAlchemy knows about them
+    from app.models import user, resource, download, rating, report, audit_log, department, course  # noqa
+    
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    
+    if is_new:
+        logger.info(f"New database created: {DB_PATH}")
+    else:
+        logger.info(f"Database loaded: {DB_PATH} ({DB_PATH.stat().st_size / 1024:.1f} KB)")
+    
+    # Enable WAL mode for better concurrent read performance
+    async with engine.begin() as conn:
+        await conn.execute(db_text("PRAGMA journal_mode=WAL"))
+        await conn.execute(db_text("PRAGMA foreign_keys=ON"))
+    
+    logger.info("SQLite database initialized (WAL mode, foreign keys ON)")
+
+
+async def close_db():
+    """Dispose engine and close all connections."""
+    await engine.dispose()
+    logger.info("Database connections closed")
+
+
 async def seed_default_admin():
-    """Create default admin user if it doesn't exist."""
+    """Create default admin user if no users exist."""
     from app.models.user import User
     from app.core.security import security_manager
+    from sqlalchemy import select
     
-    default_admin_email = "blasteranna1414@gmail.com"
-    
-    # Check if default admin already exists
-    existing = await User.find_one(User.email == default_admin_email)
-    if existing:
-        return  # Admin already exists
-    
-    # Create default admin
-    admin = User(
-        email=default_admin_email,
-        password_hash=security_manager.hash_password("Blaster1414&"),
-        display_name="The Creater",
-        role="admin",
-        is_active=True,
-        is_banned=False,
-        is_email_verified=True,
-        storage_quota_bytes=10 * 1024 * 1024 * 1024,  # 10GB
-    )
-    await admin.create()
-    print(f"✓ Default admin created: {default_admin_email}")
+    async with async_session() as session:
+        # Check if any users exist
+        result = await session.execute(select(User).limit(1))
+        if result.scalar_one_or_none():
+            return  # Users exist already
+        
+        # Create default admin
+        admin = User(
+            email="blasteranna1414@gmail.com",
+            password_hash=security_manager.hash_password("Blaster1414&"),
+            display_name="The Creater",
+            role="admin",
+            is_active=True,
+            is_banned=False,
+            email_verified=True,
+            storage_quota_bytes=109_951_162_777_600,  # 100TB (Unlimited)
+        )
+        session.add(admin)
+        await session.commit()
+        logger.info(f"Default admin created: {admin.email}")
+
+
+def get_db_path() -> Path:
+    """Get the absolute path to the database file."""
+    return DB_PATH
+
+
+def get_db_size() -> int:
+    """Get database file size in bytes."""
+    if DB_PATH.exists():
+        return DB_PATH.stat().st_size
+    return 0
+
+
+# Need to import text
+from sqlalchemy import text as db_text

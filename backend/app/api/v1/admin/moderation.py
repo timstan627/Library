@@ -1,64 +1,62 @@
 """
-Admin API - Content Moderation & Approval Workflow
+Admin API - Content Moderation (SQLAlchemy)
 """
+import json
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from beanie import PydanticObjectId
 from datetime import datetime, timezone
+from sqlalchemy import select, func, and_
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_db
 from app.models.user import User
 from app.models.resource import Resource
-from app.schemas.moderation import (
-    ModerationAction,
-    ResourceModerationStatus
-)
-from app.api.v1.deps import get_current_user, require_admin
+from app.schemas.moderation import ModerationAction, ResourceModerationStatus
+from app.api.v1.deps import require_admin
 from app.models.audit_log import AuditLog
 
-router = APIRouter(prefix="/admin/moderation", tags=["Admin - Moderation"])
+router = APIRouter()
 
 
-@router.get("/pending", response_model=List[ResourceModerationStatus])
+@router.get("/pending")
 async def get_pending_resources(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get all pending resources awaiting moderation."""
-    resources = (
-        await Resource.find(
-            Resource.moderation_status == "pending",
-            Resource.is_deleted == False
-        )
-        .sort("-created_at")
-        .skip((page - 1) * page_size)
-        .limit(page_size)
-        .to_list()
+    base_filter = and_(Resource.moderation_status == "pending", Resource.is_deleted == False)
+    
+    count_result = await db.execute(select(func.count()).select_from(Resource).where(base_filter))
+    total = count_result.scalar()
+    
+    result = await db.execute(
+        select(Resource).where(base_filter)
+        .order_by(Resource.created_at.desc())
+        .offset((page - 1) * page_size).limit(page_size)
     )
+    resources = result.scalars().all()
     
-    result = []
+    # Get uploader names
+    uploader_ids = {r.uploader_id for r in resources if r.uploader_id}
+    user_map = {}
+    if uploader_ids:
+        users_result = await db.execute(select(User).where(User.id.in_(uploader_ids)))
+        user_map = {u.id: u.display_name or "Unknown" for u in users_result.scalars().all()}
+    
+    results = []
     for resource in resources:
-        # Fetch uploader details
-        await resource.fetch_all_links()
-        
-        uploader_name = None
-        uploader_email = None
-        if resource.uploader:
-            uploader_name = resource.uploader.display_name or "Unknown"
-            uploader_email = resource.uploader.email
-        
-        result.append(
-            ResourceModerationStatus(
-                resource_id=str(resource.id),
-                title=resource.title,
-                status=resource.moderation_status,
-                uploader_name=uploader_name,
-                uploader_email=uploader_email,
-                uploaded_at=resource.created_at,
-            )
-        )
+        results.append({
+            "id": str(resource.id), "title": resource.title, "slug": resource.slug,
+            "course_code": resource.course_code,
+            "department_name": None,
+            "uploader_name": user_map.get(resource.uploader_id),
+            "file_size": resource.file_size,
+            "created_at": resource.created_at.isoformat() if resource.created_at else None,
+        })
     
-    return result
+    return {"results": results, "total": total}
 
 
 @router.post("/{resource_id}/moderate")
@@ -66,79 +64,63 @@ async def moderate_resource(
     resource_id: str,
     action: ModerationAction,
     current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
     """Approve or reject a resource."""
-    try:
-        obj_id = PydanticObjectId(resource_id)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid resource ID")
-    
-    resource = await Resource.get(obj_id)
+    result = await db.execute(select(Resource).where(Resource.id == resource_id))
+    resource = result.scalar_one_or_none()
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
     if resource.moderation_status != "pending":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Resource is already {resource.moderation_status}"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Resource is already {resource.moderation_status}")
     
-    # Validate action
     if action.action not in ["approve", "reject"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Action must be 'approve' or 'reject'"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Action must be 'approve' or 'reject'")
     
-    # Perform action
     if action.action == "approve":
         resource.moderation_status = "approved"
-        resource.moderated_by = current_user
+        resource.moderated_by_id = current_user.id
         resource.moderated_at = datetime.now(timezone.utc)
         audit_action = "approve_resource"
-        
-    else:  # reject
+    else:
         if not action.rejection_reason:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Rejection reason is required"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Rejection reason is required")
         resource.moderation_status = "rejected"
-        resource.moderated_by = current_user
+        resource.moderated_by_id = current_user.id
         resource.moderated_at = datetime.now(timezone.utc)
         resource.rejection_reason = action.rejection_reason
         audit_action = "reject_resource"
     
-    await resource.save()
-    
     # Audit log
     audit = AuditLog(
-        action=audit_action,
-        actor=current_user,
-        target_type="resource",
-        target_id=resource_id,
-        details={
-            "title": resource.title,
-            "action": action.action,
-            "rejection_reason": action.rejection_reason if action.action == "reject" else None
-        }
+        action=audit_action, actor_id=current_user.id, target_type="resource", target_id=resource_id,
+        details_json=json.dumps({"title": resource.title, "action": action.action,
+                                "rejection_reason": action.rejection_reason if action.action == "reject" else None})
     )
-    await audit.create()
+    db.add(audit)
+    await db.flush()
     
-    # Fetch uploader for response
-    await resource.fetch_all_links()
-    uploader_name = resource.uploader.display_name if resource.uploader else None
-    uploader_email = resource.uploader.email if resource.uploader else None
+    # Invalidate cached stats
+    from app.services.cache import cache_service
+    cache_service.invalidate_on_moderation()
+    
+    # Get uploader info
+    uploader_name = None
+    uploader_email = None
+    if resource.uploader_id:
+        up_result = await db.execute(select(User).where(User.id == resource.uploader_id))
+        uploader = up_result.scalar_one_or_none()
+        if uploader:
+            uploader_name = uploader.display_name
+            uploader_email = uploader.email
     
     return ResourceModerationStatus(
-        resource_id=str(resource.id),
-        title=resource.title,
+        resource_id=str(resource.id), title=resource.title,
         status=resource.moderation_status,
-        uploader_name=uploader_name,
-        uploader_email=uploader_email,
+        uploader_name=uploader_name, uploader_email=uploader_email,
         uploaded_at=resource.created_at,
-        moderated_by=str(current_user.id),
-        moderated_at=resource.moderated_at,
+        moderated_by=str(current_user.id), moderated_at=resource.moderated_at,
         rejection_reason=resource.rejection_reason,
     )
 
@@ -149,72 +131,64 @@ async def get_moderation_history(
     page_size: int = Query(50, ge=1, le=200),
     status_filter: str = Query(None, pattern="^(approved|rejected)$"),
     current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Get moderation history (approved/rejected resources)."""
-    query = {
-        "moderation_status": {"$in": ["approved", "rejected"]},
-        "is_deleted": False
-    }
-    
+    """Get moderation history."""
+    filters = [Resource.moderation_status.in_(["approved", "rejected"]), Resource.is_deleted == False]
     if status_filter:
-        query["moderation_status"] = status_filter
+        filters = [Resource.moderation_status == status_filter, Resource.is_deleted == False]
     
-    resources = (
-        await Resource.find(query)
-        .sort("-moderated_at")
-        .skip((page - 1) * page_size)
-        .limit(page_size)
-        .to_list()
+    result = await db.execute(
+        select(Resource).where(and_(*filters))
+        .order_by(Resource.moderated_at.desc())
+        .offset((page - 1) * page_size).limit(page_size)
     )
+    resources = result.scalars().all()
     
-    result = []
+    # Batch fetch users
+    user_ids = set()
+    for r in resources:
+        if r.uploader_id: user_ids.add(r.uploader_id)
+        if r.moderated_by_id: user_ids.add(r.moderated_by_id)
+    
+    user_map = {}
+    if user_ids:
+        users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+        user_map = {u.id: u for u in users_result.scalars().all()}
+    
+    results = []
     for resource in resources:
-        await resource.fetch_all_links()
-        
-        uploader_name = resource.uploader.display_name if resource.uploader else None
-        uploader_email = resource.uploader.email if resource.uploader else None
-        moderated_by_id = str(resource.moderated_by.id) if resource.moderated_by else None
-        
-        result.append(
-            ResourceModerationStatus(
-                resource_id=str(resource.id),
-                title=resource.title,
-                status=resource.moderation_status,
-                uploader_name=uploader_name,
-                uploader_email=uploader_email,
-                uploaded_at=resource.created_at,
-                moderated_by=moderated_by_id,
-                moderated_at=resource.moderated_at,
-                rejection_reason=resource.rejection_reason,
-            )
-        )
+        uploader = user_map.get(resource.uploader_id)
+        results.append(ResourceModerationStatus(
+            resource_id=str(resource.id), title=resource.title,
+            status=resource.moderation_status,
+            uploader_name=uploader.display_name if uploader else None,
+            uploader_email=uploader.email if uploader else None,
+            uploaded_at=resource.created_at,
+            moderated_by=resource.moderated_by_id,
+            moderated_at=resource.moderated_at,
+            rejection_reason=resource.rejection_reason,
+        ))
     
-    return result
+    return results
 
 
 @router.get("/stats")
 async def get_moderation_stats(
     current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Get moderation statistics."""
-    pending_count = await Resource.find(
-        Resource.moderation_status == "pending",
-        Resource.is_deleted == False
-    ).count()
+    """Get moderation statistics (served from StatsEngine cache)."""
+    from app.services.cache import cache_service
     
-    approved_count = await Resource.find(
-        Resource.moderation_status == "approved",
-        Resource.is_deleted == False
-    ).count()
+    data = await cache_service.get_stats("moderation_stats")
+    if data:
+        return data
     
-    rejected_count = await Resource.find(
-        Resource.moderation_status == "rejected",
-        Resource.is_deleted == False
-    ).count()
+    # Fallback
+    base = and_(Resource.is_deleted == False)
+    pending = (await db.execute(select(func.count()).select_from(Resource).where(base, Resource.moderation_status == "pending"))).scalar()
+    approved = (await db.execute(select(func.count()).select_from(Resource).where(base, Resource.moderation_status == "approved"))).scalar()
+    rejected = (await db.execute(select(func.count()).select_from(Resource).where(base, Resource.moderation_status == "rejected"))).scalar()
     
-    return {
-        "pending": pending_count,
-        "approved": approved_count,
-        "rejected": rejected_count,
-        "total": pending_count + approved_count + rejected_count
-    }
+    return {"pending": pending, "approved": approved, "rejected": rejected, "total": pending + approved + rejected}

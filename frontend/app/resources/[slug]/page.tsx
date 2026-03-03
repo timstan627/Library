@@ -59,6 +59,7 @@ export default function ResourceDetailPage() {
     const [ratings, setRatings] = useState<Rating[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+    const [actionError, setActionError] = useState('')
     const [downloading, setDownloading] = useState(false)
     const [downloadProgress, setDownloadProgress] = useState(0)
     const [password, setPassword] = useState('')
@@ -129,7 +130,8 @@ export default function ResourceDetailPage() {
             setResource(prev => prev ? { ...prev, views: prev.views + 1 } : null)
         } catch (err: any) {
             console.error('Preview failed:', err)
-            alert('Preview failed. ' + (err.response?.data?.detail || ''))
+            setActionError('Preview failed: ' + (err.response?.data?.detail || 'Unknown error'))
+            setTimeout(() => setActionError(''), 5000)
         } finally {
             setPreviewing(false)
         }
@@ -174,7 +176,8 @@ export default function ResourceDetailPage() {
         } catch (err: any) {
             console.error('Download failed:', err)
             const errorMessage = err.response?.data?.detail || err.message || 'Download failed'
-            alert(`Download failed: ${errorMessage}\n\nPlease check backend logs if this persists.`)
+            setActionError(`Download failed: ${errorMessage}`)
+            setTimeout(() => setActionError(''), 5000)
         } finally {
             setDownloading(false)
             setShowPasswordPrompt(false)
@@ -192,7 +195,6 @@ export default function ResourceDetailPage() {
         try {
             await apiHelpers.createRating(resource.id, {
                 value: userRating,
-                // Do not send review to preserve existing review if any
             })
 
             // Update stats
@@ -246,9 +248,24 @@ export default function ResourceDetailPage() {
         })
     }
 
-    const handleShare = () => {
-        navigator.clipboard.writeText(window.location.href)
-        alert('Link copied to clipboard!')
+    const [copied, setCopied] = useState(false)
+
+    const handleShare = async () => {
+        try {
+            await navigator.clipboard.writeText(window.location.href)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        } catch {
+            // Fallback for older browsers
+            const input = document.createElement('input')
+            input.value = window.location.href
+            document.body.appendChild(input)
+            input.select()
+            document.execCommand('copy')
+            document.body.removeChild(input)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        }
     }
 
     if (loading) {
@@ -284,7 +301,7 @@ export default function ResourceDetailPage() {
             </div>
 
             <div className="grid lg:grid-cols-3 gap-8">
-                {/* Main Content */}
+                {/* Left Column - Main Content + Reviews */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Header */}
                     <div className="card p-6">
@@ -364,7 +381,7 @@ export default function ResourceDetailPage() {
                         {isAuthenticated ? (
                             <div className="mb-8 space-y-6">
                                 {/* Star Rating Section */}
-                                < div className="bg-background-tertiary p-4 rounded-lg" >
+                                <div className="bg-background-tertiary p-4 rounded-lg">
                                     <h3 className="font-semibold text-text-primary mb-2">Rate this Resource</h3>
                                     <div className="flex items-center gap-2">
                                         <div className="flex gap-1">
@@ -475,8 +492,16 @@ export default function ResourceDetailPage() {
                     </div>
                 </div>
 
-                {/* Sidebar */}
-                <div className="space-y-6">
+                {/* Right Sidebar - Download + File Info (sticky at top) */}
+                <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+                    {/* Action Error Banner */}
+                    {actionError && (
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm animate-fade-in flex items-start gap-2">
+                            <span className="shrink-0 mt-0.5">⚠️</span>
+                            <span>{actionError}</span>
+                        </div>
+                    )}
+
                     {/* Download Card */}
                     <div className="card p-6">
                         <div className="text-center mb-4">
@@ -553,15 +578,23 @@ export default function ResourceDetailPage() {
                             </button>
                         )}
 
-
                         {/* Secondary Actions */}
                         <div className="flex gap-2 mt-4 pt-4 border-t border-border-subtle">
                             <button
                                 onClick={handleShare}
-                                className="btn btn-secondary flex-1 text-sm bg-background-tertiary hover:bg-background-secondary border-transparent"
+                                className={`btn btn-secondary flex-1 text-sm border-transparent transition-all ${copied ? 'bg-green-500/20 text-green-400' : 'bg-background-tertiary hover:bg-background-secondary'}`}
                             >
-                                <Share2 className="w-4 h-4 mr-2" />
-                                Share
+                                {copied ? (
+                                    <>
+                                        <CheckCircle className="w-4 h-4 mr-2" />
+                                        Copied!
+                                    </>
+                                ) : (
+                                    <>
+                                        <Share2 className="w-4 h-4 mr-2" />
+                                        Share
+                                    </>
+                                )}
                             </button>
                             <Link
                                 href={`/report/${resource.id}`}
@@ -571,8 +604,6 @@ export default function ResourceDetailPage() {
                                 Report
                             </Link>
                         </div>
-
-
                     </div>
 
                     {/* File Info */}
@@ -604,53 +635,52 @@ export default function ResourceDetailPage() {
                         </div>
                     </div>
                 </div>
-            </div >
-            {/* Preview Modal */}
-            {
-                showPreviewModal && previewUrl && resource && (
-                    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 animate-fade-in">
-                        <div className="bg-white dark:bg-gray-900 w-full h-full max-w-6xl rounded-lg flex flex-col overflow-hidden shadow-2xl">
-                            {/* Modal Header */}
-                            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950">
-                                <h3 className="font-semibold text-lg truncate flex-1 pr-4">{resource.title}</h3>
-                                <div className="flex items-center gap-2">
-                                    <a
-                                        href={previewUrl}
-                                        download={resource.file_name}
-                                        className="btn btn-sm btn-ghost"
-                                        title="Download"
-                                    >
-                                        <Download className="w-4 h-4" />
-                                    </a>
-                                    <button
-                                        onClick={() => setShowPreviewModal(false)}
-                                        className="btn btn-sm btn-ghost hover:bg-red-500/10 hover:text-red-500"
-                                    >
-                                        <X className="w-5 h-5" />
-                                    </button>
-                                </div>
-                            </div>
+            </div>
 
-                            {/* Modal Content */}
-                            <div className="flex-1 bg-gray-100 dark:bg-gray-950 overflow-auto flex items-center justify-center p-4">
-                                {resource.mime_type === 'application/pdf' ? (
-                                    <iframe
-                                        src={previewUrl}
-                                        className="w-full h-full min-h-[500px] border-0 rounded bg-white"
-                                        title="PDF Preview"
-                                    />
-                                ) : (
-                                    <img
-                                        src={previewUrl}
-                                        alt="Preview"
-                                        className="max-w-full max-h-full object-contain rounded shadow-lg"
-                                    />
-                                )}
+            {/* Preview Modal */}
+            {showPreviewModal && previewUrl && resource && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white dark:bg-gray-900 w-full h-full max-w-6xl rounded-lg flex flex-col overflow-hidden shadow-2xl">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950">
+                            <h3 className="font-semibold text-lg truncate flex-1 pr-4">{resource.title}</h3>
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href={previewUrl}
+                                    download={resource.file_name}
+                                    className="btn btn-sm btn-ghost"
+                                    title="Download"
+                                >
+                                    <Download className="w-4 h-4" />
+                                </a>
+                                <button
+                                    onClick={() => setShowPreviewModal(false)}
+                                    className="btn btn-sm btn-ghost hover:bg-red-500/10 hover:text-red-500"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
                             </div>
                         </div>
+
+                        {/* Modal Content */}
+                        <div className="flex-1 bg-gray-100 dark:bg-gray-950 overflow-auto flex items-center justify-center p-4">
+                            {resource.mime_type === 'application/pdf' ? (
+                                <iframe
+                                    src={previewUrl}
+                                    className="w-full h-full min-h-[500px] border-0 rounded bg-white"
+                                    title="PDF Preview"
+                                />
+                            ) : (
+                                <img
+                                    src={previewUrl}
+                                    alt="Preview"
+                                    className="max-w-full max-h-full object-contain rounded shadow-lg"
+                                />
+                            )}
+                        </div>
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     )
 }

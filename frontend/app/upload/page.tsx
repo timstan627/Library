@@ -555,7 +555,7 @@ export default function UploadPage() {
                                 {user.role === 'admin' ? (
                                     'Unlimited storage (Admin)'
                                 ) : (
-                                    `Storage: ${Math.round(user.storage_used_bytes / (1024 * 1024))}MB / ${Math.round(user.storage_quota_bytes / (1024 * 1024))}MB`
+                                    `Storage: ${Math.round(user.storage_used_bytes / (1024 * 1024))} MB / ${user.storage_quota_bytes > 100 * 1024 * 1024 * 1024 ? 'Unlimited' : `${Math.round(user.storage_quota_bytes / (1024 * 1024))} MB`}`
                                 )}
                             </p>
                         )}

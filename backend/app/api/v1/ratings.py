@@ -1,45 +1,50 @@
 """
-Ratings API Routes
+Ratings API Routes (SQLAlchemy)
 """
-import uuid
-from typing import Optional, List
+import logging
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import select, func, and_
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_db
 from app.models.user import User
 from app.models.resource import Resource
 from app.models.rating import Rating
 from app.schemas.rating import RatingCreate, RatingResponse
 from app.api.v1.deps import get_current_active_user
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
 @router.post("/resources/{resource_id}", response_model=RatingResponse)
 async def create_or_update_rating(
-    resource_id: uuid.UUID,
+    resource_id: str,
     data: RatingCreate,
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Create or update a rating for a resource."""
-    resource = await Resource.find_one(Resource.id == resource_id, Resource.is_deleted == False)
+    result = await db.execute(
+        select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
+    )
+    resource = result.scalar_one_or_none()
     
     if not resource:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resource not found",
-        )
-    
-    # Logic for handling Ratings vs Comments
-    # If value > 0:Treat as a STAR RATING (Update existing star rating or create new)
-    # If value == 0: Treat as a COMMENT (Always create new, multiple allowed)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
     if data.value > 0:
         # STAR RATING: Check if user already rated with stars
-        existing_rating = await Rating.find_one(
-            Rating.user.id == current_user.id,
-            Rating.resource.id == resource_id,
-            Rating.value > 0
+        existing_result = await db.execute(
+            select(Rating).where(
+                Rating.user_id == current_user.id,
+                Rating.resource_id == resource_id,
+                Rating.value > 0,
+            )
         )
+        existing_rating = existing_result.scalar_one_or_none()
         
         if existing_rating:
             # Update existing star rating
@@ -48,90 +53,85 @@ async def create_or_update_rating(
             if data.review is not None:
                 existing_rating.review = data.review
             
-            # Update resource aggregates
             resource.rating_sum = resource.rating_sum - old_value + data.value
-            
-            await existing_rating.save()
-            await resource.save()
+            await db.flush()
             return existing_rating
-            
         else:
             # Create NEW star rating
             rating = Rating(
-                user=current_user,
-                resource=resource,
+                user_id=current_user.id,
+                resource_id=resource.id,
                 value=data.value,
                 review=data.review,
             )
-            await rating.create()
+            db.add(rating)
             
-            # Update resource aggregates
             resource.rating_sum += data.value
             resource.rating_count += 1
-            await resource.save()
+            await db.flush()
+            await db.refresh(rating)
             return rating
-
     else:
         # COMMENT ONLY (value == 0)
-        # Always create new
         rating = Rating(
-            user=current_user,
-            resource=resource,
+            user_id=current_user.id,
+            resource_id=resource.id,
             value=0,
-            review=data.review or "", # Ensure review text exists
+            review=data.review or "",
         )
-        await rating.create()
+        db.add(rating)
+        await db.flush()
+        await db.refresh(rating)
         return rating
 
 
 @router.get("/resources/{resource_id}")
 async def get_resource_ratings(
-    resource_id: uuid.UUID,
+    resource_id: str,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get ratings for a resource."""
-    resource = await Resource.find_one(Resource.id == resource_id, Resource.is_deleted == False)
+    result = await db.execute(
+        select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
+    )
+    resource = result.scalar_one_or_none()
     
     if not resource:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resource not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
-    # Get ratings
-    query = Rating.find(Rating.resource.id == resource_id).sort("-created_at")
+    # Count
+    count_result = await db.execute(
+        select(func.count()).select_from(Rating).where(Rating.resource_id == resource_id)
+    )
+    total = count_result.scalar()
     
-    total = await query.count()
-    ratings = await query.skip((page - 1) * size).limit(size).to_list()
+    # Fetch ratings
+    ratings_result = await db.execute(
+        select(Rating)
+        .where(Rating.resource_id == resource_id)
+        .order_by(Rating.created_at.desc())
+        .offset((page - 1) * size)
+        .limit(size)
+    )
+    ratings = ratings_result.scalars().all()
     
-    # Safely fetch user details
-    from beanie.operators import In
-    
-    user_ids = []
-    for r in ratings:
-        # Handle Beanie Link id access
-        u_id = r.user.ref.id if hasattr(r.user, "ref") else r.user.id
-        user_ids.append(u_id)
-    
-    # Fetch users in one query
-    try:
-        users = await User.find(In(User.id, user_ids)).to_list()
+    # Get user info
+    user_ids = [r.user_id for r in ratings]
+    user_map = {}
+    if user_ids:
+        users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+        users = users_result.scalars().all()
         user_map = {u.id: (u.display_name or u.email.split('@')[0]) for u in users}
-    except Exception as e:
-        print(f"Error fetching users for ratings: {e}")
-        user_map = {}
     
-    # Convert to response objects with names
+    # Build response
     results = []
     for r in ratings:
-        # Convert Document to Schema
         res = RatingResponse.model_validate(r, from_attributes=True)
-        # Inject name
-        u_id = r.user.ref.id if hasattr(r.user, "ref") else r.user.id
-        res.user_name = user_map.get(u_id, "Anonymous")
+        res.user_name = user_map.get(r.user_id, "Anonymous")
         results.append(res)
-
+    
     pages = (total + size - 1) // size if total > 0 else 0
     
     return {
@@ -146,33 +146,31 @@ async def get_resource_ratings(
 
 @router.delete("/resources/{resource_id}")
 async def delete_rating(
-    resource_id: uuid.UUID,
+    resource_id: str,
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Delete user's rating for a resource."""
-    # Find rating
-    rating = await Rating.find_one(
-        Rating.user.id == current_user.id,
-        Rating.resource.id == resource_id
+    result = await db.execute(
+        select(Rating).where(
+            Rating.user_id == current_user.id,
+            Rating.resource_id == resource_id,
+        )
     )
+    rating = result.scalar_one_or_none()
     
     if not rating:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Rating not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rating not found")
     
     # Update resource aggregates
-    # Get resource (or fetch from Link if rating loaded it? Beanie links are lazy by default)
-    # We'll fetch from DB to be safe/update it.
-    resource = await Resource.find_one(Resource.id == resource_id)
+    res_result = await db.execute(select(Resource).where(Resource.id == resource_id))
+    resource = res_result.scalar_one_or_none()
     
     if resource:
         resource.rating_sum -= rating.value
         resource.rating_count = max(0, resource.rating_count - 1)
-        await resource.save()
     
-    # Delete rating
-    await rating.delete()
+    await db.delete(rating)
+    await db.flush()
     
     return {"message": "Rating deleted successfully"}

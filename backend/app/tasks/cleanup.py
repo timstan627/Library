@@ -1,37 +1,42 @@
 """
-Cleanup Tasks
+Cleanup Tasks (SQLAlchemy)
 """
-import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
+from sqlalchemy import select, delete as sql_delete
 
+from app.core.database import AsyncSessionLocal
 from app.models.user import Session
 from app.models.resource import Resource
 
 logger = logging.getLogger(__name__)
 
+
 async def cleanup_expired_sessions():
     """Remove expired and revoked sessions."""
     logger.info("Starting session cleanup...")
     try:
-        # Delete expired sessions
-        result = await Session.find(
-            Session.expires_at < datetime.now(timezone.utc)
-        ).delete()
-        
-        logger.info(f"Deleted {result.deleted_count} expired sessions")
-        
-        # Delete revoked sessions older than 7 days
-        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-        result = await Session.find(
-            Session.is_revoked == True,
-            Session.created_at < week_ago
-        ).delete()
-        
-        logger.info(f"Deleted {result.deleted_count} old revoked sessions")
+        async with AsyncSessionLocal() as db:
+            # Delete expired sessions
+            result = await db.execute(
+                sql_delete(Session).where(Session.expires_at < datetime.now(timezone.utc))
+            )
+            expired_count = result.rowcount
+            logger.info(f"Deleted {expired_count} expired sessions")
+            
+            # Delete revoked sessions older than 7 days
+            week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+            result = await db.execute(
+                sql_delete(Session).where(Session.is_revoked == True, Session.created_at < week_ago)
+            )
+            revoked_count = result.rowcount
+            logger.info(f"Deleted {revoked_count} old revoked sessions")
+            
+            await db.commit()
         
     except Exception as e:
         logger.error(f"Error during session cleanup: {e}")
+
 
 async def cleanup_soft_deleted_resources():
     """Permanently delete resources soft-deleted more than 30 days ago."""
@@ -39,23 +44,15 @@ async def cleanup_soft_deleted_resources():
     try:
         month_ago = datetime.now(timezone.utc) - timedelta(days=30)
         
-        # Find resources to delete
-        resources = await Resource.find(
-            Resource.is_deleted == True,
-            Resource.deleted_at < month_ago
-        ).to_list()
-        
-        count = 0
-        for resource in resources:
-            # Here we should also delete from Telegram if not already done
-            # But normally soft-delete keeps them. Permanent delete is explicit.
-            # If we auto-clean, we should purge.
-            
-            # Use telegram service to delete files...
-            # skipping service import to avoid circular dep for now
-            
-            await resource.delete()
-            count += 1
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                sql_delete(Resource).where(
+                    Resource.is_deleted == True,
+                    Resource.deleted_at < month_ago,
+                )
+            )
+            count = result.rowcount
+            await db.commit()
             
         logger.info(f"Permanently deleted {count} old soft-deleted resources")
         

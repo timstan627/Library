@@ -98,16 +98,16 @@ export default function ProfilePage() {
             <div className="max-w-4xl mx-auto">
                 {/* Header */}
                 <div className="card p-6 mb-6">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 bg-accent-primary/10 rounded-full flex items-center justify-center">
+                            <div className="w-16 h-16 bg-accent-primary/10 rounded-full flex-shrink-0 flex items-center justify-center">
                                 <User className="w-8 h-8 text-accent-primary" />
                             </div>
-                            <div>
-                                <h1 className="text-2xl font-bold text-text-primary">
+                            <div className="min-w-0">
+                                <h1 className="text-2xl font-bold text-text-primary truncate">
                                     {user?.display_name || user?.email?.split('@')[0]}
                                 </h1>
-                                <p className="text-text-secondary">{user?.email}</p>
+                                <p className="text-text-secondary text-sm truncate">{user?.email}</p>
                                 <div className="flex items-center gap-2 mt-1">
                                     <span className="badge badge-primary text-xs capitalize">{user?.role}</span>
                                     {user?.mfa_enabled && (
@@ -119,22 +119,22 @@ export default function ProfilePage() {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2 sm:flex-nowrap">
                             {user?.role === 'admin' && (
                                 <Link
                                     href="/admin"
-                                    className="btn bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:opacity-90 flex items-center shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
+                                    className="btn bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:opacity-90 flex items-center shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 text-sm"
                                 >
-                                    <Shield className="w-4 h-4 mr-2" />
-                                    Admin Panel
+                                    <Shield className="w-4 h-4 mr-1.5" />
+                                    Admin
                                 </Link>
                             )}
-                            <Link href="/settings" className="btn btn-secondary">
-                                <Settings className="w-4 h-4 mr-2" />
+                            <Link href="/settings" className="btn btn-secondary text-sm">
+                                <Settings className="w-4 h-4 mr-1.5" />
                                 Settings
                             </Link>
-                            <button onClick={handleLogout} className="btn btn-ghost text-red-500">
-                                <LogOut className="w-4 h-4 mr-2" />
+                            <button onClick={handleLogout} className="btn btn-ghost text-red-500 text-sm">
+                                <LogOut className="w-4 h-4 mr-1.5" />
                                 Logout
                             </button>
                         </div>
@@ -144,38 +144,38 @@ export default function ProfilePage() {
                 <div className="grid md:grid-cols-3 gap-6 mb-6">
                     {/* Storage */}
                     <div className="card p-6">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 bg-accent-primary/10 rounded-lg flex items-center justify-center">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 bg-accent-primary/10 rounded-lg flex-shrink-0 flex items-center justify-center">
                                 <HardDrive className="w-5 h-5 text-accent-primary" />
                             </div>
-                            {storage ? (
-                                <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-text-secondary">Storage Used</span>
-                                        <span className="font-medium text-text-primary">
-                                            {(storage.used_mb || 0).toFixed(1)} MB / {(storage.quota_mb || 100 * 1024).toFixed(0)} MB
-                                        </span>
-                                    </div>
-                                    <div className="w-full h-2 bg-background-tertiary rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-accent-primary rounded-full transition-all duration-500"
-                                            style={{ width: `${storage.usage_percent || 0}%` }}
-                                        />
-                                    </div>
-                                    <p className="text-xs text-green-500 mt-2 flex items-center">
-                                        <Shield className="w-3 h-3 mr-1" />
-                                        {(storage.quota_mb || 0) > 100000 ? 'Unlimited Storage' : 'Standard Storage'}
-                                    </p>
-                                </div>
-                            ) : (
-                                <div>
-                                    <p className="text-text-secondary text-sm">Storage Used</p>
-                                    <p className="text-text-primary font-semibold">
-                                        {user?.storage_used_bytes ? (user.storage_used_bytes / (1024 * 1024)).toFixed(1) : '0.0'} MB / ...
-                                    </p>
-                                </div>
-                            )}
+                            <p className="text-text-secondary text-sm font-medium">Storage Used</p>
                         </div>
+                        {storage ? (
+                            <div>
+                                <p className="text-2xl font-bold text-text-primary mb-2">
+                                    {(storage.used_mb || 0).toFixed(1)} MB
+                                    <span className="text-sm font-normal text-text-muted ml-1">
+                                        / {(storage.quota_mb || 0) > 100000 ? 'Unlimited' : `${(storage.quota_mb || 0).toFixed(0)} MB`}
+                                    </span>
+                                </p>
+                                <div className="w-full h-2 bg-background-tertiary rounded-full overflow-hidden mb-2">
+                                    <div
+                                        className="h-full bg-accent-primary rounded-full transition-all duration-500"
+                                        style={{ width: `${Math.min(storage.usage_percent || 0, 100)}%` }}
+                                    />
+                                </div>
+                                <p className="text-xs text-green-500 flex items-center">
+                                    <Shield className="w-3 h-3 mr-1" />
+                                    {(storage.quota_mb || 0) > 100000 ? 'Unlimited Storage' : 'Standard Storage'}
+                                </p>
+                            </div>
+                        ) : (
+                            <div>
+                                <p className="text-2xl font-bold text-text-primary">
+                                    {user?.storage_used_bytes ? (user.storage_used_bytes / (1024 * 1024)).toFixed(1) : '0.0'} MB
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Uploads */}

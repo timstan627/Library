@@ -103,20 +103,26 @@ class TelegramStorageService:
                 
                 # Import here to avoid circular dependencies
                 from app.models.resource import Resource
+                from app.core.database import AsyncSessionLocal
+                from sqlalchemy import select, or_
                 
-                # Search in DB
-                regex = {"$regex": query, "$options": "i"}
-                resources = await Resource.find(
-                    {
-                        "$or": [
-                            {"title": regex},
-                            {"course_code": regex},
-                            {"tags": regex}
-                        ],
-                        "is_deleted": False,
-                        "visibility": "public"  # Only public resources via bot
-                    }
-                ).limit(5).to_list()
+                # Search in DB (SQLAlchemy)
+                q_like = f"%{query}%"
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(Resource)
+                        .where(
+                            Resource.is_deleted == False,
+                            Resource.visibility == "public",
+                            or_(
+                                Resource.title.ilike(q_like),
+                                Resource.course_code.ilike(q_like),
+                                Resource.tags_str.ilike(q_like),
+                            ),
+                        )
+                        .limit(5)
+                    )
+                    resources = result.scalars().all()
                 
                 if not resources:
                     await message.reply_text("❌ No resources found.")
@@ -147,9 +153,16 @@ class TelegramStorageService:
                 
                 message_id = int(msg_id_str)
                 
-                # Find resource to get full details (optional, but good for caption)
+                # Find resource to get full details
                 from app.models.resource import Resource
-                resource = await Resource.find_one(Resource.telegram_message_id == message_id)
+                from app.core.database import AsyncSessionLocal
+                from sqlalchemy import select
+                
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(Resource).where(Resource.telegram_message_id == message_id)
+                    )
+                    resource = result.scalar_one_or_none()
                 
                 caption = ""
                 if resource:

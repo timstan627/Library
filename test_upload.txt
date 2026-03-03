@@ -1,0 +1,14 @@
+This is a test document for the Student Library upload workflow.
+
+Chapter 1: Introduction to Data Structures
+Data structures are ways of organizing data in a computer so it can be used efficiently.
+
+Chapter 2: Arrays and Linked Lists
+Arrays store elements in contiguous memory locations.
+Linked lists store elements in nodes connected by pointers.
+
+Chapter 3: Trees and Graphs
+Binary trees have at most two children per node.
+Graphs consist of vertices connected by edges.
+
+This document is approximately 500 bytes for testing file size calculations.

@@ -12,13 +12,7 @@ from app.api.v1.admin import router as admin_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.password_reset import router as password_reset_router
 
-# New: Department/Course public & admin APIs
-from app.api.v1.departments import router as departments_router
-from app.api.v1.courses import router as courses_router
-from app.api.v1.admin.departments import router as admin_departments_router
-from app.api.v1.admin.courses import router as admin_courses_router
-from app.api.v1.admin.moderation import router as moderation_router
-from app.api.v1.admin.users import router as admin_users_router
+
 
 api_router = APIRouter()
 
@@ -32,12 +26,10 @@ api_router.include_router(ratings_router, prefix="/ratings", tags=["Ratings"])
 api_router.include_router(reports_router, prefix="/reports", tags=["Reports"])
 api_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
 
-# Public APIs (for forms)
+# Public APIs (for forms/dropdowns)
+from app.api.v1.departments import router as departments_router
+from app.api.v1.courses import router as courses_router
 api_router.include_router(departments_router, tags=["Departments"])
 api_router.include_router(courses_router, tags=["Courses"])
 
-# Admin APIs (production-grade features)
-api_router.include_router(admin_departments_router, tags=["Admin - Departments"])
-api_router.include_router(admin_courses_router, tags=["Admin - Courses"])  
-api_router.include_router(moderation_router, tags=["Admin - Moderation"])
-api_router.include_router(admin_users_router, tags=["Admin - User Management"])
+# Admin APIs are already included via admin_router, no need to double-mount

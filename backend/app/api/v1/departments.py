@@ -1,10 +1,12 @@
 """
-Public API - Departments (for dropdowns in upload forms)
+Public API - Departments (SQLAlchemy)
 """
 from typing import List
-from fastapi import APIRouter
-from beanie import PydanticObjectId
+from fastapi import APIRouter, HTTPException, status, Depends
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_db
 from app.models.department import Department
 from app.schemas.department import DepartmentResponse
 
@@ -12,38 +14,39 @@ router = APIRouter(prefix="/departments", tags=["Departments"])
 
 
 @router.get("", response_model=List[DepartmentResponse])
-async def list_active_departments():
+async def list_active_departments(
+    db: AsyncSession = Depends(get_db),
+):
     """List all active departments (public endpoint for forms)."""
-    departments = (
-        await Department.find(Department.is_active == True)
-        .sort("+display_order", "+name")
-        .to_list()
+    result = await db.execute(
+        select(Department)
+        .where(Department.is_active == True)
+        .order_by(Department.display_order, Department.name)
     )
+    departments = result.scalars().all()
     
     return [
-        DepartmentResponse(**dept.model_dump(exclude={"id"}), id=str(dept.id))
+        DepartmentResponse(id=str(dept.id), name=dept.name, code=dept.code,
+                          description=dept.description, is_active=dept.is_active,
+                          display_order=dept.display_order,
+                          created_at=dept.created_at, updated_at=dept.updated_at)
         for dept in departments
     ]
 
 
 @router.get("/{id}", response_model=DepartmentResponse)
-async def get_department(id: str):
+async def get_department(
+    id: str,
+    db: AsyncSession = Depends(get_db),
+):
     """Get a specific department by ID."""
-    try:
-        obj_id = PydanticObjectId(id)
-    except Exception:
-        from fastapi import HTTPException, status
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid department ID"
-        )
+    result = await db.execute(select(Department).where(Department.id == id))
+    department = result.scalar_one_or_none()
     
-    department = await Department.get(obj_id)
     if not department:
-        from fastapi import HTTPException, status
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Department not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
     
-    return DepartmentResponse(**department.model_dump(exclude={"id"}), id=str(department.id))
+    return DepartmentResponse(id=str(department.id), name=department.name, code=department.code,
+                              description=department.description, is_active=department.is_active,
+                              display_order=department.display_order,
+                              created_at=department.created_at, updated_at=department.updated_at)

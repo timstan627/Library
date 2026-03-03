@@ -1,13 +1,19 @@
 """
 API Dependencies - Authentication, Authorization, etc.
+All database queries now use SQLAlchemy async sessions.
 """
-import uuid
+import logging
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import security_manager
+from app.core.database import get_db
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 # Security scheme
 security = HTTPBearer(auto_error=False)
@@ -15,6 +21,7 @@ security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: AsyncSession = Depends(get_db),
 ) -> Optional[User]:
     """Get current user from JWT token (optional)."""
     if not credentials:
@@ -30,19 +37,15 @@ async def get_current_user(
     if not user_id:
         return None
     
-    try:
-        user_uuid = uuid.UUID(user_id)
-    except ValueError:
-        return None
-    
-    # Beanie find
-    user = await User.find_one(User.id == user_uuid)
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
     
     return user
 
 
 async def get_current_active_user(
     credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     """Get current active user (required authentication)."""
     token = credentials.credentials
@@ -63,16 +66,8 @@ async def get_current_active_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    try:
-        user_uuid = uuid.UUID(user_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user ID",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    user = await User.find_one(User.id == user_uuid)
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
     
     if not user:
         raise HTTPException(
@@ -92,7 +87,7 @@ async def get_current_active_user(
             detail=f"User is banned: {user.ban_reason or 'No reason provided'}",
         )
     
-    print(f"AUTH_DEBUG: User {user.email} (ID: {user.id}) role is '{user.role}'")
+    logger.debug(f"Authenticated user {user.id} with role '{user.role}'")
     return user
 
 
@@ -120,7 +115,7 @@ async def get_moderator_user(
     return current_user
 
 
-# Aliases for admin/moderator checks (consistent naming)
+# Aliases
 async def require_admin(
     current_user: User = Depends(get_current_active_user),
 ) -> User:

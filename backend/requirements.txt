@@ -3,18 +3,9 @@ fastapi==0.109.0
 uvicorn[standard]==0.27.0
 python-multipart==0.0.9
 
-# Database
-beanie==1.25.0
-motor==3.4.0
-pymongo[srv]==4.6.1
-
-# Redis & Caching
-redis==5.0.1
-hiredis==2.3.2
-
-# Celery Background Tasks
-celery==5.3.6
-celery[redis]==5.3.6
+# Database (SQLite via SQLAlchemy)
+sqlalchemy[asyncio]>=2.0.25
+aiosqlite>=0.19.0
 
 # Telegram
 pyrofork==2.3.38
@@ -46,7 +37,6 @@ python-magic==0.4.27
 pytest==7.4.4
 pytest-asyncio==0.23.3
 pytest-cov==4.1.0
-httpx==0.26.0
 
 # Development
 black==24.1.1

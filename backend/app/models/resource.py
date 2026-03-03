@@ -1,95 +1,102 @@
 """
-Resource Documents (MongoDB)
+Resource Model (SQLAlchemy)
 """
+from datetime import datetime, timezone
+from uuid import uuid4
 from typing import Optional, List
-from uuid import UUID, uuid4
-from datetime import datetime
-from beanie import Document, Link
-from pydantic import Field
-from pymongo import IndexModel
+from sqlalchemy import String, Boolean, Integer, BigInteger, DateTime, Text, ForeignKey, Index
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.database import Base
 from app.models.base import TimestampMixin
-from app.models.user import User
-from app.models.department import Department
-from app.models.course import Course
 
-class Resource(Document, TimestampMixin):
-    """Resource (file) document."""
+
+class Resource(Base, TimestampMixin):
+    """Resource (uploaded file) record."""
+    __tablename__ = "resources"
+    __table_args__ = (
+        Index("ix_resources_course_code", "course_code"),
+        Index("ix_resources_file_hash", "file_hash"),
+        Index("ix_resources_created_at", "created_at"),
+        Index("ix_resources_downloads", "downloads"),
+    )
     
-    id: UUID = Field(default_factory=uuid4)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
     
     # Metadata
-    title: str
-    slug: str = Field(..., description="URL-friendly slug")
-    description: Optional[str] = None
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    slug: Mapped[str] = mapped_column(String(600), unique=True, nullable=False, index=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
-    # Academic - Enhanced with links to Department and Course  
-    # Made optional to handle legacy data where these were strings
-    department_id: Optional[Link[Department]] = Field(None, description="Department link")
-    course_id: Optional[Link[Course]] = Field(None, description="Course link")
+    # Academic
+    department_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("departments.id"), nullable=True)
+    course_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("courses.id"), nullable=True)
+    course_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    semester: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    branch: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     
-    # Legacy fields (keep for backward compatibility with old data)
-    course_code: str
-    semester: Optional[str] = None
-    branch: Optional[str] = None
-    
-    # Tags
-    tags: List[str] = []
+    # Tags (stored as comma-separated string)
+    tags_str: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # File Info
-    file_name: str
-    file_size: int
-    mime_type: str
-    file_hash: str
-    file_extension: str
+    file_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    file_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    file_extension: Mapped[str] = mapped_column(String(20), nullable=False)
     
     # Telegram Storage
-    telegram_file_id: str
-    telegram_message_id: int
-    telegram_channel_id: int
-    backup_telegram_file_id: Optional[str] = None
-    backup_telegram_message_id: Optional[int] = None
+    telegram_file_id: Mapped[str] = mapped_column(String(500), nullable=False)
+    telegram_message_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    telegram_channel_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    backup_telegram_file_id: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    backup_telegram_message_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
     # Thumbnail
-    thumbnail_file_id: Optional[str] = None
+    thumbnail_file_id: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
     # Owner
-    uploader: Optional[Link[User]] = None
+    uploader_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True, index=True)
     
     # Access
-    visibility: str = "public" # public, unlisted, private
-    password_hash: Optional[str] = None
+    visibility: Mapped[str] = mapped_column(String(20), default="public")  # public, unlisted, private
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     
     # Stats
-    downloads: int = 0
-    views: int = 0
-    rating_sum: int = 0
-    rating_count: int = 0
+    downloads: Mapped[int] = mapped_column(Integer, default=0)
+    views: Mapped[int] = mapped_column(Integer, default=0)
+    rating_sum: Mapped[int] = mapped_column(Integer, default=0)
+    rating_count: Mapped[int] = mapped_column(Integer, default=0)
     
-    # Moderation - Enhanced workflow
-    moderation_status: str = Field(default="pending", description="pending, approved, rejected")
-    moderated_by: Optional[Link[User]] = Field(None, description="Admin who moderated")
-    moderated_at: Optional[datetime] = Field(None, description="When moderation occurred")
-    rejection_reason: Optional[str] = Field(None, max_length=500, description="Reason for rejection")
-    is_flagged: bool = False
+    # Moderation
+    moderation_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    moderated_by_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    moderated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    rejection_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    is_flagged: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # Soft delete
-    is_deleted: bool = False
-    deleted_at: Optional[datetime] = None
-    deleted_by: Optional[Link[User]] = None
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    deleted_by_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
     
-    class Settings:
-        name = "resources"
-        indexes = [
-            IndexModel([("slug", 1)], unique=True),
-            IndexModel([("file_hash", 1)]), # unique=False to allow different users to upload same file
-            IndexModel([("course_code", 1)]),
-            IndexModel([("department", 1)]),
-            IndexModel([("title", "text"), ("description", "text")]),
-            "created_at",
-            "downloads",
-        ]
-
+    # Relationships
+    uploader = relationship("User", back_populates="resources", foreign_keys=[uploader_id], lazy="selectin")
+    department = relationship("Department", lazy="selectin")
+    course = relationship("Course", lazy="selectin")
+    moderated_by = relationship("User", foreign_keys=[moderated_by_id], lazy="selectin")
+    deleted_by = relationship("User", foreign_keys=[deleted_by_id], lazy="selectin")
+    
+    @property
+    def tags(self) -> List[str]:
+        if not self.tags_str:
+            return []
+        return [t.strip() for t in self.tags_str.split(",") if t.strip()]
+    
+    @tags.setter
+    def tags(self, value: List[str]):
+        self.tags_str = ",".join(value) if value else None
+    
     @property
     def average_rating(self) -> Optional[float]:
         if self.rating_count == 0:
@@ -103,21 +110,11 @@ class Resource(Document, TimestampMixin):
     @property
     def is_public(self) -> bool:
         return self.visibility == "public" and not self.is_deleted
-
+    
     @property
     def is_password_protected(self) -> bool:
         return bool(self.password_hash)
-
-    @property
-    def uploader_id(self) -> Optional[UUID]:
-        if self.uploader:
-            # Check if it's a DBRef (Link) or User object
-            if hasattr(self.uploader, "ref"):
-                return self.uploader.ref.id
-            if hasattr(self.uploader, "id"):
-                return self.uploader.id
-        return None
-
+    
     @property
     def uploader_name(self) -> Optional[str]:
         if self.uploader and hasattr(self.uploader, "display_name"):

@@ -1,17 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException
+"""
+Admin API - Seed database (SQLAlchemy)
+"""
+from fastapi import APIRouter, Depends
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
 from app.api.v1.deps import require_admin
 from app.models.department import Department
 from app.models.course import Course
 
 router = APIRouter()
 
+
 @router.post("/seed")
 async def seed_database(
-    current_user = Depends(require_admin),
+    current_user=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
     """Seed the database with initial data (Departments/Courses)."""
     
-    # 1. Departments
     departments = [
         {"name": "Computer Science", "code": "CSE", "is_active": True},
         {"name": "Information Technology", "code": "IT", "is_active": True},
@@ -25,28 +33,30 @@ async def seed_database(
     created_courses = 0
     
     for dept_data in departments:
-        existing = await Department.find_one(Department.code == dept_data["code"])
-        if not existing:
+        existing = await db.execute(select(Department).where(Department.code == dept_data["code"]))
+        if not existing.scalar_one_or_none():
             dept = Department(**dept_data)
-            await dept.create()
+            db.add(dept)
+            await db.flush()
+            await db.refresh(dept)
             created_depts += 1
             
-            # Create sample courses for CSE only to start
             if dept.code == "CSE":
                 courses = [
-                    {"name": "Data Structures", "code": "CS101", "semester": "3"},
-                    {"name": "Algorithms", "code": "CS102", "semester": "4"},
-                    {"name": "Database Management", "code": "CS103", "semester": "5"},
-                    {"name": "Operating Systems", "code": "CS104", "semester": "5"},
+                    {"name": "Data Structures", "code": "CS101", "semester": 3},
+                    {"name": "Algorithms", "code": "CS102", "semester": 4},
+                    {"name": "Database Management", "code": "CS103", "semester": 5},
+                    {"name": "Operating Systems", "code": "CS104", "semester": 5},
                 ]
                 for c_data in courses:
-                    # Explicitly set department linkage
-                    course = Course(**c_data, department=dept)
-                    await course.create()
+                    course = Course(**c_data, department_id=dept.id)
+                    db.add(course)
                     created_courses += 1
+    
+    await db.flush()
     
     return {
         "message": "Seeding complete",
         "departments_created": created_depts,
-        "courses_created": created_courses
+        "courses_created": created_courses,
     }

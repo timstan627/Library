@@ -1,15 +1,17 @@
 """
-Resources API Routes - Upload, Download, Management
+Resources API Routes - Upload, Download, Management (SQLAlchemy)
 """
-import uuid
 import re
 from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Query, Request, Response
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select, func, and_
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import security_manager
+from app.core.database import get_db
 from app.models.user import User
 from app.models.resource import Resource
 from app.models.download import Download
@@ -23,6 +25,9 @@ from app.schemas.resource import (
 from app.api.v1.deps import get_current_user, get_current_active_user
 from app.services.telegram import telegram_service
 
+import logging
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -33,7 +38,6 @@ def generate_slug(title: str, existing_check: bool = False) -> str:
     slug = re.sub(r'[\s_-]+', '-', slug)
     slug = slug.strip('-')
     
-    # Add random suffix for uniqueness
     suffix = security_manager.generate_secure_token(4)
     return f"{slug[:50]}-{suffix}"
 
@@ -43,20 +47,27 @@ async def get_my_resources(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Get current user's own resources (all visibility levels).
-    
-    This endpoint ensures complete data isolation - users only see their own uploads.
-    """
-    filters = [
+    """Get current user's own resources (all visibility levels)."""
+    base_filter = and_(
         Resource.is_deleted == False,
-        Resource.uploader["$id"] == current_user.id,
-    ]
+        Resource.uploader_id == current_user.id,
+    )
     
-    query = Resource.find(*filters).sort("-created_at")
+    # Count
+    count_result = await db.execute(select(func.count()).select_from(Resource).where(base_filter))
+    total = count_result.scalar()
     
-    total = await query.count()
-    resources = await query.skip((page - 1) * size).limit(size).to_list()
+    # Fetch page
+    result = await db.execute(
+        select(Resource)
+        .where(base_filter)
+        .order_by(Resource.created_at.desc())
+        .offset((page - 1) * size)
+        .limit(size)
+    )
+    resources = result.scalars().all()
     
     pages = (total + size - 1) // size if total > 0 else 0
     
@@ -79,10 +90,11 @@ async def upload_resource(
     department: Optional[str] = Form(None),
     semester: Optional[str] = Form(None),
     branch: Optional[str] = Form(None),
-    tags: Optional[str] = Form(None),  # Comma-separated
+    tags: Optional[str] = Form(None),
     visibility: str = Form("public"),
     password: Optional[str] = Form(None),
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Upload a new resource file."""
     # Validate file size
@@ -95,7 +107,7 @@ async def upload_resource(
             detail=f"File too large. Maximum size is {settings.max_file_size_mb}MB",
         )
     
-    # Check user storage quota
+    # Check storage quota
     if current_user.storage_used_bytes + file_size > current_user.storage_quota_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -110,18 +122,18 @@ async def upload_resource(
             detail=f"File type not allowed. Allowed types: {', '.join(settings.allowed_extensions_list)}",
         )
     
-    # Check for duplicate (by hash + uploader + course)
-    # Prevent accidental re-uploads of same file, same course by same user
+    # Check for duplicate
     file_hash = security_manager.hash_file(file_bytes)
-    existing_duplicate = await Resource.find_one(
-        Resource.file_hash == file_hash,
-        Resource.uploader.id == current_user.id,
-        Resource.course_code == course_code,
-        Resource.title == title,
-        Resource.is_deleted == False
+    dup_result = await db.execute(
+        select(Resource).where(
+            Resource.file_hash == file_hash,
+            Resource.uploader_id == current_user.id,
+            Resource.course_code == course_code,
+            Resource.title == title,
+            Resource.is_deleted == False,
+        )
     )
-    
-    if existing_duplicate:
+    if dup_result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="You have already uploaded this file with the same title for this course.",
@@ -142,7 +154,7 @@ async def upload_resource(
     
     # Parse tags
     tag_list = [t.strip().lower() for t in tags.split(',')] if tags else []
-    tag_list = list(set(tag_list))[:10]  # Max 10 unique tags
+    tag_list = list(set(tag_list))[:10]
     
     # Create resource
     try:
@@ -151,10 +163,9 @@ async def upload_resource(
             slug=generate_slug(title),
             description=description.strip() if description else None,
             course_code=course_code.upper().strip(),
-            department=department.strip() if department else None,
             semester=semester.strip() if semester else None,
             branch=branch.strip() if branch else None,
-            tags=tag_list,
+            tags_str=",".join(tag_list) if tag_list else None,
             
             # Telegram storage
             telegram_file_id=telegram_result["file_id"],
@@ -169,40 +180,36 @@ async def upload_resource(
             file_extension=file_extension,
             
             # Uploader
-            uploader=current_user, # Link field assignment
+            uploader_id=current_user.id,
             
             # Access
             visibility=visibility,
             password_hash=security_manager.hash_password(password) if password else None,
             
-            # Moderation (Auto-approve for admins/moderators)
+            # Moderation
             moderation_status="approved" if current_user.role in ["admin", "moderator"] else "pending",
         )
+        db.add(resource)
+        await db.flush()
+        await db.refresh(resource)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        print(f"RESOURCE VALIDATION ERROR: {e}")
-        # print(e.errors()) # if pydantic
-        raise e
-    
-    try:
-        await resource.create()
-    except Exception as e:
-        # Catch MongoDB duplicate key error (E11000)
-        if "E11000" in str(e):
-             raise HTTPException(
+        logger.error(f"Resource creation error: {e}")
+        if "UNIQUE" in str(e):
+            raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This exact resource (file/slug) already exists. Try changing the title.",
             )
-        
-        import traceback
-        traceback.print_exc()
-        print(f"RESOURCE CREATE ERROR: {e}")
         raise e
     
     # Update user storage
     current_user.storage_used_bytes += file_size
-    await current_user.save()
+    await db.flush()
+    
+    # Invalidate cached stats
+    from app.services.cache import cache_service
+    cache_service.invalidate_on_upload()
     
     return ResourceUploadResponse(
         id=resource.id,
@@ -220,42 +227,26 @@ async def preview_resource(
     resource_id: str,
     password: Optional[str] = Query(None),
     current_user: Optional[User] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Stream a resource file for preview (inline)."""
-    try:
-        resource_uuid = uuid.UUID(resource_id)
-    except ValueError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Invalid resource ID format")
-
-    resource = await Resource.find_one(Resource.id == resource_uuid, Resource.is_deleted == False)
+    result = await db.execute(
+        select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
+    )
+    resource = result.scalar_one_or_none()
     
     if not resource:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resource not found",
-        )
-    
-    uploader_id = resource.uploader.ref.id if resource.uploader else None
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
     # Check visibility
     if resource.visibility == "private":
-        if not current_user or (uploader_id != current_user.id and not current_user.is_moderator):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied",
-            )
+        if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     # Check password
     if resource.is_password_protected:
         if not password or not security_manager.verify_password(password, resource.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Password required or incorrect",
-            )
-            
-            
-    # View count is handled by the page load (get_resource_by_slug)
-    # or we can verify cookie here too, but simpler to just stream.
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
     
     # Stream file
     try:
@@ -273,11 +264,8 @@ async def preview_resource(
             }
         )
     except Exception as e:
-        print(f"PREVIEW ERROR: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to stream file",
-        )
+        logger.error(f"Preview error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to stream file")
 
 
 @router.get("/{resource_id}/download")
@@ -285,46 +273,26 @@ async def download_resource(
     resource_id: str,
     password: Optional[str] = Query(None),
     current_user: Optional[User] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Download a resource file."""
-    print(f"DEBUG_DOWNLOAD: Requested ID '{resource_id}' (type: {type(resource_id)})")
-    try:
-        resource_uuid = uuid.UUID(resource_id)
-    except ValueError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Invalid resource ID format")
-
-    resource = await Resource.find_one(Resource.id == resource_uuid, Resource.is_deleted == False)
+    result = await db.execute(
+        select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
+    )
+    resource = result.scalar_one_or_none()
     
     if not resource:
-        print(f"DEBUG_DOWNLOAD: Resource not found for ID {resource_id}")
-        r_del = await Resource.find_one(Resource.id == resource_id)
-        if r_del:
-            print(f"DEBUG_DOWNLOAD: Resource FOUND but is_deleted={r_del.is_deleted}")
-        else:
-            print("DEBUG_DOWNLOAD: Resource strictly NOT FOUND in DB")
-            
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resource not found",
-        )
-    
-    uploader_id = resource.uploader.ref.id if resource.uploader else None
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
     # Check visibility
     if resource.visibility == "private":
-        if not current_user or (uploader_id != current_user.id and not current_user.is_moderator):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied",
-            )
+        if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     # Check password
     if resource.is_password_protected:
         if not password or not security_manager.verify_password(password, resource.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Password required or incorrect",
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
     
     # Download from Telegram
     try:
@@ -333,23 +301,20 @@ async def download_resource(
             channel_id=resource.telegram_channel_id,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to download file: {str(e)}",
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to download file: {str(e)}")
     
     # Log download
     download_log = Download(
-        user=current_user,
-        resource=resource,
+        user_id=current_user.id if current_user else None,
+        resource_id=resource.id,
     )
-    await download_log.create()
+    db.add(download_log)
     
     # Increment download count
     resource.downloads += 1
-    await resource.save()
+    await db.flush()
     
-    # Return file as streaming response
+    # Return file
     from io import BytesIO
     file_stream = BytesIO(file_bytes)
     
@@ -364,43 +329,32 @@ async def download_resource(
 
 @router.get("/{resource_id}", response_model=ResourceResponse)
 async def get_resource(
-    resource_id: uuid.UUID,
+    resource_id: str,
     request: Request,
     response: Response,
     current_user: Optional[User] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get resource details by ID."""
-    resource = await Resource.find_one(Resource.id == resource_id, Resource.is_deleted == False)
+    result = await db.execute(
+        select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
+    )
+    resource = result.scalar_one_or_none()
     
     if not resource:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resource not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
     # Check visibility
-    # resource.uploader is a Link, might need fetch if lazy, but default Beanie config fetches on access if properly defined?
-    # Actually Link behaves like a reference. We need to compare IDs.
-    # user_id check: resource.uploader.id if using Link? Or ensure definition?
-    # In resource model: uploader: Optional[Link[User]] = None
-    
-    uploader_id = resource.uploader.ref.id if resource.uploader else None
-    
     if resource.visibility == "private":
-        if not current_user or (uploader_id != current_user.id and not current_user.is_moderator):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied",
-            )
+        if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
-    
-    # Increment view count (Unique by cookie)
+    # Increment view count (unique by cookie)
     cookie_name = f"viewed_{resource.id}"
     if not request.cookies.get(cookie_name):
         resource.views += 1
-        await resource.save()
-        response.set_cookie(key=cookie_name, value="true", max_age=3600)  # 1 hour
-    
+        await db.flush()
+        response.set_cookie(key=cookie_name, value="true", max_age=3600, httponly=True, samesite="lax")
     
     return resource
 
@@ -411,116 +365,103 @@ async def get_resource_by_slug(
     request: Request,
     response: Response,
     current_user: Optional[User] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get resource details by slug."""
-    resource = await Resource.find_one(Resource.slug == slug, Resource.is_deleted == False)
+    result = await db.execute(
+        select(Resource).where(Resource.slug == slug, Resource.is_deleted == False)
+    )
+    resource = result.scalar_one_or_none()
     
     if not resource:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resource not found",
-        )
-    
-    uploader_id = resource.uploader.ref.id if resource.uploader else None
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
     # Check visibility
     if resource.visibility == "private":
-        if not current_user or (uploader_id != current_user.id and not current_user.is_moderator):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied",
-            )
+        if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
-    # Increment view count (Unique by cookie)
+    # Increment view count
     cookie_name = f"viewed_{resource.id}"
     if not request.cookies.get(cookie_name):
         resource.views += 1
-        await resource.save()
-        response.set_cookie(key=cookie_name, value="true", max_age=3600)  # 1 hour
-    
+        await db.flush()
+        response.set_cookie(key=cookie_name, value="true", max_age=3600, httponly=True, samesite="lax")
     
     return resource
 
 
 @router.put("/{resource_id}", response_model=ResourceResponse)
 async def update_resource(
-    resource_id: uuid.UUID,
+    resource_id: str,
     data: ResourceUpdate,
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Update resource metadata."""
-    resource = await Resource.find_one(Resource.id == resource_id, Resource.is_deleted == False)
+    result = await db.execute(
+        select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
+    )
+    resource = result.scalar_one_or_none()
     
     if not resource:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resource not found",
-        )
-    
-    uploader_id = resource.uploader.ref.id if resource.uploader else None
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
     # Check ownership
-    if uploader_id != current_user.id and not current_user.is_moderator:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
+    if resource.uploader_id != current_user.id and not current_user.is_moderator:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     # Update fields
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(resource, field, value)
     
-    await resource.save()
+    await db.flush()
     
     return resource
 
 
 @router.delete("/{resource_id}")
 async def delete_resource(
-    resource_id: uuid.UUID,
+    resource_id: str,
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Soft delete a resource."""
-    resource = await Resource.find_one(Resource.id == resource_id, Resource.is_deleted == False)
+    result = await db.execute(
+        select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
+    )
+    resource = result.scalar_one_or_none()
     
     if not resource:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resource not found",
-        )
-    
-    uploader_id = resource.uploader.ref.id if resource.uploader else None
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
     # Check ownership
-    if uploader_id != current_user.id and not current_user.is_moderator:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
+    if resource.uploader_id != current_user.id and not current_user.is_moderator:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     # Soft delete
     resource.is_deleted = True
     resource.deleted_at = datetime.now(timezone.utc)
-    resource.deleted_by = current_user
+    resource.deleted_by_id = current_user.id
     
-    # Mangle unique fields to allow re-upload
-    # Note: Slug is unique index. File hash is NOT unique index in model (unique=False implied or explicit?), 
-    # but we check for duplicates manually in upload.
-    # Resource model: IndexModel([("slug", 1)], unique=True)
+    # Mangle unique fields
     timestamp = int(datetime.now().timestamp())
     resource.slug = f"{resource.slug}_deleted_{timestamp}"
     resource.title = f"{resource.title} [DELETED]"
     
     # Update user storage
-    if resource.uploader:
-        # Need to fetch uploader object because storage update is on User document
-        uploader = await resource.uploader.fetch()
+    if resource.uploader_id:
+        uploader_result = await db.execute(select(User).where(User.id == resource.uploader_id))
+        uploader = uploader_result.scalar_one_or_none()
         if uploader:
             uploader.storage_used_bytes = max(0, uploader.storage_used_bytes - resource.file_size)
-            await uploader.save()
     
-    await resource.save()
+    await db.flush()
+    
+    # Invalidate cached stats
+    from app.services.cache import cache_service
+    cache_service.invalidate_on_delete()
     
     return {"message": "Resource deleted successfully"}
 
@@ -533,49 +474,38 @@ async def list_resources(
     department: Optional[str] = None,
     uploader_id: Optional[str] = Query(None, description="Filter by uploader user ID"),
     current_user: Optional[User] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """List resources with pagination.
-    
-    Access control:
-    - If uploader_id is provided: shows that user's resources (owner sees all, others see public only)
-    - If no uploader_id: shows public resources only
-    - Admins/moderators: can see all resources when explicitly filtering by uploader_id
-    """
+    """List resources with pagination."""
     filters = [Resource.is_deleted == False]
     
-    # Handle uploader_id filtering for data isolation
     if uploader_id:
-        try:
-            uploader_uuid = uuid.UUID(uploader_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid uploader_id format"
-            )
-        
-        # Check if current user is viewing their own resources
         is_owner = current_user and str(current_user.id) == uploader_id
         is_moderator = current_user and current_user.is_moderator
         
-        # Build uploader filter - match resources by uploader reference
-        filters.append(Resource.uploader["$id"] == uploader_uuid)
+        filters.append(Resource.uploader_id == uploader_id)
         
-        # Non-owners can only see public resources from that uploader
         if not is_owner and not is_moderator:
             filters.append(Resource.visibility == "public")
     else:
-        # No uploader_id provided - only show public resources (browse mode)
         filters.append(Resource.visibility == "public")
     
     if course_code:
         filters.append(Resource.course_code == course_code.upper())
-    if department:
-        filters.append(Resource.department == department)
     
-    query = Resource.find(*filters).sort("-created_at")
+    # Count
+    count_result = await db.execute(select(func.count()).select_from(Resource).where(and_(*filters)))
+    total = count_result.scalar()
     
-    total = await query.count()
-    resources = await query.skip((page - 1) * size).limit(size).to_list()
+    # Fetch page
+    result = await db.execute(
+        select(Resource)
+        .where(and_(*filters))
+        .order_by(Resource.created_at.desc())
+        .offset((page - 1) * size)
+        .limit(size)
+    )
+    resources = result.scalars().all()
     
     pages = (total + size - 1) // size if total > 0 else 0
     
@@ -587,4 +517,3 @@ async def list_resources(
         has_next=page < pages,
         has_prev=page > 1,
     )
-

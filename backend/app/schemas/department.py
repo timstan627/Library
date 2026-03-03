@@ -32,8 +32,8 @@ class DepartmentResponse(DepartmentBase):
     """Schema for department response."""
     id: str
     is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True
