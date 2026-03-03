@@ -5,7 +5,7 @@ import { useParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
     Download, Star, Eye, FileText, Calendar, User, Tag, Share2, Flag,
-    ArrowLeft, Lock, CheckCircle, Clock, X
+    ArrowLeft, Lock, CheckCircle, Clock, X, Edit3, Save, Loader2, Trash2
 } from 'lucide-react'
 import { apiHelpers, api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
@@ -75,6 +75,27 @@ export default function ResourceDetailPage() {
     const [userReview, setUserReview] = useState('')
     const [submittingRating, setSubmittingRating] = useState(false)
     const fetchedRef = useRef(false)
+
+    // Edit state
+    const [showEditModal, setShowEditModal] = useState(false)
+    const [editSaving, setEditSaving] = useState(false)
+    const [editError, setEditError] = useState('')
+    const [editForm, setEditForm] = useState({
+        title: '',
+        description: '',
+        course_code: '',
+        department: '',
+        semester: '',
+        tags: '',
+        visibility: 'public',
+    })
+
+    // Determine if user can edit (owner or admin/moderator)
+    const canEdit = isAuthenticated && resource && user && (
+        resource.uploader_id === user.id ||
+        user.role === 'admin' ||
+        user.role === 'moderator'
+    )
 
     useEffect(() => {
         if (fetchedRef.current) return
@@ -249,6 +270,8 @@ export default function ResourceDetailPage() {
     }
 
     const [copied, setCopied] = useState(false)
+    const [deleting, setDeleting] = useState(false)
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
     const handleShare = async () => {
         try {
@@ -265,6 +288,83 @@ export default function ResourceDetailPage() {
             document.body.removeChild(input)
             setCopied(true)
             setTimeout(() => setCopied(false), 2000)
+        }
+    }
+
+    const openEditModal = () => {
+        if (!resource) return
+        setEditForm({
+            title: resource.title || '',
+            description: resource.description || '',
+            course_code: resource.course_code || '',
+            department: resource.department || '',
+            semester: resource.semester || '',
+            tags: resource.tags?.join(', ') || '',
+            visibility: resource.visibility || 'public',
+        })
+        setEditError('')
+        setShowEditModal(true)
+    }
+
+    const handleEditSave = async () => {
+        if (!resource) return
+        setEditSaving(true)
+        setEditError('')
+
+        try {
+            const updateData: any = {}
+            if (editForm.title.trim() && editForm.title !== resource.title)
+                updateData.title = editForm.title.trim()
+            if (editForm.description !== (resource.description || ''))
+                updateData.description = editForm.description.trim() || null
+            if (editForm.course_code.trim() && editForm.course_code !== resource.course_code)
+                updateData.course_code = editForm.course_code.trim()
+            if (editForm.department !== (resource.department || ''))
+                updateData.department = editForm.department.trim() || null
+            if (editForm.semester !== (resource.semester || ''))
+                updateData.semester = editForm.semester.trim() || null
+            if (editForm.visibility !== resource.visibility)
+                updateData.visibility = editForm.visibility
+
+            // Handle tags
+            const newTags = editForm.tags
+                .split(',')
+                .map(t => t.trim().toLowerCase())
+                .filter(t => t.length > 0)
+            const oldTags = resource.tags || []
+            if (JSON.stringify(newTags.sort()) !== JSON.stringify([...oldTags].sort())) {
+                updateData.tags = newTags
+            }
+
+            if (Object.keys(updateData).length === 0) {
+                setShowEditModal(false)
+                return
+            }
+
+            await apiHelpers.updateResource(resource.id, updateData)
+
+            // Refresh resource data
+            const response = await apiHelpers.getResourceBySlug(slug)
+            setResource(response.data)
+
+            setShowEditModal(false)
+        } catch (err: any) {
+            setEditError(err.response?.data?.detail || 'Failed to update resource')
+        } finally {
+            setEditSaving(false)
+        }
+    }
+
+    const handleDelete = async () => {
+        if (!resource) return
+        setDeleting(true)
+        try {
+            await apiHelpers.deleteResource(resource.id)
+            router.push('/browse')
+        } catch (err: any) {
+            setActionError(err.response?.data?.detail || 'Failed to delete resource')
+            setDeleting(false)
+            setShowDeleteConfirm(false)
         }
     }
 
@@ -310,9 +410,30 @@ export default function ResourceDetailPage() {
                                 <FileText className="w-7 h-7 text-accent-primary" />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h1 className="text-2xl font-bold text-text-primary mb-2">
-                                    {resource.title}
-                                </h1>
+                                <div className="flex items-start justify-between gap-3">
+                                    <h1 className="text-2xl font-bold text-text-primary mb-2">
+                                        {resource.title}
+                                    </h1>
+                                    {canEdit && (
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <button
+                                                onClick={openEditModal}
+                                                className="btn btn-sm bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/20 transition-colors"
+                                                title="Edit resource"
+                                            >
+                                                <Edit3 className="w-4 h-4 mr-1.5" />
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => setShowDeleteConfirm(true)}
+                                                className="btn btn-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                                                title="Delete resource"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="flex flex-wrap items-center gap-3 text-sm text-text-secondary">
                                     <span className="badge badge-primary">{resource.course_code}</span>
                                     {resource.department && <span>{resource.department}</span>}
@@ -677,6 +798,187 @@ export default function ResourceDetailPage() {
                                     className="max-w-full max-h-full object-contain rounded shadow-lg"
                                 />
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Modal */}
+            {showEditModal && resource && (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-background-secondary w-full max-w-lg rounded-xl shadow-2xl border border-border-subtle overflow-hidden">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-5 border-b border-border-subtle">
+                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
+                                <Edit3 className="w-5 h-5 text-accent-primary" />
+                                Edit Resource
+                            </h3>
+                            <button
+                                onClick={() => setShowEditModal(false)}
+                                className="p-2 hover:bg-background-tertiary rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5 text-text-muted" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+                            {editError && (
+                                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                                    {editError}
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="label">Title *</label>
+                                <input
+                                    type="text"
+                                    value={editForm.title}
+                                    onChange={(e) => setEditForm(f => ({ ...f, title: e.target.value }))}
+                                    className="input"
+                                    placeholder="Resource title"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="label">Description</label>
+                                <textarea
+                                    value={editForm.description}
+                                    onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))}
+                                    className="input min-h-[100px] resize-y"
+                                    placeholder="Describe this resource..."
+                                    rows={3}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="label">Course Code *</label>
+                                    <input
+                                        type="text"
+                                        value={editForm.course_code}
+                                        onChange={(e) => setEditForm(f => ({ ...f, course_code: e.target.value }))}
+                                        className="input"
+                                        placeholder="e.g., CS101"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="label">Department</label>
+                                    <input
+                                        type="text"
+                                        value={editForm.department}
+                                        onChange={(e) => setEditForm(f => ({ ...f, department: e.target.value }))}
+                                        className="input"
+                                        placeholder="e.g., Computer Science"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="label">Semester</label>
+                                    <input
+                                        type="text"
+                                        value={editForm.semester}
+                                        onChange={(e) => setEditForm(f => ({ ...f, semester: e.target.value }))}
+                                        className="input"
+                                        placeholder="e.g., Fall 2026"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="label">Visibility</label>
+                                    <select
+                                        value={editForm.visibility}
+                                        onChange={(e) => setEditForm(f => ({ ...f, visibility: e.target.value }))}
+                                        className="input"
+                                    >
+                                        <option value="public">Public</option>
+                                        <option value="unlisted">Unlisted</option>
+                                        <option value="private">Private</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="label">Tags</label>
+                                <input
+                                    type="text"
+                                    value={editForm.tags}
+                                    onChange={(e) => setEditForm(f => ({ ...f, tags: e.target.value }))}
+                                    className="input"
+                                    placeholder="Comma-separated: notes, data-structures, exam"
+                                />
+                                <p className="text-text-muted text-xs mt-1">Separate tags with commas (max 10)</p>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="flex items-center justify-end gap-3 p-5 border-t border-border-subtle">
+                            <button
+                                onClick={() => setShowEditModal(false)}
+                                className="btn btn-secondary"
+                                disabled={editSaving}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleEditSave}
+                                disabled={editSaving || !editForm.title.trim() || !editForm.course_code.trim()}
+                                className="btn btn-primary flex items-center gap-2"
+                            >
+                                {editSaving ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Saving...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="w-4 h-4" />
+                                        Save Changes
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-background-secondary w-full max-w-sm rounded-xl shadow-2xl border border-border-subtle p-6 text-center">
+                        <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Trash2 className="w-6 h-6 text-red-500" />
+                        </div>
+                        <h3 className="text-lg font-bold text-text-primary mb-2">Delete Resource?</h3>
+                        <p className="text-text-secondary text-sm mb-6">
+                            This will permanently remove <strong>&quot;{resource?.title}&quot;</strong>. This action cannot be undone.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="btn btn-secondary flex-1"
+                                disabled={deleting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                disabled={deleting}
+                                className="btn bg-red-500 hover:bg-red-600 text-white flex-1 flex items-center justify-center gap-2"
+                            >
+                                {deleting ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-4 h-4" />
+                                        Delete
+                                    </>
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>
