@@ -84,10 +84,17 @@ api.interceptors.response.use(
                     return api(originalRequest)
                 }
             } catch (refreshError) {
-                localStorage.removeItem('access_token')
-                localStorage.removeItem('refresh_token')
-                if (typeof window !== 'undefined') {
-                    window.location.href = '/auth/login'
+                // Refresh failed — session is dead
+            }
+
+            // Clear tokens and redirect to login
+            localStorage.removeItem('access_token')
+            localStorage.removeItem('refresh_token')
+            if (typeof window !== 'undefined') {
+                const currentPath = window.location.pathname
+                // Only redirect if not already on auth pages
+                if (!currentPath.startsWith('/auth/')) {
+                    window.location.href = `/auth/login?returnUrl=${encodeURIComponent(currentPath)}`
                 }
             }
         }

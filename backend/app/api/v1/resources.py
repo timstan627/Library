@@ -2,6 +2,8 @@
 Resources API Routes - Upload, Download, Management (SQLAlchemy)
 """
 import re
+import time
+import hashlib
 from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Query, Request, Response
@@ -30,6 +32,32 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# In-memory view deduplication: tracks {hash: timestamp} to prevent
+# the same visitor from incrementing views on repeated page loads.
+# Each entry expires after 1 hour (3600 seconds).
+_view_tracker: dict[str, float] = {}
+_VIEW_TTL = 3600  # 1 hour
+
+def _should_count_view(resource_id: str, request: Request) -> bool:
+    """Check if this visit should count as a view (IP + User-Agent dedup)."""
+    # Clean expired entries periodically (every ~100 checks)
+    now = time.time()
+    if len(_view_tracker) > 500:
+        expired = [k for k, v in _view_tracker.items() if now - v > _VIEW_TTL]
+        for k in expired:
+            del _view_tracker[k]
+    
+    # Create a unique hash from resource_id + visitor IP + User-Agent
+    client_ip = request.client.host if request.client else 'unknown'
+    user_agent = request.headers.get('user-agent', 'unknown')
+    key = hashlib.md5(f"{resource_id}:{client_ip}:{user_agent}".encode()).hexdigest()
+    
+    if key in _view_tracker and (now - _view_tracker[key]) < _VIEW_TTL:
+        return False  # Already viewed within the TTL window
+    
+    _view_tracker[key] = now
+    return True
 
 
 def generate_slug(title: str, existing_check: bool = False) -> str:
@@ -441,12 +469,10 @@ async def get_resource(
         if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
-    # Increment view count (unique by cookie)
-    cookie_name = f"viewed_{resource.id}"
-    if not request.cookies.get(cookie_name):
+    # Increment view count (deduplicated by IP + User-Agent, 1 hour window)
+    if _should_count_view(resource.id, request):
         resource.views += 1
-        await db.flush()
-        response.set_cookie(key=cookie_name, value="true", max_age=3600, httponly=True, samesite="lax")
+        await db.commit()
     
     return resource
 
@@ -473,12 +499,10 @@ async def get_resource_by_slug(
         if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
-    # Increment view count
-    cookie_name = f"viewed_{resource.id}"
-    if not request.cookies.get(cookie_name):
+    # Increment view count (deduplicated by IP + User-Agent, 1 hour window)
+    if _should_count_view(resource.id, request):
         resource.views += 1
-        await db.flush()
-        response.set_cookie(key=cookie_name, value="true", max_age=3600, httponly=True, samesite="lax")
+        await db.commit()
     
     return resource
 

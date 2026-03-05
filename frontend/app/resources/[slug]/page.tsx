@@ -166,7 +166,6 @@ export default function ResourceDetailPage() {
                 })
                 setTextContent(response.data)
                 setShowPreviewModal(true)
-                setResource(prev => prev ? { ...prev, views: prev.views + 1 } : null)
                 return
             }
 
@@ -180,7 +179,6 @@ export default function ResourceDetailPage() {
             const url = window.URL.createObjectURL(new Blob([response.data], { type: mimeType }))
             setPreviewUrl(url)
             setShowPreviewModal(true)
-            setResource(prev => prev ? { ...prev, views: prev.views + 1 } : null)
         } catch (err: any) {
             console.error('Preview failed:', err)
             const detail = err.response?.data?.detail
@@ -519,7 +517,7 @@ export default function ResourceDetailPage() {
                 </div>
             </div>
 
-            <div className="grid lg:grid-cols-3 gap-8">
+            <div className="grid lg:grid-cols-3 gap-8 items-start">
                 {/* Left Column - Description, Tags, Reviews (order-2 on mobile so download block shows first) */}
                 <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
                     {/* Description */}
@@ -671,7 +669,7 @@ export default function ResourceDetailPage() {
                 </div>
 
                 {/* Right Sidebar - Download + File Info (shows FIRST on mobile, sticky on desktop) */}
-                <div className="space-y-6 lg:sticky lg:top-24 lg:self-start order-1 lg:order-2">
+                <div className="space-y-6 sticky top-24 order-1 lg:order-2">
                     {/* Action Error Banner */}
                     {actionError && (
                         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm animate-fade-in flex items-start gap-2">

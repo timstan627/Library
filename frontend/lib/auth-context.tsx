@@ -136,26 +136,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const refreshUser = async () => {
         try {
-            console.log('Refreshing user...')
             const response = await api.get('/auth/me')
-            console.log('Refresh response:', response.status, response.data)
             if (response.data) {
                 setUser(response.data)
-                console.log('User set successfully')
             }
         } catch (error: any) {
-            console.error('Refresh failed:', error)
-            // On 401, the axios interceptor will try to refresh the token automatically.
-            // If that also fails, it redirects to login. So we only clear user state here
-            // without removing tokens — the interceptor handles token lifecycle.
+            // The axios interceptor handles 401 by refreshing the token.
+            // If we get here after a 401, it means the interceptor already tried
+            // and either succeeded (we should retry) or failed (tokens removed).
             if (error.response?.status === 401 || error.response?.status === 403) {
-                console.warn('Auth check returned unauthorized — user state cleared')
+                // Check if tokens are still present — if yes, the interceptor
+                // may have refreshed them. Try one more time.
+                const token = localStorage.getItem('access_token')
+                if (token) {
+                    try {
+                        const retryResponse = await api.get('/auth/me')
+                        if (retryResponse.data) {
+                            setUser(retryResponse.data)
+                            return
+                        }
+                    } catch {
+                        // Second attempt failed too — clear user state
+                    }
+                }
+                // Tokens are gone or second attempt failed — user is logged out
                 setUser(null)
-                // Don't call logout() here — it would remove tokens before
-                // the axios interceptor has a chance to refresh them
-            } else {
-                console.error('Background refresh failed (non-auth error):', error.message)
             }
+            // Non-auth errors (network, 500, etc.) — keep current user state
+            // so the session isn't lost on temporary server issues
         }
     }
 

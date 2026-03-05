@@ -204,10 +204,16 @@ async def lifespan(app: FastAPI):
     await cache_service.start()
     logger.info("StatsEngine started with background refresh")
     
+    # Start scheduled midnight DB backup to Telegram
+    from app.tasks.scheduled_backup import start_backup_scheduler, stop_backup_scheduler
+    start_backup_scheduler()
+    logger.info("Scheduled backup task started (midnight IST)")
+    
     yield
     
     # Shutdown
     logger.info("Shutting down...")
+    stop_backup_scheduler()
     await cache_service.stop()
     await close_db()
     logger.info("Database connections closed")

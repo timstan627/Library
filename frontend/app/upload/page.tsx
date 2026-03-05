@@ -122,7 +122,6 @@ export default function UploadPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        window.scrollTo({ top: 0, behavior: 'smooth' })
 
         if (isSubmitting) return
 
@@ -150,6 +149,11 @@ export default function UploadPage() {
 
         setIsSubmitting(true)
         setError(null)
+
+        // Auto-scroll to top AFTER validation passes, so user sees progress
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+
+        let progressInterval: ReturnType<typeof setInterval> | null = null
 
         try {
             const file = files[0]
@@ -188,7 +192,7 @@ export default function UploadPage() {
             ]
 
             let stageIndex = 0
-            const progressInterval = setInterval(() => {
+            progressInterval = setInterval(() => {
                 if (stageIndex < stages.length) {
                     setUploadProgress({ [file.name]: stages[stageIndex].progress })
                     setUploadStage(stages[stageIndex].text)
@@ -206,11 +210,13 @@ export default function UploadPage() {
             setSuccess(true)
 
         } catch (err: any) {
+            if (progressInterval) clearInterval(progressInterval)
             const errorMessage = err.response?.data?.detail || 'Upload failed. Please try again.'
             setError(errorMessage)
             setUploadProgress({})
             setUploadStage('')
         } finally {
+            if (progressInterval) clearInterval(progressInterval)
             setIsSubmitting(false)
         }
     }
