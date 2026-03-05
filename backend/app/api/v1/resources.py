@@ -24,7 +24,7 @@ from app.schemas.resource import (
 )
 from app.api.v1.deps import get_current_user, get_current_active_user
 from app.services.telegram import telegram_service
-from app.services.download_manager import download_manager
+from app.services.download_manager import download_manager, FileNotFoundInTelegram
 
 import logging
 logger = logging.getLogger(__name__)
@@ -249,24 +249,32 @@ async def preview_resource(
         if not password or not security_manager.verify_password(password, resource.password_hash):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
     
-    # Stream via DownloadManager (disk cache + concurrency limit)
+    # Eagerly resolve file (disk cache or Telegram download) BEFORE starting response
+    # This ensures errors return proper HTTP status codes instead of network errors
     try:
-        file_stream = download_manager.stream_file(
+        file_path = await download_manager.get_file(
             message_id=resource.telegram_message_id,
             channel_id=resource.telegram_channel_id or 0,
         )
-        
-        return StreamingResponse(
-            file_stream,
-            media_type=resource.mime_type or "application/octet-stream",
-            headers={
-                "Content-Disposition": f"inline; filename*=UTF-8''{resource.file_name}",
-                "Content-Length": str(resource.file_size),
-            }
+    except FileNotFoundInTelegram as e:
+        logger.warning(f"File not found in Telegram for preview: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File is no longer available on the storage server. It may have been deleted."
         )
     except Exception as e:
-        logger.error(f"Preview error: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to stream file")
+        logger.error(f"Preview file resolution failed: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to load file for preview")
+    
+    # Stream from resolved disk path
+    from starlette.responses import FileResponse
+    return FileResponse(
+        path=str(file_path),
+        media_type=resource.mime_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{resource.file_name}",
+        },
+    )
 
 
 @router.get("/{resource_id}/download")
@@ -295,13 +303,20 @@ async def download_resource(
         if not password or not security_manager.verify_password(password, resource.password_hash):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
     
-    # Download via hybrid manager (disk cache + semaphore + streaming)
+    # Eagerly resolve file BEFORE starting response — prevents network errors
     try:
-        file_stream = download_manager.stream_file(
+        file_path = await download_manager.get_file(
             message_id=resource.telegram_message_id,
             channel_id=resource.telegram_channel_id or 0,
         )
+    except FileNotFoundInTelegram as e:
+        logger.warning(f"File not found in Telegram for download: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File is no longer available on the storage server. It may have been deleted."
+        )
     except Exception as e:
+        logger.error(f"Download file resolution failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to download file: {str(e)}"
@@ -318,15 +333,90 @@ async def download_resource(
     resource.downloads += 1
     await db.flush()
     
-    # Stream file from disk cache in chunks (low memory)
-    return StreamingResponse(
-        file_stream,
+    # Serve file from disk (efficient, low memory)
+    from starlette.responses import FileResponse
+    return FileResponse(
+        path=str(file_path),
         media_type=resource.mime_type,
+        filename=resource.file_name,
         headers={
             "Content-Disposition": f'attachment; filename="{resource.file_name}"',
-            "Content-Length": str(resource.file_size),
-        }
+        },
     )
+
+
+@router.get("/{resource_id}/preview-text")
+async def preview_text_resource(
+    resource_id: str,
+    password: Optional[str] = Query(None),
+    max_size: int = Query(default=102400, le=512000),  # Default 100KB, max 500KB
+    current_user: Optional[User] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the text content of a resource file for inline preview (no iframe needed)."""
+    result = await db.execute(
+        select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
+    )
+    resource = result.scalar_one_or_none()
+    
+    if not resource:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
+    
+    # Only allow text-based MIME types
+    text_types = ['text/', 'application/json', 'application/xml', 'application/csv']
+    is_text = any(resource.mime_type and resource.mime_type.startswith(t) for t in text_types)
+    if not is_text:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only text-based files can be previewed as text")
+    
+    # Check visibility
+    if resource.visibility == "private":
+        if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    
+    # Check password
+    if resource.is_password_protected:
+        if not password or not security_manager.verify_password(password, resource.password_hash):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
+    
+    # Get the file
+    try:
+        file_path = await download_manager.get_file(
+            message_id=resource.telegram_message_id,
+            channel_id=resource.telegram_channel_id or 0,
+        )
+    except FileNotFoundInTelegram as e:
+        logger.warning(f"Text preview — file not found: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File is no longer available on the storage server."
+        )
+    except Exception as e:
+        logger.error(f"Text preview file resolution failed: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to load file")
+    
+    # Read text content (limited to max_size bytes)
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read(max_size + 1)  # Read 1 extra byte to detect truncation
+        
+        truncated = len(content) > max_size
+        if truncated:
+            content = content[:max_size]
+        
+        # Count lines
+        line_count = content.count('\n') + 1
+        
+        return {
+            "content": content,
+            "truncated": truncated,
+            "file_name": resource.file_name,
+            "mime_type": resource.mime_type,
+            "line_count": line_count,
+            "total_size": resource.file_size,
+        }
+    except Exception as e:
+        logger.error(f"Failed to read text file: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to read file content")
 
 
 @router.get("/{resource_id}", response_model=ResourceResponse)

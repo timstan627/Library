@@ -207,6 +207,11 @@ class DiskFileCache:
         }
 
 
+class FileNotFoundInTelegram(Exception):
+    """Raised when a file/message no longer exists in the Telegram channel."""
+    pass
+
+
 class DownloadManager:
     """
     Hybrid download manager combining:
@@ -239,12 +244,9 @@ class DownloadManager:
         Get a file, either from disk cache or by downloading from Telegram.
         Returns the path to the file on disk.
 
-        Flow:
-        1. Check disk cache → return cached path instantly
-        2. Acquire semaphore slot (wait if at max concurrent downloads)
-        3. Download from Telegram to temp file
-        4. Cache the temp file to disk cache
-        5. Return cached file path
+        Raises:
+            FileNotFoundInTelegram: If message was deleted or has no document
+            Exception: For other errors (connection, download failures)
         """
         # Step 1: Try disk cache
         cached_path = await self.disk_cache.get(message_id, channel_id)
@@ -270,18 +272,45 @@ class DownloadManager:
                 import tempfile
 
                 if not await telegram_service.connect():
-                    raise Exception("Telegram client not connected")
+                    raise Exception("Telegram client not connected — cannot download file")
 
                 resolved_channel = channel_id or telegram_service.primary_channel
 
                 # Get the message
-                message = await telegram_service.client.get_messages(
-                    chat_id=resolved_channel,
-                    message_ids=message_id,
-                )
+                try:
+                    message = await telegram_service.client.get_messages(
+                        chat_id=resolved_channel,
+                        message_ids=message_id,
+                    )
+                except Exception as e:
+                    error_str = str(e).lower()
+                    # Handle Pyrogram-specific errors for deleted/inaccessible messages
+                    if "message" in error_str and ("not found" in error_str or "deleted" in error_str):
+                        raise FileNotFoundInTelegram(
+                            f"Message {message_id} was deleted from Telegram channel"
+                        )
+                    if "channel" in error_str and ("invalid" in error_str or "not found" in error_str):
+                        raise FileNotFoundInTelegram(
+                            f"Telegram channel {resolved_channel} is inaccessible"
+                        )
+                    raise  # Re-raise other Telegram errors
 
-                if not message or not message.document:
-                    raise Exception("Message or document not found in Telegram channel")
+                # Handle None, empty message, or message without document
+                if message is None:
+                    raise FileNotFoundInTelegram(
+                        f"Message {message_id} not found in Telegram channel {resolved_channel}"
+                    )
+
+                # Pyrogram returns an empty Message object for deleted messages
+                if hasattr(message, 'empty') and message.empty:
+                    raise FileNotFoundInTelegram(
+                        f"Message {message_id} was deleted from Telegram channel"
+                    )
+
+                if not message.document and not message.photo and not message.video and not message.audio:
+                    raise FileNotFoundInTelegram(
+                        f"Message {message_id} exists but has no downloadable media"
+                    )
 
                 # Download to temp file (Pyrogram handles chunked download internally)
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.download') as tmp:

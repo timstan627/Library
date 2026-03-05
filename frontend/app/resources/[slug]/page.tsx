@@ -68,6 +68,7 @@ export default function ResourceDetailPage() {
     // Preview state
     const [previewing, setPreviewing] = useState(false)
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+    const [textContent, setTextContent] = useState<{ content: string; truncated: boolean; line_count: number } | null>(null)
     const [showPreviewModal, setShowPreviewModal] = useState(false)
 
     // Rating form
@@ -91,8 +92,9 @@ export default function ResourceDetailPage() {
     })
 
     // Determine if user can edit (owner or admin/moderator)
+    // Use String() to normalize UUID format differences between frontend and backend
     const canEdit = isAuthenticated && resource && user && (
-        resource.uploader_id === user.id ||
+        (resource.uploader_id && String(resource.uploader_id) === String(user.id)) ||
         user.role === 'admin' ||
         user.role === 'moderator'
     )
@@ -118,6 +120,21 @@ export default function ResourceDetailPage() {
         }
     }
 
+    // Helper: check if MIME type is an office document
+    const isOfficeFile = (mime: string) => {
+        return mime.includes('wordprocessing') ||
+            mime.includes('presentation') ||
+            mime.includes('spreadsheet') ||
+            mime.includes('msword') ||
+            mime.includes('ms-excel') ||
+            mime.includes('ms-powerpoint')
+    }
+
+    // Helper: check if MIME type is text-based
+    const isTextFile = (mime: string) => {
+        return mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml'
+    }
+
     const handlePreview = async () => {
         if (!resource) return
 
@@ -126,32 +143,52 @@ export default function ResourceDetailPage() {
             return
         }
 
-        // If we already have a preview URL, just show it
-        if (previewUrl) {
+        // If we already have a preview, just show it
+        if (previewUrl || textContent) {
+            setShowPreviewModal(true)
+            return
+        }
+
+        const mime = resource.mime_type || ''
+
+        // Office files: show modal immediately with info card (no download needed)
+        if (isOfficeFile(mime)) {
             setShowPreviewModal(true)
             return
         }
 
         setPreviewing(true)
         try {
+            // Text files: use the text preview API (returns JSON, no blob)
+            if (isTextFile(mime)) {
+                const response = await api.get(`/resources/${resource.id}/preview-text`, {
+                    params: { password: password || undefined },
+                })
+                setTextContent(response.data)
+                setShowPreviewModal(true)
+                setResource(prev => prev ? { ...prev, views: prev.views + 1 } : null)
+                return
+            }
+
+            // Images, PDF, video, audio: use blob preview
             const response = await api.get(`/resources/${resource.id}/preview`, {
                 params: { password: password || undefined },
                 responseType: 'blob',
             })
 
             const mimeType = resource.mime_type || response.headers['content-type']
-            const type = mimeType.split('/')[0]
-
-            // Create object URL
             const url = window.URL.createObjectURL(new Blob([response.data], { type: mimeType }))
             setPreviewUrl(url)
             setShowPreviewModal(true)
-
-            // Update view count locally
             setResource(prev => prev ? { ...prev, views: prev.views + 1 } : null)
         } catch (err: any) {
             console.error('Preview failed:', err)
-            setActionError('Preview failed: ' + (err.response?.data?.detail || 'Unknown error'))
+            const detail = err.response?.data?.detail
+            if (err.response?.status === 404) {
+                setActionError('File is no longer available on the storage server.')
+            } else {
+                setActionError('Preview failed: ' + (detail || 'Unknown error'))
+            }
             setTimeout(() => setActionError(''), 5000)
         } finally {
             setPreviewing(false)
@@ -196,8 +233,25 @@ export default function ResourceDetailPage() {
             setResource(prev => prev ? { ...prev, downloads: prev.downloads + 1 } : null)
         } catch (err: any) {
             console.error('Download failed:', err)
-            const errorMessage = err.response?.data?.detail || err.message || 'Download failed'
-            setActionError(`Download failed: ${errorMessage}`)
+            let errorMessage = 'Download failed'
+
+            if (err.response?.status === 404) {
+                errorMessage = 'File is no longer available on the storage server. It may have been deleted.'
+            } else if (err.response?.status === 401) {
+                errorMessage = 'Incorrect password'
+                setShowPasswordPrompt(true)
+            } else if (err.response?.data instanceof Blob) {
+                // Blob responses need to be read as text to get the error detail
+                try {
+                    const text = await err.response.data.text()
+                    const json = JSON.parse(text)
+                    errorMessage = json.detail || errorMessage
+                } catch { /* fallback to default */ }
+            } else {
+                errorMessage = err.response?.data?.detail || err.message || errorMessage
+            }
+
+            setActionError(errorMessage)
             setTimeout(() => setActionError(''), 5000)
         } finally {
             setDownloading(false)
@@ -400,71 +454,74 @@ export default function ResourceDetailPage() {
                 <span className="text-text-primary">{resource.course_code}</span>
             </div>
 
-            <div className="grid lg:grid-cols-3 gap-8">
-                {/* Left Column - Main Content + Reviews */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Header */}
-                    <div className="card p-6">
-                        <div className="flex items-start gap-4">
-                            <div className="w-14 h-14 bg-accent-primary/10 rounded-lg flex items-center justify-center shrink-0">
-                                <FileText className="w-7 h-7 text-accent-primary" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-3">
-                                    <h1 className="text-2xl font-bold text-text-primary mb-2">
-                                        {resource.title}
-                                    </h1>
-                                    {canEdit && (
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <button
-                                                onClick={openEditModal}
-                                                className="btn btn-sm bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/20 transition-colors"
-                                                title="Edit resource"
-                                            >
-                                                <Edit3 className="w-4 h-4 mr-1.5" />
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => setShowDeleteConfirm(true)}
-                                                className="btn btn-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
-                                                title="Delete resource"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-3 text-sm text-text-secondary">
-                                    <span className="badge badge-primary">{resource.course_code}</span>
-                                    {resource.department && <span>{resource.department}</span>}
-                                    {resource.semester && <span>• {resource.semester}</span>}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Stats */}
-                        <div className="flex flex-wrap items-center gap-6 mt-6 pt-6 border-t border-border-subtle">
-                            <div className="flex items-center gap-2 text-text-secondary">
-                                <Download className="w-4 h-4" />
-                                <span>{resource.downloads} downloads</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-text-secondary">
-                                <Eye className="w-4 h-4" />
-                                <span>{resource.views} views</span>
-                            </div>
-                            {resource.average_rating && (
-                                <div className="flex items-center gap-2 text-text-secondary">
-                                    <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
-                                    <span>{resource.average_rating.toFixed(1)} ({resource.rating_count} reviews)</span>
-                                </div>
-                            )}
-                            <div className="flex items-center gap-2 text-text-secondary">
-                                <Calendar className="w-4 h-4" />
-                                <span>{formatDate(resource.created_at)}</span>
-                            </div>
-                        </div>
+            {/* Header Card — always shows first, above the grid */}
+            <div className="card p-4 sm:p-6 mb-6 lg:mb-8">
+                <div className="flex items-start gap-3 sm:gap-4">
+                    {/* Icon - hidden on small mobile, visible on sm+ */}
+                    <div className="hidden sm:flex w-12 h-12 lg:w-14 lg:h-14 bg-accent-primary/10 rounded-lg items-center justify-center shrink-0">
+                        <FileText className="w-6 h-6 lg:w-7 lg:h-7 text-accent-primary" />
                     </div>
+                    <div className="flex-1 min-w-0">
+                        {/* Title */}
+                        <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-text-primary leading-tight mb-1">
+                            {resource.title}
+                        </h1>
+                        {/* Course badge + metadata */}
+                        <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-text-secondary mt-1">
+                            <span className="badge badge-primary text-xs">{resource.course_code}</span>
+                            {resource.department && <span>{resource.department}</span>}
+                            {resource.semester && <span>• {resource.semester}</span>}
+                        </div>
+                        {/* Edit/Delete buttons — below title, always visible as a row */}
+                        {canEdit && (
+                            <div className="flex items-center gap-2 mt-3">
+                                <button
+                                    onClick={openEditModal}
+                                    className="btn btn-sm bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/20 transition-colors text-xs sm:text-sm"
+                                    title="Edit resource"
+                                >
+                                    <Edit3 className="w-3.5 h-3.5 mr-1" />
+                                    Edit
+                                </button>
+                                <button
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    className="btn btn-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-xs sm:text-sm"
+                                    title="Delete resource"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                                    Delete
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
 
+                {/* Stats row */}
+                <div className="flex flex-wrap items-center gap-3 sm:gap-6 mt-4 pt-4 border-t border-border-subtle text-xs sm:text-sm">
+                    <div className="flex items-center gap-1.5 text-text-secondary">
+                        <Download className="w-3.5 h-3.5" />
+                        <span>{resource.downloads} downloads</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-text-secondary">
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>{resource.views} views</span>
+                    </div>
+                    {resource.average_rating && (
+                        <div className="flex items-center gap-1.5 text-text-secondary">
+                            <Star className="w-3.5 h-3.5 fill-yellow-500 text-yellow-500" />
+                            <span>{resource.average_rating.toFixed(1)} ({resource.rating_count})</span>
+                        </div>
+                    )}
+                    <div className="flex items-center gap-1.5 text-text-secondary">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>{formatDate(resource.created_at)}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid lg:grid-cols-3 gap-8">
+                {/* Left Column - Description, Tags, Reviews (order-2 on mobile so download block shows first) */}
+                <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
                     {/* Description */}
                     {resource.description && (
                         <div className="card p-6">
@@ -613,8 +670,8 @@ export default function ResourceDetailPage() {
                     </div>
                 </div>
 
-                {/* Right Sidebar - Download + File Info (sticky at top) */}
-                <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+                {/* Right Sidebar - Download + File Info (shows FIRST on mobile, sticky on desktop) */}
+                <div className="space-y-6 lg:sticky lg:top-24 lg:self-start order-1 lg:order-2">
                     {/* Action Error Banner */}
                     {actionError && (
                         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm animate-fade-in flex items-start gap-2">
@@ -624,9 +681,9 @@ export default function ResourceDetailPage() {
                     )}
 
                     {/* Download Card */}
-                    <div className="card p-6">
+                    <div className="card p-4 sm:p-6">
                         <div className="text-center mb-4">
-                            <p className="text-2xl font-bold text-text-primary font-mono">
+                            <p className="text-xl sm:text-2xl font-bold text-text-primary font-mono">
                                 {formatFileSize(resource.file_size)}
                             </p>
                             <p className="text-text-secondary text-sm">
@@ -678,26 +735,37 @@ export default function ResourceDetailPage() {
                             </div>
                         )}
 
-                        {/* Preview Button */}
-                        {resource.mime_type && (resource.mime_type.startsWith('image/') || resource.mime_type === 'application/pdf') && (
-                            <button
-                                onClick={handlePreview}
-                                disabled={previewing}
-                                className="btn btn-outline w-full mt-4 hover:bg-background-tertiary transition-colors flex items-center justify-center"
-                            >
-                                {previewing ? (
-                                    <>
-                                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                                        Loading...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Eye className="w-4 h-4 mr-2" />
-                                        Preview File
-                                    </>
-                                )}
-                            </button>
-                        )}
+                        {/* Preview Button — supports images, PDF, text, office docs, video, audio */}
+                        {resource.mime_type && (
+                            resource.mime_type.startsWith('image/') ||
+                            resource.mime_type.startsWith('text/') ||
+                            resource.mime_type.startsWith('video/') ||
+                            resource.mime_type.startsWith('audio/') ||
+                            resource.mime_type === 'application/pdf' ||
+                            resource.mime_type === 'application/json' ||
+                            resource.mime_type.includes('spreadsheet') ||
+                            resource.mime_type.includes('presentation') ||
+                            resource.mime_type.includes('wordprocessing') ||
+                            resource.mime_type.includes('csv')
+                        ) && (
+                                <button
+                                    onClick={handlePreview}
+                                    disabled={previewing}
+                                    className="btn btn-outline w-full mt-4 hover:bg-background-tertiary transition-colors flex items-center justify-center"
+                                >
+                                    {previewing ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                                            Loading...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Eye className="w-4 h-4 mr-2" />
+                                            Preview File
+                                        </>
+                                    )}
+                                </button>
+                            )}
 
                         {/* Secondary Actions */}
                         <div className="flex gap-2 mt-4 pt-4 border-t border-border-subtle">
@@ -728,18 +796,18 @@ export default function ResourceDetailPage() {
                     </div>
 
                     {/* File Info */}
-                    <div className="card p-6">
-                        <h3 className="text-sm font-semibold text-text-primary mb-4">File Information</h3>
-                        <div className="space-y-3 text-sm">
-                            <div className="flex justify-between">
-                                <span className="text-text-secondary">Filename</span>
-                                <span className="text-text-primary font-mono text-xs truncate max-w-[150px]">
+                    <div className="card p-4 sm:p-6">
+                        <h3 className="text-sm font-semibold text-text-primary mb-3 sm:mb-4">File Information</h3>
+                        <div className="space-y-2.5 sm:space-y-3 text-xs sm:text-sm">
+                            <div className="flex justify-between gap-2">
+                                <span className="text-text-secondary shrink-0">Filename</span>
+                                <span className="text-text-primary font-mono text-xs truncate max-w-[55%] text-right">
                                     {resource.file_name}
                                 </span>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-text-secondary">Type</span>
-                                <span className="text-text-primary">{resource.mime_type}</span>
+                            <div className="flex justify-between gap-2">
+                                <span className="text-text-secondary shrink-0">Type</span>
+                                <span className="text-text-primary truncate max-w-[60%] text-right text-xs">{resource.mime_type}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-text-secondary">Size</span>
@@ -759,21 +827,23 @@ export default function ResourceDetailPage() {
             </div>
 
             {/* Preview Modal */}
-            {showPreviewModal && previewUrl && resource && (
-                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 animate-fade-in">
+            {showPreviewModal && resource && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-2 sm:p-4 animate-fade-in">
                     <div className="bg-white dark:bg-gray-900 w-full h-full max-w-6xl rounded-lg flex flex-col overflow-hidden shadow-2xl">
                         {/* Modal Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950">
-                            <h3 className="font-semibold text-lg truncate flex-1 pr-4">{resource.title}</h3>
+                        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950">
+                            <h3 className="font-semibold text-sm sm:text-lg truncate flex-1 pr-4">{resource.title}</h3>
                             <div className="flex items-center gap-2">
-                                <a
-                                    href={previewUrl}
-                                    download={resource.file_name}
-                                    className="btn btn-sm btn-ghost"
-                                    title="Download"
-                                >
-                                    <Download className="w-4 h-4" />
-                                </a>
+                                {previewUrl && (
+                                    <a
+                                        href={previewUrl}
+                                        download={resource.file_name}
+                                        className="btn btn-sm btn-ghost"
+                                        title="Download"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                    </a>
+                                )}
                                 <button
                                     onClick={() => setShowPreviewModal(false)}
                                     className="btn btn-sm btn-ghost hover:bg-red-500/10 hover:text-red-500"
@@ -784,19 +854,87 @@ export default function ResourceDetailPage() {
                         </div>
 
                         {/* Modal Content */}
-                        <div className="flex-1 bg-gray-100 dark:bg-gray-950 overflow-auto flex items-center justify-center p-4">
-                            {resource.mime_type === 'application/pdf' ? (
+                        <div className="flex-1 bg-gray-100 dark:bg-gray-950 overflow-auto flex items-center justify-center p-2 sm:p-4">
+                            {/* PDF */}
+                            {resource.mime_type === 'application/pdf' && previewUrl ? (
                                 <iframe
                                     src={previewUrl}
                                     className="w-full h-full min-h-[500px] border-0 rounded bg-white"
                                     title="PDF Preview"
                                 />
-                            ) : (
+                                /* Images */
+                            ) : resource.mime_type.startsWith('image/') && previewUrl ? (
                                 <img
                                     src={previewUrl}
                                     alt="Preview"
                                     className="max-w-full max-h-full object-contain rounded shadow-lg"
                                 />
+                                /* Video */
+                            ) : resource.mime_type.startsWith('video/') && previewUrl ? (
+                                <video
+                                    src={previewUrl}
+                                    controls
+                                    className="max-w-full max-h-full rounded shadow-lg"
+                                />
+                                /* Audio */
+                            ) : resource.mime_type.startsWith('audio/') && previewUrl ? (
+                                <div className="w-full max-w-lg p-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center">
+                                    <div className="text-6xl mb-4">🎵</div>
+                                    <p className="text-lg font-medium mb-4">{resource.file_name}</p>
+                                    <audio src={previewUrl} controls className="w-full" />
+                                </div>
+                                /* Text content from API */
+                            ) : textContent ? (
+                                <div className="w-full h-full flex flex-col">
+                                    <div className="flex items-center justify-between px-4 py-2 bg-gray-200 dark:bg-gray-800 rounded-t-lg text-xs text-gray-600 dark:text-gray-400">
+                                        <span>{resource.file_name} • {textContent.line_count} lines</span>
+                                        {textContent.truncated && (
+                                            <span className="text-yellow-600 dark:text-yellow-400">
+                                                Showing first 100KB of {formatFileSize(resource.file_size)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <pre className="flex-1 overflow-auto bg-gray-900 text-gray-100 p-4 rounded-b-lg text-xs sm:text-sm font-mono leading-relaxed whitespace-pre-wrap break-words">
+                                        {textContent.content}
+                                    </pre>
+                                </div>
+                                /* Office files (DOCX, PPTX, XLSX) */
+                            ) : isOfficeFile(resource.mime_type) ? (
+                                <div className="text-center p-8 sm:p-12 bg-white dark:bg-gray-800 rounded-xl shadow-lg max-w-md">
+                                    <div className="text-6xl sm:text-7xl mb-6">
+                                        {resource.mime_type.includes('presentation') ? '📊' :
+                                            resource.mime_type.includes('spreadsheet') ? '📈' : '📝'}
+                                    </div>
+                                    <p className="text-lg sm:text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                                        {resource.file_name}
+                                    </p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                                        {formatFileSize(resource.file_size)} • {resource.file_extension.toUpperCase()}
+                                    </p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                                        Office documents cannot be previewed inline. Download the file to view it in your preferred application.
+                                    </p>
+                                    <button
+                                        onClick={() => { setShowPreviewModal(false); handleDownload(); }}
+                                        className="btn btn-primary px-6 py-2.5"
+                                    >
+                                        <Download className="w-4 h-4 mr-2" />
+                                        Download to View
+                                    </button>
+                                </div>
+                                /* Fallback: unknown type */
+                            ) : (
+                                <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+                                    <div className="text-6xl mb-4">📄</div>
+                                    <p className="text-lg font-medium mb-2">{resource.file_name}</p>
+                                    <p className="text-sm text-gray-500 mb-4">This file type ({resource.mime_type}) cannot be previewed inline.</p>
+                                    <button
+                                        onClick={() => { setShowPreviewModal(false); handleDownload(); }}
+                                        className="btn btn-primary"
+                                    >
+                                        <Download className="w-4 h-4 mr-2" /> Download to View
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>

@@ -14,13 +14,22 @@ from app.core.database import init_db, close_db, seed_default_admin, AsyncSessio
 from app.core.middleware import RateLimitMiddleware, RequestTimingMiddleware, SecurityHeadersMiddleware
 from app.api.v1 import api_router
 
-# Configure logging
+# Configure logging — clean, readable output
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
+# Suppress noisy library logs
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-logging.getLogger("pyrogram").setLevel(logging.INFO)
+logging.getLogger("pyrogram").setLevel(logging.WARNING)
+logging.getLogger("pyrogram.connection").setLevel(logging.WARNING)
+logging.getLogger("pyrogram.session").setLevel(logging.WARNING)
+logging.getLogger("aiosqlite").setLevel(logging.WARNING)  # Suppress per-query DEBUG spam
+logging.getLogger("watchfiles").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.access").setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 
