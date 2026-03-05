@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Search, Upload, User, LogIn, Menu, X } from 'lucide-react'
+import { Search, Upload, User, LogIn, Menu, X, BookOpen } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 
@@ -24,6 +24,7 @@ export function Header() {
     const navItems = [
         { href: '/', label: 'Home' },
         { href: '/browse', label: 'Browse' },
+        { href: '/library', label: 'Library', requiresAuth: true },
         { href: '/upload', label: 'Upload', requiresAuth: true },
     ]
 

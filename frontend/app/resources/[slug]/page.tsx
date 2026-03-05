@@ -496,6 +496,16 @@ export default function ResourceDetailPage() {
 
                 {/* Stats row */}
                 <div className="flex flex-wrap items-center gap-3 sm:gap-6 mt-4 pt-4 border-t border-border-subtle text-xs sm:text-sm">
+                    {/* Visibility badge */}
+                    {resource.visibility === 'private' && (
+                        <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 text-xs font-medium">🔒 Private</span>
+                    )}
+                    {resource.visibility === 'unlisted' && (
+                        <span className="px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 text-xs font-medium">🔗 Unlisted</span>
+                    )}
+                    {resource.visibility === 'password' && (
+                        <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 text-xs font-medium">🔑 Password</span>
+                    )}
                     <div className="flex items-center gap-1.5 text-text-secondary">
                         <Download className="w-3.5 h-3.5" />
                         <span>{resource.downloads} downloads</span>
@@ -668,8 +678,8 @@ export default function ResourceDetailPage() {
                     </div>
                 </div>
 
-                {/* Right Sidebar - Download + File Info (shows FIRST on mobile, sticky on desktop) */}
-                <div className="space-y-6 sticky top-24 order-1 lg:order-2">
+                {/* Right Sidebar - Download + File Info (shows FIRST on mobile, sticky on desktop only) */}
+                <div className="space-y-6 lg:sticky lg:top-20 z-10 order-1 lg:order-2">
                     {/* Action Error Banner */}
                     {actionError && (
                         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm animate-fade-in flex items-start gap-2">

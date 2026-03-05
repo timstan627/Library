@@ -142,8 +142,8 @@ export default function UploadPage() {
             setError('Please select a course')
             return
         }
-        if (visibility === 'private' && !password) {
-            setError('Password is required for private resources')
+        if (visibility === 'password' && !password) {
+            setError('Password is required for password-protected resources')
             return
         }
 
@@ -477,16 +477,20 @@ export default function UploadPage() {
                         {/* Visibility */}
                         <div>
                             <label className="label">Visibility</label>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-2 gap-3">
                                 {[
-                                    { value: 'public', label: 'Public', desc: 'Anyone can find' },
-                                    { value: 'unlisted', label: 'Unlisted', desc: 'Only with link' },
-                                    { value: 'private', label: 'Private', desc: 'Password required' },
+                                    { value: 'public', label: '🌐 Public', desc: 'Anyone can find & download' },
+                                    { value: 'unlisted', label: '🔗 Unlisted', desc: 'Only with direct link' },
+                                    { value: 'private', label: '🔒 Private', desc: 'Only you can see' },
+                                    { value: 'password', label: '🔑 Password', desc: 'Public + password to download' },
                                 ].map(opt => (
                                     <button
                                         key={opt.value}
                                         type="button"
-                                        onClick={() => setVisibility(opt.value)}
+                                        onClick={() => {
+                                            setVisibility(opt.value)
+                                            if (opt.value !== 'password') setPassword('')
+                                        }}
                                         disabled={isSubmitting}
                                         className={`
                                             p-3 rounded-lg border text-left transition-colors
@@ -503,8 +507,8 @@ export default function UploadPage() {
                             </div>
                         </div>
 
-                        {/* Password (for private) */}
-                        {visibility === 'private' && (
+                        {/* Password (for password-protected visibility only) */}
+                        {visibility === 'password' && (
                             <div className="animate-fade-in">
                                 <label htmlFor="password" className="label">
                                     Access Password <span className="text-red-500">*</span>
@@ -514,24 +518,36 @@ export default function UploadPage() {
                                     type="text"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Enter password for accessing this resource"
+                                    placeholder="Enter password for downloading this resource"
                                     className="input"
                                     disabled={isSubmitting}
                                     required
                                 />
                                 <p className="text-xs text-text-muted mt-1">
-                                    Share this password with people you want to give access.
+                                    Share this password with people you want to give download access.
                                 </p>
                             </div>
                         )}
 
                         {/* Moderation Notice */}
-                        <div className="flex items-start gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                            <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-                            <p className="text-sm text-blue-400">
-                                All uploads are reviewed by moderators before becoming publicly available.
-                            </p>
-                        </div>
+                        {visibility === 'private' ? (
+                            <div className="flex items-start gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                                <Info className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                                <p className="text-sm text-green-400">
+                                    Private files are auto-approved — no moderation needed. Only you can see them.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="flex items-start gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                                <p className="text-sm text-blue-400">
+                                    {isTrustedUploader
+                                        ? 'Your uploads are auto-approved.'
+                                        : 'Uploads are reviewed by moderators before becoming publicly available.'
+                                    }
+                                </p>
+                            </div>
+                        )}
 
                         {/* Submit Button */}
                         <button

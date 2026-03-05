@@ -26,6 +26,10 @@ api_router.include_router(ratings_router, prefix="/ratings", tags=["Ratings"])
 api_router.include_router(reports_router, prefix="/reports", tags=["Reports"])
 api_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
 
+# Library (personal collections)
+from app.api.v1.library import router as library_router
+api_router.include_router(library_router, tags=["Library"])
+
 # Public APIs (for forms/dropdowns)
 from app.api.v1.departments import router as departments_router
 from app.api.v1.courses import router as courses_router

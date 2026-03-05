@@ -52,6 +52,7 @@ class User(Base, TimestampMixin):
     # Relationships
     sessions = relationship("Session", back_populates="user", lazy="selectin")
     resources = relationship("Resource", back_populates="uploader", foreign_keys="Resource.uploader_id", lazy="selectin")
+    collections = relationship("Collection", back_populates="user", cascade="all, delete-orphan", lazy="noload")
     
     @property
     def is_admin(self) -> bool:

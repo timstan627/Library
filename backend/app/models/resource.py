@@ -59,7 +59,7 @@ class Resource(Base, TimestampMixin):
     uploader_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True, index=True)
     
     # Access
-    visibility: Mapped[str] = mapped_column(String(20), default="public")  # public, unlisted, private
+    visibility: Mapped[str] = mapped_column(String(20), default="public")  # public, unlisted, private, password
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     
     # Stats
@@ -113,7 +113,7 @@ class Resource(Base, TimestampMixin):
     
     @property
     def is_password_protected(self) -> bool:
-        return bool(self.password_hash)
+        return self.visibility == "password" and bool(self.password_hash)
     
     @property
     def uploader_name(self) -> Optional[str]:
