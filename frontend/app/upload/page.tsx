@@ -397,9 +397,9 @@ export default function UploadPage() {
                                 ))}
                             </select>
                             {courseObj && (
-                                <p className="text-xs text-text-muted mt-1">
-                                    {courseObj.department_name && `Department: ${courseObj.department_name}`}
-                                    {courseObj.semester && ` • Semester: ${courseObj.semester}`}
+                                <p className="flex flex-wrap items-center gap-x-2 text-xs text-text-muted mt-1">
+                                    {courseObj.department_name && <span>Department: {courseObj.department_name}</span>}
+                                    {courseObj.semester && <span>Semester: {courseObj.semester}</span>}
                                 </p>
                             )}
                         </div>

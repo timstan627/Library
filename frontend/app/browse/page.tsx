@@ -248,9 +248,7 @@ function BrowseContent() {
                                     </h3>
                                     <div className="flex flex-wrap gap-x-2 text-sm text-text-secondary">
                                         {resource.uploader_name && <span className="font-medium text-text-primary">{resource.uploader_name}</span>}
-                                        <span>•</span>
                                         <span>{resource.course_code}</span>
-                                        <span>•</span>
                                         <span>{formatFileSize(resource.file_size)}</span>
                                     </div>
                                 </div>

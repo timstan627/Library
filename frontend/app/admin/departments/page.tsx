@@ -190,7 +190,11 @@ function DepartmentsContent() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="text-sm font-medium">{dept.course_count} active courses</span>
+                                            <span className="text-sm font-medium tabular-nums">
+                                                {typeof dept.course_count === 'number'
+                                                    ? `${dept.course_count} active course${dept.course_count === 1 ? '' : 's'}`
+                                                    : '—'}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-4">
                                             <button

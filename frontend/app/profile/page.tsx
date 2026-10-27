@@ -235,8 +235,9 @@ export default function ProfilePage() {
                                         <FileText className="w-5 h-5 text-text-muted" />
                                         <div>
                                             <p className="text-text-primary font-medium">{resource.title}</p>
-                                            <p className="text-text-secondary text-sm">
-                                                <span className="text-text-muted">Course:</span> {resource.course_code} • {formatFileSize(resource.file_size)}
+                                            <p className="text-text-secondary text-sm flex items-center gap-2">
+                                                <span><span className="text-text-muted">Course:</span> {resource.course_code}</span>
+                                                <span>{formatFileSize(resource.file_size)}</span>
                                             </p>
                                         </div>
                                     </div>

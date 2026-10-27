@@ -469,7 +469,7 @@ export default function ResourceDetailPage() {
                         <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-text-secondary mt-1">
                             <span className="badge badge-primary text-xs">{resource.course_code}</span>
                             {resource.department && <span>{resource.department}</span>}
-                            {resource.semester && <span>• {resource.semester}</span>}
+                            {resource.semester && <span>{resource.semester}</span>}
                         </div>
                         {/* Edit/Delete buttons — below title, always visible as a row */}
                         {canEdit && (

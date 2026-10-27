@@ -228,7 +228,10 @@ function ResourcesContent() {
                                                 <FileText className="w-5 h-5 text-text-muted" />
                                                 <div>
                                                     <p className="font-semibold text-text-primary">{resource.title}</p>
-                                                    <p className="text-xs text-text-muted">{resource.file_name} • {formatFileSize(resource.file_size)}</p>
+                                                    <p className="text-xs text-text-muted flex items-center gap-2">
+                                                        <span className="truncate">{resource.file_name}</span>
+                                                        <span className="shrink-0">{formatFileSize(resource.file_size)}</span>
+                                                    </p>
                                                 </div>
                                             </div>
                                         </td>

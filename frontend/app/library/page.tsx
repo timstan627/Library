@@ -304,7 +304,6 @@ export default function LibraryPage() {
                                                         <FileText className="w-3 h-3" />
                                                         {c.item_count} file{c.item_count !== 1 ? 's' : ''}
                                                     </span>
-                                                    <span>•</span>
                                                     <span>{formatSize(c.total_size)}</span>
                                                 </div>
                                             </Link>
