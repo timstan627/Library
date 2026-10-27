@@ -125,6 +125,15 @@ export const DropZone: React.FC<DropZoneProps> = ({
     return (
         <div className={className}>
             <div
+                role="button"
+                tabIndex={disabled ? -1 : 0}
+                aria-disabled={disabled}
+                onKeyDown={(e) => {
+                    if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault()
+                        openFileDialog()
+                    }
+                }}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}

@@ -162,6 +162,7 @@ export default function SettingsPage() {
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.id}
+                                    aria-current={activeTab === tab.id ? 'true' : undefined}
                                     onClick={() => {
                                         setActiveTab(tab.id)
                                         setMessage(null)

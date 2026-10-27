@@ -39,10 +39,10 @@ export default function HomePage() {
     }
 
     const liveStats = [
-        { value: stats ? formatNumber(stats.resources) : '—', label: 'Resources' },
-        { value: stats ? formatNumber(stats.users) : '—', label: 'Students' },
-        { value: stats ? formatNumber(stats.downloads) : '—', label: 'Downloads' },
-        { value: stats ? formatNumber(stats.courses) : '—', label: 'Courses' },
+        { value: stats ? formatNumber(stats.resources) : '—', label: stats?.resources === 1 ? 'Resource' : 'Resources' },
+        { value: stats ? formatNumber(stats.users) : '—', label: stats?.users === 1 ? 'Student' : 'Students' },
+        { value: stats ? formatNumber(stats.downloads) : '—', label: stats?.downloads === 1 ? 'Download' : 'Downloads' },
+        { value: stats ? formatNumber(stats.courses) : '—', label: stats?.courses === 1 ? 'Course' : 'Courses' },
     ]
 
     const features = [

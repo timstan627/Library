@@ -531,7 +531,7 @@ export default function ResourceDetailPage() {
                     </div>
                     {resource.average_rating && (
                         <div className="flex items-center gap-1.5 text-text-secondary">
-                            <Star className="w-3.5 h-3.5 fill-yellow-500 text-yellow-500" />
+                            <Star aria-hidden="true" className="w-3.5 h-3.5 fill-yellow-500 text-yellow-500" />
                             <span>{resource.average_rating.toFixed(1)} ({resource.rating_count})</span>
                         </div>
                     )}
@@ -668,10 +668,15 @@ export default function ResourceDetailPage() {
                                                 </span>
                                             </div>
                                             {rating.value > 0 && (
-                                                <div className="flex items-center gap-1">
+                                                <div
+                                                    className="flex items-center gap-1"
+                                                    role="img"
+                                                    aria-label={`Rated ${rating.value} out of 5 stars`}
+                                                >
                                                     {[...Array(5)].map((_, i) => (
                                                         <Star
                                                             key={i}
+                                                            aria-hidden="true"
                                                             className={`w-4 h-4 ${i < rating.value
                                                                 ? 'fill-yellow-500 text-yellow-500'
                                                                 : 'text-text-muted'

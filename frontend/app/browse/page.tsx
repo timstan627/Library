@@ -282,7 +282,7 @@ function BrowseContent() {
                                 </span>
                                 {resource.average_rating && (
                                     <span className="flex items-center gap-1">
-                                        <Star className="w-3.5 h-3.5" />
+                                        <Star aria-hidden="true" className="w-3.5 h-3.5" />
                                         {resource.average_rating.toFixed(1)}
                                     </span>
                                 )}
