@@ -190,4 +190,10 @@ export const apiHelpers = {
 
     // Admin - Audit Logs
     getAuditLogs: (page = 1, size = 50) => api.get('/admin/moderation/audit-logs', { params: { page, page_size: size } }),
+
+    // Admin - Reports
+    getReportsAdmin: (reportStatus?: string, page = 1, size = 20) =>
+        api.get('/admin/reports', { params: { report_status: reportStatus || undefined, page, page_size: size } }),
+    resolveReport: (id: string, data: { action: 'resolved' | 'dismissed'; resolution_note?: string }) =>
+        api.put(`/admin/reports/${id}`, data),
 }

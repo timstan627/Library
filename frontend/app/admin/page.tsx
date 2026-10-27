@@ -124,6 +124,15 @@ function AdminDashboardContent() {
             href: '/admin/audit',
             color: 'text-orange-500',
             bg: 'bg-orange-500/10'
+        },
+        {
+            title: 'Reports',
+            desc: 'Resolve user reports',
+            icon: Flag,
+            count: stats?.pending_reports || 0,
+            href: '/admin/reports',
+            color: 'text-red-500',
+            bg: 'bg-red-500/10'
         }
     ]
 

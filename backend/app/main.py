@@ -144,13 +144,18 @@ async def _fetch_admin_dashboard_lite() -> dict:
         pending_moderation = (await db.execute(
             select(func.count()).select_from(Resource).where(Resource.moderation_status == "pending", Resource.is_deleted == False)
         )).scalar()
+        
+        from app.models.report import Report
+        pending_reports = (await db.execute(
+            select(func.count()).select_from(Report).where(Report.status == "pending")
+        )).scalar()
     
     return {
         "total_users": total_users,
         "total_resources": total_resources,
         "total_downloads": total_downloads,
         "total_storage_bytes": total_storage_bytes,
-        "pending_reports": 0,
+        "pending_reports": pending_reports,
         "pending_moderation": pending_moderation,
         "new_users_7d": new_users_7d,
         "new_resources_7d": new_resources_7d,
