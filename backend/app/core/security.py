@@ -12,6 +12,7 @@ from passlib.context import CryptContext
 import pyotp
 import qrcode
 import qrcode.image.svg
+from qrcode.image.pure import PyPNGImage
 from io import BytesIO
 import base64
 
@@ -152,22 +153,25 @@ class SecurityManager:
     ) -> str:
         """Generate a QR code for MFA setup as base64 PNG."""
         uri = self.get_mfa_provisioning_uri(secret, email, issuer)
-        
+
+        # Explicit pure-Python PNG factory: PIL is not installed, and the
+        # default PyPNG backend's save() rejects PIL-style kwargs.
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
             box_size=10,
             border=4,
+            image_factory=PyPNGImage,
         )
         qr.add_data(uri)
         qr.make(fit=True)
-        
+
         img = qr.make_image(fill_color="black", back_color="white")
-        
+
         buffer = BytesIO()
-        img.save(buffer, format="PNG")
+        img.save(buffer)
         buffer.seek(0)
-        
+
         return base64.b64encode(buffer.getvalue()).decode()
     
     def verify_mfa_code(self, secret: str, code: str) -> bool:
