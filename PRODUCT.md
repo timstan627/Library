@@ -28,11 +28,12 @@ Unlimited storage at zero cost — files live in Telegram channels via the Teleg
 ## Capabilities and Constraints
 
 - Upload/share, full-text search with filters, inline preview (PDF/images), star ratings with comments, user profile with usage stats, optional password-protected files.
-- Auth: JWT access+refresh (24h/30d), optional TOTP MFA; per-IP rate limiting (default 60 req/min).
+- Auth: JWT access+refresh (24h/30d), optional TOTP MFA; per-IP rate limiting (default 60 req/min) that responds with a 429 status and a Retry-After header.
 - Roles: student / moderator / admin. Resource moderation exists but **auto-approval is enabled by default** (configurable).
 - Hard limits: 50 MB per file; allowed formats PDF, DOCX, PPTX, XLSX, ZIP, TXT, MD, JPG, PNG; per-user storage quota nominally unlimited.
 - Storage depends on Telegram availability — without configured Telegram API credentials and a channel, file upload/storage does not work.
-- Deliberately undecided: final product name (see Brand Commitments), launch timing, and any accessibility standard beyond good practice.
+- Accessibility target: WCAG 2.1 AA — the design system (see DESIGN.md) and page implementations are held to it; audits should use automated checks (axe-core/Lighthouse) plus keyboard pass-through.
+- Deliberately undecided: final product name (see Brand Commitments) and launch timing.
 
 ## Brand Commitments
 
