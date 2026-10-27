@@ -23,7 +23,7 @@ export default function HomePage() {
     useEffect(() => {
         api.get('/stats')
             .then(res => setStats(res.data))
-            .catch(() => setStats({ resources: 0, users: 0, downloads: 0, courses: 0 }))
+            .catch(() => setStats(null))
     }, [])
 
     const formatNumber = (num: number) => {
@@ -39,10 +39,10 @@ export default function HomePage() {
     }
 
     const liveStats = [
-        { value: stats ? formatNumber(stats.resources) : '0', label: 'Resources' },
-        { value: stats ? formatNumber(stats.users) : '0', label: 'Students' },
-        { value: stats ? formatNumber(stats.downloads) : '0', label: 'Downloads' },
-        { value: stats ? formatNumber(stats.courses) : '0', label: 'Courses' },
+        { value: stats ? formatNumber(stats.resources) : '—', label: 'Resources' },
+        { value: stats ? formatNumber(stats.users) : '—', label: 'Students' },
+        { value: stats ? formatNumber(stats.downloads) : '—', label: 'Downloads' },
+        { value: stats ? formatNumber(stats.courses) : '—', label: 'Courses' },
     ]
 
     const features = [

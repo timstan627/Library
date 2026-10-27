@@ -6,6 +6,7 @@ import { Search, Filter, X, Download, Star, Eye, FileText, AlertTriangle } from 
 import Link from 'next/link'
 import { apiHelpers } from '@/lib/api'
 import { SkeletonResourceGrid } from '@/components/ui/Skeleton'
+import FetchError from '@/components/ui/FetchError'
 
 interface Resource {
     id: string
@@ -38,6 +39,7 @@ function BrowseContent() {
     const [page, setPage] = useState(1)
     const [showFilters, setShowFilters] = useState(false)
     const [filterOptions, setFilterOptions] = useState<{ departments: string[], courses: string[] }>({ departments: [], courses: [] })
+    const [filtersError, setFiltersError] = useState(false)
 
     // Search state
     const [query, setQuery] = useState(searchParams.get('q') || '')
@@ -67,8 +69,10 @@ function BrowseContent() {
                 departments: res.data.departments || [],
                 courses: res.data.courses || []
             })
+            setFiltersError(false)
         } catch (err) {
             console.error('Failed to fetch filter options', err)
+            setFiltersError(true)
         }
     }
 
@@ -162,6 +166,13 @@ function BrowseContent() {
                 {/* Filters Panel */}
                 {showFilters && (
                     <div className="card p-4 mt-4 animate-fade-in">
+                        {filtersError && (
+                            <FetchError
+                                message="Filter options could not be loaded. Department filtering may be unavailable."
+                                onRetry={fetchFilters}
+                                className="mb-4"
+                            />
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
                                 <label className="label">Department</label>

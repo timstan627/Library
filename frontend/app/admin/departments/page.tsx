@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth-context'
 import { SkeletonTable } from '@/components/ui/Skeleton'
 import { AdminAuthGate } from '@/components/AuthGate'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import FetchError from '@/components/ui/FetchError'
 
 interface Department {
     id: string
@@ -35,6 +36,7 @@ function DepartmentsContent() {
     const [submitting, setSubmitting] = useState(false)
     const [formData, setFormData] = useState({ name: '', code: '', description: '' })
     const [error, setError] = useState('')
+    const [fetchError, setFetchError] = useState<string | null>(null)
 
     // HIGH-003 & HIGH-004: Delete modal state
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; dept: Department | null }>({
@@ -53,8 +55,10 @@ function DepartmentsContent() {
         try {
             const response = await apiHelpers.getDepartmentsAdmin(1, 100)
             setDepartments(response.data.results)
+            setFetchError(null)
         } catch (error) {
             console.error('Failed to fetch departments:', error)
+            setFetchError('Failed to load departments. The list may not actually be empty.')
         } finally {
             setLoading(false)
         }
@@ -157,6 +161,10 @@ function DepartmentsContent() {
                     />
                 </div>
             </div>
+
+            {fetchError && (
+                <FetchError message={fetchError} onRetry={fetchDepartments} className="mb-6" />
+            )}
 
             <div className="card shadow-md overflow-hidden border border-border-subtle">
                 <div className="overflow-x-auto">

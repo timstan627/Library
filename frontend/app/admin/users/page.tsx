@@ -9,6 +9,7 @@ import {
 import { apiHelpers, api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { SkeletonTable } from '@/components/ui/Skeleton'
+import FetchError from '@/components/ui/FetchError'
 
 interface TrustedUser {
     id: string
@@ -31,6 +32,7 @@ export default function UserPromotionPage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [allUsers, setAllUsers] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<'trusted' | 'search'>('trusted')
+    const [fetchError, setFetchError] = useState<string | null>(null)
 
     useEffect(() => {
         if (!isLoading && (!isAuthenticated || currentUser?.role !== 'admin')) {
@@ -49,8 +51,10 @@ export default function UserPromotionPage() {
         try {
             const response = await apiHelpers.getTrustedUsers()
             setUsers(response.data)
+            setFetchError(null)
         } catch (error) {
             console.error('Failed to fetch trusted users:', error)
+            setFetchError('Failed to load the trusted list. It may not actually be empty.')
         } finally {
             setLoading(false)
         }
@@ -62,8 +66,10 @@ export default function UserPromotionPage() {
         try {
             const response = await api.get('/admin/users', { params: { q: query } })
             setAllUsers(response.data.results)
+            setFetchError(null)
         } catch (error) {
             console.error('Failed to search users:', error)
+            setFetchError('User search failed. Try again.')
         } finally {
             setLoading(false)
         }
@@ -130,6 +136,14 @@ export default function UserPromotionPage() {
                         <button type="submit" className="btn btn-primary px-6">Search</button>
                     </form>
                 </div>
+            )}
+
+            {fetchError && (
+                <FetchError
+                    message={fetchError}
+                    onRetry={() => (activeTab === 'trusted' ? fetchTrusted() : searchUsers(searchQuery))}
+                    className="mb-4"
+                />
             )}
 
             <div className="card shadow-md overflow-hidden border border-border-subtle">

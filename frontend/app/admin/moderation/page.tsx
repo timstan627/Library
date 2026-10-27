@@ -9,6 +9,7 @@ import {
 import { apiHelpers } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { SkeletonTable } from '@/components/ui/Skeleton'
+import FetchError from '@/components/ui/FetchError'
 import Link from 'next/link'
 
 interface PendingResource {
@@ -31,6 +32,7 @@ export default function ModerationPage() {
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0 })
+    const [fetchError, setFetchError] = useState<string | null>(null)
 
     // Moderation action state
     const [processingId, setProcessingId] = useState<string | null>(null)
@@ -56,8 +58,10 @@ export default function ModerationPage() {
             const response = await apiHelpers.getPendingModeration(page)
             setResources(response.data.results)
             setTotalPages(Math.ceil(response.data.total / 20))
+            setFetchError(null)
         } catch (error) {
             console.error('Failed to fetch pending resources:', error)
+            setFetchError('Failed to load the moderation queue. It may not actually be empty.')
         } finally {
             setLoading(false)
         }
@@ -67,6 +71,7 @@ export default function ModerationPage() {
         try {
             const response = await apiHelpers.getModerationStats()
             setStats(response.data)
+            setFetchError(null)
         } catch (error) {
             console.error('Failed to fetch stats:', error)
         }
@@ -116,6 +121,14 @@ export default function ModerationPage() {
                 </div>
             </div>
 
+            {fetchError && (
+                <FetchError
+                    message={fetchError}
+                    onRetry={() => { fetchPending(); fetchStats() }}
+                    className="mb-4"
+                />
+            )}
+
             <div className="card shadow-md overflow-hidden border border-border-subtle">
                 <div className="overflow-x-auto">
                     <table className="w-full">
@@ -140,9 +153,19 @@ export default function ModerationPage() {
                                 <tr>
                                     <td colSpan={6} className="px-6 py-12 text-center text-text-secondary">
                                         <div className="flex flex-col items-center">
-                                            <CheckCircle className="w-12 h-12 text-green-500/50 mb-3" />
-                                            <p className="text-lg font-medium">Clear Queue!</p>
-                                            <p className="text-sm">No pending resources to moderate.</p>
+                                            {fetchError ? (
+                                                <>
+                                                    <AlertCircle className="w-12 h-12 text-danger/50 mb-3" />
+                                                    <p className="text-lg font-medium">Could not load the queue</p>
+                                                    <p className="text-sm">Check your connection, then retry above.</p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <CheckCircle className="w-12 h-12 text-green-500/50 mb-3" />
+                                                    <p className="text-lg font-medium">Clear Queue!</p>
+                                                    <p className="text-sm">No pending resources to moderate.</p>
+                                                </>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

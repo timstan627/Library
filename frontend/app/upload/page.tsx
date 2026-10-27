@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { api, apiHelpers } from '@/lib/api'
 import { FileUploadWithPreview } from '@/components/ui/DropZone'
+import FetchError from '@/components/ui/FetchError'
 import { AlertCircle, CheckCircle, Clock, Loader2, Upload, ArrowLeft, Info } from 'lucide-react'
 import Link from 'next/link'
 
@@ -49,6 +50,7 @@ export default function UploadPage() {
     const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
     const [uploadStage, setUploadStage] = useState('')
     const [error, setError] = useState<string | null>(null)
+    const [fetchError, setFetchError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
     const [uploadedResource, setUploadedResource] = useState<any>(null)
 
@@ -62,8 +64,10 @@ export default function UploadPage() {
                 setLoadingData(true)
                 const deptRes = await api.get('/departments')
                 setDepartments(deptRes.data || [])
+                setFetchError(null)
             } catch (err) {
                 console.error('Failed to fetch departments:', err)
+                setFetchError('Failed to load departments. Department and course selection may be unavailable.')
             } finally {
                 setLoadingData(false)
             }
@@ -86,9 +90,10 @@ export default function UploadPage() {
 
                 const courseRes = await api.get(url)
                 setCourses(courseRes.data || [])
+                setFetchError(null)
             } catch (err) {
                 console.error('Failed to fetch courses:', err)
-                setCourses([])
+                setFetchError('Failed to load courses. You can still fill in the rest of the form.')
             } finally {
                 setLoadingCourses(false)
             }
@@ -361,6 +366,9 @@ export default function UploadPage() {
                             <label htmlFor="department" className="label">
                                 Department <span className="text-red-500">*</span>
                             </label>
+                            {fetchError && (
+                                <FetchError message={fetchError} className="mb-2" />
+                            )}
                             <select
                                 id="department"
                                 value={selectedDepartment}

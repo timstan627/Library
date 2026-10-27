@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/auth-context'
 import { api, apiHelpers } from '@/lib/api'
 import { SkeletonGrid } from '@/components/ui/Skeleton'
 import { ModeratorAuthGate } from '@/components/AuthGate'
+import FetchError from '@/components/ui/FetchError'
 
 interface DashboardStats {
     total_users: number
@@ -29,6 +30,7 @@ function AdminDashboardContent() {
 
     const [stats, setStats] = useState<DashboardStats | null>(null)
     const [loading, setLoading] = useState(true)
+    const [fetchError, setFetchError] = useState(false)
 
     useEffect(() => {
         if (isAuthenticated && user && (user.role === 'admin' || user.role === 'moderator')) {
@@ -50,8 +52,10 @@ function AdminDashboardContent() {
                 pending_moderation: modStats.data.pending,
                 total_storage_mb: dashRes.data.total_storage_bytes / (1024 * 1024)
             })
+            setFetchError(false)
         } catch (error) {
             console.error('Failed to fetch admin statistics:', error)
+            setFetchError(true)
         } finally {
             setLoading(false)
         }
@@ -135,6 +139,14 @@ function AdminDashboardContent() {
                     <span className="badge badge-primary">{user.role}</span>
                 </div>
             </div>
+
+            {fetchError && (
+                <FetchError
+                    message="Dashboard statistics could not be loaded. Counters may show placeholders."
+                    onRetry={fetchStats}
+                    className="mb-6"
+                />
+            )}
 
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">

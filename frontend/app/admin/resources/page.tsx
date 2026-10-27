@@ -8,6 +8,7 @@ import {
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { ModeratorAuthGate } from '@/components/AuthGate'
+import FetchError from '@/components/ui/FetchError'
 
 interface Resource {
     id: string
@@ -32,6 +33,7 @@ function ResourcesContent() {
     const [totalPages, setTotalPages] = useState(1)
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [deleting, setDeleting] = useState(false)
+    const [fetchError, setFetchError] = useState<string | null>(null)
 
     useEffect(() => {
         fetchResources()
@@ -45,9 +47,10 @@ function ResourcesContent() {
             })
             setResources(response.data.results || [])
             setTotalPages(Math.ceil((response.data.total || 0) / 50))
+            setFetchError(null)
         } catch (error) {
             console.error('Failed to fetch resources:', error)
-            setResources([])
+            setFetchError('Failed to load resources. The list may not actually be empty.')
         } finally {
             setLoading(false)
         }
@@ -180,6 +183,9 @@ function ResourcesContent() {
             </div>
 
             {/* Resources Table */}
+            {fetchError && (
+                <FetchError message={fetchError} onRetry={fetchResources} className="mb-4" />
+            )}
             <div className="card shadow-md overflow-hidden border border-border-subtle">
                 <div className="overflow-x-auto">
                     <table className="w-full">

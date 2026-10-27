@@ -10,6 +10,7 @@ import {
 import { apiHelpers } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { SkeletonTable } from '@/components/ui/Skeleton'
+import FetchError from '@/components/ui/FetchError'
 
 interface AuditEntry {
     id: string
@@ -29,6 +30,7 @@ export default function AuditLogsPage() {
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
+    const [fetchError, setFetchError] = useState<string | null>(null)
 
     useEffect(() => {
         if (!isLoading && (!isAuthenticated || user?.role !== 'admin')) {
@@ -48,8 +50,10 @@ export default function AuditLogsPage() {
             const response = await apiHelpers.getAuditLogs(page)
             setLogs(response.data.results)
             setTotalPages(Math.ceil(response.data.total / 50))
+            setFetchError(null)
         } catch (error) {
             console.error('Failed to fetch audit logs:', error)
+            setFetchError('Failed to load the audit trail. It may not actually be empty.')
         } finally {
             setLoading(false)
         }
@@ -77,6 +81,10 @@ export default function AuditLogsPage() {
                 <h1 className="text-3xl font-bold text-text-primary">Audit Trail</h1>
                 <p className="text-text-secondary">Historical record of all administrative actions</p>
             </div>
+
+            {fetchError && (
+                <FetchError message={fetchError} onRetry={fetchLogs} className="mb-4" />
+            )}
 
             <div className="card shadow-md overflow-hidden border border-border-subtle">
                 <div className="overflow-x-auto">

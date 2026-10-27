@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, FileText, Trash2, Loader2, Search, Check, X as XIcon, 
 import { CollectionCoverIcon } from '@/lib/collection-icons'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
+import FetchError from '@/components/ui/FetchError'
 
 interface CollectionItem {
     id: string
@@ -95,6 +96,7 @@ export default function CollectionDetailPage() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [searchFilter, setSearchFilter] = useState('')
     const [adding, setAdding] = useState(false)
+    const [pickerError, setPickerError] = useState(false)
 
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
@@ -127,8 +129,10 @@ export default function CollectionDetailPage() {
             setLoadingResources(true)
             const res = await api.get('/library/recent?limit=50')
             setUserResources(res.data || [])
+            setPickerError(false)
         } catch (err) {
             console.error('Failed to load resources:', err)
+            setPickerError(true)
         } finally {
             setLoadingResources(false)
         }
@@ -353,6 +357,12 @@ export default function CollectionDetailPage() {
                                 {loadingResources ? (
                                     <div className="flex justify-center py-10">
                                         <Loader2 className="w-6 h-6 animate-spin text-accent-primary" />
+                                    </div>
+                                ) : pickerError ? (
+                                    <div className="py-6">
+                                        <FetchError
+                                            message="Your files could not be loaded. Close and reopen this dialog to retry."
+                                        />
                                     </div>
                                 ) : filteredResources.length === 0 ? (
                                     <div className="text-center py-10">

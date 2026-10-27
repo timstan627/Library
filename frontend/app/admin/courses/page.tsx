@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth-context'
 import { SkeletonTable } from '@/components/ui/Skeleton'
 import { AdminAuthGate } from '@/components/AuthGate'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import FetchError from '@/components/ui/FetchError'
 
 interface Course {
     id: string
@@ -53,18 +54,13 @@ function CoursesContent() {
         description: ''
     })
     const [error, setError] = useState('')
+    const [fetchError, setFetchError] = useState<string | null>(null)
 
     // Delete modal state
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; course: Course | null }>({
         isOpen: false,
         course: null
     })
-
-    useEffect(() => {
-        if (isAuthenticated && user?.role === 'admin') {
-            fetchDepartments()
-        }
-    }, [isAuthenticated, user])
 
     useEffect(() => {
         if (isAuthenticated && user?.role === 'admin') {
@@ -82,8 +78,10 @@ function CoursesContent() {
         try {
             const response = await apiHelpers.getDepartmentsAdmin(1, 100)
             setDepartments(response.data.results)
+            setFetchError(null)
         } catch (error) {
             console.error('Failed to fetch departments:', error)
+            setFetchError('Failed to load departments. The list may not actually be empty.')
         }
     }
 
@@ -96,8 +94,10 @@ function CoursesContent() {
             )
             setCourses(response.data.results)
             setTotalPages(Math.ceil(response.data.total / 20))
+            setFetchError(null)
         } catch (error) {
             console.error('Failed to fetch courses:', error)
+            setFetchError('Failed to load courses. The list may not actually be empty.')
         } finally {
             setLoading(false)
         }
@@ -205,6 +205,14 @@ function CoursesContent() {
                     </select>
                 </div>
             </div>
+
+            {fetchError && (
+                <FetchError
+                    message={fetchError}
+                    onRetry={() => { fetchDepartments(); fetchCourses() }}
+                    className="mb-6"
+                />
+            )}
 
             <div className="card shadow-md overflow-hidden border border-border-subtle">
                 <div className="overflow-x-auto">

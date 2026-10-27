@@ -10,6 +10,7 @@ import {
 import { useAuth } from '@/lib/auth-context'
 import { apiHelpers } from '@/lib/api'
 import { SkeletonProfile } from '@/components/ui/Skeleton'
+import FetchError from '@/components/ui/FetchError'
 
 interface StorageInfo {
     quota_bytes: number
@@ -39,6 +40,7 @@ export default function ProfilePage() {
     const [storage, setStorage] = useState<StorageInfo | null>(null)
     const [resources, setResources] = useState<UserResource[]>([])
     const [loadingData, setLoadingData] = useState(true)
+    const [fetchError, setFetchError] = useState(false)
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
@@ -60,8 +62,10 @@ export default function ProfilePage() {
             ])
             setStorage(storageRes.data)
             setResources(resourcesRes.data.results || [])
+            setFetchError(false)
         } catch (error) {
             console.error('Failed to fetch profile data:', error)
+            setFetchError(true)
         } finally {
             setLoadingData(false)
         }
@@ -96,6 +100,14 @@ export default function ProfilePage() {
     return (
         <div className="container-custom py-8">
             <div className="max-w-4xl mx-auto">
+                {fetchError && (
+                    <FetchError
+                        message="Your profile data could not be loaded. Uploads and storage numbers may be missing."
+                        onRetry={fetchData}
+                        className="mb-6"
+                    />
+                )}
+
                 {/* Header */}
                 <div className="card p-6 mb-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
