@@ -189,5 +189,5 @@ export const apiHelpers = {
     getUserPromotionStatus: (userId: string) => api.get(`/admin/users/${userId}/promotion`),
 
     // Admin - Audit Logs
-    getAuditLogs: (page = 1, size = 50) => api.get('/admin/audit-logs', { params: { page, size } }),
+    getAuditLogs: (page = 1, size = 50) => api.get('/admin/moderation/audit-logs', { params: { page, page_size: size } }),
 }

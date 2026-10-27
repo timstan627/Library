@@ -161,9 +161,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
                 // Tokens are gone or second attempt failed — user is logged out
                 setUser(null)
+                return
             }
-            // Non-auth errors (network, 500, etc.) — keep current user state
-            // so the session isn't lost on temporary server issues
+            // Transient server errors (429 rate-limit, 5xx) or network blips:
+            // a valid token is still in localStorage, so the user is genuinely
+            // logged in — retry once after a short delay instead of dropping
+            // the session on a temporary outage.
+            if (localStorage.getItem('access_token')) {
+                await new Promise(r => setTimeout(r, 1500))
+                try {
+                    const retryResponse = await api.get('/auth/me')
+                    if (retryResponse.data) {
+                        setUser(retryResponse.data)
+                        return
+                    }
+                } catch {
+                    // Retry also failed — keep the token; the next navigation
+                    // will re-attempt rather than silently logging the user out.
+                }
+            }
         }
     }
 

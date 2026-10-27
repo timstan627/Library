@@ -192,3 +192,55 @@ async def get_moderation_stats(
     rejected = (await db.execute(select(func.count()).select_from(Resource).where(base, Resource.moderation_status == "rejected"))).scalar()
     
     return {"pending": pending, "approved": approved, "rejected": rejected, "total": pending + approved + rejected}
+
+
+@router.get("/audit-logs")
+async def get_audit_logs(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    action: str = Query(None),
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the admin audit trail (paginated, optionally filtered by action)."""
+    base = []
+    if action:
+        base.append(AuditLog.action == action)
+
+    count_result = await db.execute(select(func.count()).select_from(AuditLog).where(*base))
+    total = count_result.scalar()
+
+    result = await db.execute(
+        select(AuditLog).where(*base)
+        .order_by(AuditLog.timestamp.desc())
+        .offset((page - 1) * page_size).limit(page_size)
+    )
+    logs = result.scalars().all()
+
+    # Batch fetch actors
+    actor_ids = {log.actor_id for log in logs if log.actor_id}
+    actor_map = {}
+    if actor_ids:
+        users_result = await db.execute(select(User).where(User.id.in_(actor_ids)))
+        actor_map = {u.id: u for u in users_result.scalars().all()}
+
+    results = []
+    for log in logs:
+        actor = actor_map.get(log.actor_id)
+        results.append({
+            "id": str(log.id),
+            "action": log.action,
+            "actor_name": actor.display_name if actor else None,
+            "actor_id": str(log.actor_id) if log.actor_id else None,
+            "target_type": log.target_type,
+            "target_id": log.target_id,
+            "details": log.details,
+            "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+        })
+
+    return {
+        "results": results,
+        "total": total,
+        "page": page,
+        "pages": (total + page_size - 1) // page_size if total > 0 else 0,
+    }
