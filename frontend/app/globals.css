@@ -263,10 +263,24 @@ a:hover {
     animation: shimmer 1.6s infinite;
   }
 
+  /* Staggered grid/list entrance: 45 ms per item, capped at 12 items so
+     long lists never feel slow; items beyond 12 start immediately. */
   .stagger > * {
     animation: fadeUp var(--dur-slow) var(--ease-out-expo) backwards;
-    animation-delay: calc(var(--stagger-i, 0) * 45ms);
   }
+
+  .stagger > *:nth-child(12) { animation-delay: 540ms; }
+  .stagger > *:nth-child(11) { animation-delay: 495ms; }
+  .stagger > *:nth-child(10) { animation-delay: 450ms; }
+  .stagger > *:nth-child(9) { animation-delay: 405ms; }
+  .stagger > *:nth-child(8) { animation-delay: 360ms; }
+  .stagger > *:nth-child(7) { animation-delay: 315ms; }
+  .stagger > *:nth-child(6) { animation-delay: 270ms; }
+  .stagger > *:nth-child(5) { animation-delay: 225ms; }
+  .stagger > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger > *:nth-child(3) { animation-delay: 135ms; }
+  .stagger > *:nth-child(2) { animation-delay: 90ms; }
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
 }
 
 /* Utility classes */
@@ -360,7 +374,8 @@ a:hover {
 
   .animate-slide-up,
   .animate-slide-in-right,
-  .stagger > * {
+  .stagger > *,
+  .stagger > *:nth-child(n) {
     animation-name: fadeIn;
     animation-duration: 1ms;
     animation-delay: 0ms;

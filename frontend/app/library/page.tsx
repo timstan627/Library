@@ -278,12 +278,12 @@ export default function LibraryPage() {
                                     </button>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 stagger">
                                     {collections.map(c => (
                                         <div key={c.id} className="group relative">
                                             <Link
                                                 href={`/library/${c.id}`}
-                                                className="block p-5 bg-background-secondary rounded-xl border border-border-subtle hover:border-accent-primary/40 transition-[border-color] duration-200 h-full"
+                                                className="block card card-interactive p-5 h-full"
                                             >
                                                 {/* Color accent bar */}
                                                 <div className="h-1 w-12 rounded-full mb-4" style={{ backgroundColor: c.color }} />

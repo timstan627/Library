@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import NextTopLoader from 'nextjs-toploader'
 import { Bricolage_Grotesque, Figtree } from 'next/font/google'
 import './globals.css'
 import { Header } from '@/components/layout/Header'
@@ -40,6 +41,13 @@ export default function RootLayout({
     return (
         <html lang="en" className={`${fontDisplay.variable} ${fontBody.variable} dark`}>
             <body className="min-h-screen flex flex-col">
+                {/* Route-change progress: harbor blue, no glow, no spinner */}
+                <NextTopLoader
+                    color="rgb(0 113 211)"
+                    height={3}
+                    showSpinner={false}
+                    shadow={false}
+                />
                 <Providers>
                     <Header />
                     <main className="flex-1">

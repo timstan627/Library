@@ -242,12 +242,12 @@ function BrowseContent() {
                     </Link>
                 </div>
             ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="stagger grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {resources.map((resource) => (
                         <Link
                             key={resource.id}
                             href={`/resources/${resource.slug}`}
-                            className="card p-4 hover:border-border-medium transition-colors animate-fade-in"
+                            className="card card-interactive p-4 block"
                         >
                             <div className="flex items-start gap-3">
                                 <div className="w-10 h-10 bg-accent-primary/10 rounded-md flex items-center justify-center shrink-0">
