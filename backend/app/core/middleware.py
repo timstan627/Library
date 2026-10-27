@@ -1,10 +1,11 @@
 """
-Rate Limiting & Security Middleware
+Security Middleware: headers, request timing, rate limiting.
 """
 import time
 from collections import defaultdict
-from typing import Dict, Tuple
+from typing import Dict
 from fastapi import Request, HTTPException, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
@@ -114,9 +115,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         # Check rate limit
         if len(self.requests[client_ip]) >= self.requests_per_minute:
-            raise HTTPException(
+            # Must return a response directly: exceptions raised inside
+            # BaseHTTPMiddleware bypass FastAPI's exception handlers and
+            # surface to the client as a 500 instead of a 429.
+            return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many requests. Please try again later.",
+                content={"detail": "Too many requests. Please try again later."},
                 headers={"Retry-After": "60"},
             )
         

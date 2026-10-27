@@ -254,7 +254,8 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestTimingMiddleware)
 
 # Rate limiting middleware
-app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.rate_limit_per_minute)
+if settings.enable_rate_limiting:
+    app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.rate_limit_per_minute)
 
 
 # HTTPException handler with CORS headers
