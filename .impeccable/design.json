@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-27",
+  "title": "Design System: Student Library",
+  "extensions": {
+    "colorMeta": {
+      "surface-base": { "role": "neutral", "displayName": "Midnight Base", "canonical": "oklch(0.155 0.012 245)", "tonalRamp": ["oklch(0.15 0.002 245)", "oklch(0.25 0.005 245)", "oklch(0.35 0.008 245)", "oklch(0.45 0.011 245)", "oklch(0.55 0.012 245)", "oklch(0.68 0.010 245)", "oklch(0.80 0.007 245)", "oklch(0.93 0.003 245)"] },
+      "surface-raised": { "role": "neutral", "displayName": "Raised Midnight", "canonical": "oklch(0.200 0.014 245)", "tonalRamp": ["oklch(0.15 0.003 245)", "oklch(0.25 0.006 245)", "oklch(0.35 0.010 245)", "oklch(0.45 0.013 245)", "oklch(0.55 0.014 245)", "oklch(0.68 0.011 245)", "oklch(0.80 0.008 245)", "oklch(0.93 0.004 245)"] },
+      "surface-sunken": { "role": "neutral", "displayName": "Sunken Field", "canonical": "oklch(0.255 0.016 245)", "tonalRamp": ["oklch(0.15 0.003 245)", "oklch(0.25 0.006 245)", "oklch(0.35 0.011 245)", "oklch(0.45 0.014 245)", "oklch(0.55 0.016 245)", "oklch(0.68 0.013 245)", "oklch(0.80 0.009 245)", "oklch(0.93 0.004 245)"] },
+      "edge-subtle": { "role": "neutral", "displayName": "Edge Subtle", "canonical": "oklch(0.315 0.020 245)", "tonalRamp": ["oklch(0.15 0.004 245)", "oklch(0.25 0.008 245)", "oklch(0.35 0.014 245)", "oklch(0.45 0.018 245)", "oklch(0.55 0.020 245)", "oklch(0.68 0.016 245)", "oklch(0.80 0.011 245)", "oklch(0.93 0.005 245)"] },
+      "edge-field": { "role": "neutral", "displayName": "Edge Field", "canonical": "oklch(0.520 0.024 245)", "tonalRamp": ["oklch(0.15 0.005 245)", "oklch(0.25 0.010 245)", "oklch(0.35 0.017 245)", "oklch(0.45 0.022 245)", "oklch(0.55 0.024 245)", "oklch(0.68 0.019 245)", "oklch(0.80 0.013 245)", "oklch(0.93 0.006 245)"] },
+      "edge-hover": { "role": "neutral", "displayName": "Edge Hover", "canonical": "oklch(0.600 0.026 245)", "tonalRamp": ["oklch(0.15 0.005 245)", "oklch(0.25 0.010 245)", "oklch(0.35 0.018 245)", "oklch(0.45 0.023 245)", "oklch(0.55 0.026 245)", "oklch(0.68 0.021 245)", "oklch(0.80 0.014 245)", "oklch(0.93 0.007 245)"] },
+      "ink-high": { "role": "neutral", "displayName": "Ink High", "canonical": "oklch(0.920 0.010 245)", "tonalRamp": ["oklch(0.15 0.002 245)", "oklch(0.25 0.004 245)", "oklch(0.35 0.007 245)", "oklch(0.45 0.009 245)", "oklch(0.55 0.010 245)", "oklch(0.68 0.008 245)", "oklch(0.80 0.006 245)", "oklch(0.93 0.002 245)"] },
+      "ink-body": { "role": "neutral", "displayName": "Ink Body", "canonical": "oklch(0.730 0.018 245)", "tonalRamp": ["oklch(0.15 0.004 245)", "oklch(0.25 0.007 245)", "oklch(0.35 0.012 245)", "oklch(0.45 0.016 245)", "oklch(0.55 0.018 245)", "oklch(0.68 0.014 245)", "oklch(0.80 0.010 245)", "oklch(0.93 0.005 245)"] },
+      "ink-faint": { "role": "neutral", "displayName": "Ink Faint", "canonical": "oklch(0.640 0.016 245)", "tonalRamp": ["oklch(0.15 0.003 245)", "oklch(0.25 0.006 245)", "oklch(0.35 0.011 245)", "oklch(0.45 0.014 245)", "oklch(0.55 0.016 245)", "oklch(0.68 0.013 245)", "oklch(0.80 0.009 245)", "oklch(0.93 0.004 245)"] },
+      "harbor-blue": { "role": "primary", "displayName": "Harbor Blue", "canonical": "oklch(0.545 0.180 250)", "tonalRamp": ["oklch(0.15 0.036 250)", "oklch(0.25 0.072 250)", "oklch(0.35 0.126 250)", "oklch(0.45 0.162 250)", "oklch(0.545 0.180 250)", "oklch(0.68 0.144 250)", "oklch(0.80 0.099 250)", "oklch(0.93 0.045 250)"] },
+      "harbor-deep": { "role": "primary", "displayName": "Harbor Deep", "canonical": "oklch(0.500 0.170 250)", "tonalRamp": ["oklch(0.15 0.034 250)", "oklch(0.25 0.068 250)", "oklch(0.35 0.119 250)", "oklch(0.45 0.153 250)", "oklch(0.55 0.170 250)", "oklch(0.68 0.136 250)", "oklch(0.80 0.094 250)", "oklch(0.93 0.043 250)"] },
+      "harbor-sky": { "role": "primary", "displayName": "Harbor Sky", "canonical": "oklch(0.780 0.115 250)", "tonalRamp": ["oklch(0.15 0.023 250)", "oklch(0.25 0.046 250)", "oklch(0.35 0.081 250)", "oklch(0.45 0.104 250)", "oklch(0.55 0.115 250)", "oklch(0.68 0.092 250)", "oklch(0.80 0.063 250)", "oklch(0.93 0.029 250)"] },
+      "harbor-mist": { "role": "primary", "displayName": "Harbor Mist", "canonical": "oklch(0.860 0.080 250)", "tonalRamp": ["oklch(0.15 0.016 250)", "oklch(0.25 0.032 250)", "oklch(0.35 0.056 250)", "oklch(0.45 0.072 250)", "oklch(0.55 0.080 250)", "oklch(0.68 0.064 250)", "oklch(0.80 0.044 250)", "oklch(0.93 0.020 250)"] },
+      "paper-ink": { "role": "neutral", "displayName": "Paper Ink", "canonical": "rgb(248 250 253)", "tonalRamp": ["oklch(0.15 0.006 250)", "oklch(0.25 0.012 250)", "oklch(0.35 0.020 250)", "oklch(0.45 0.026 250)", "oklch(0.55 0.029 250)", "oklch(0.68 0.023 250)", "oklch(0.80 0.016 250)", "oklch(0.93 0.007 250)"] },
+      "ink-strong": { "role": "neutral", "displayName": "Strong Ink", "canonical": "rgb(13 17 22)", "tonalRamp": ["oklch(0.15 0.010 245)", "oklch(0.25 0.020 245)", "oklch(0.35 0.035 245)", "oklch(0.45 0.045 245)", "oklch(0.55 0.050 245)", "oklch(0.68 0.040 245)", "oklch(0.80 0.028 245)", "oklch(0.93 0.013 245)"] },
+      "success-fill": { "role": "status", "displayName": "Signal Green fill", "canonical": "oklch(0.535 0.145 155)", "tonalRamp": ["oklch(0.15 0.029 155)", "oklch(0.25 0.058 155)", "oklch(0.35 0.102 155)", "oklch(0.45 0.131 155)", "oklch(0.535 0.145 155)", "oklch(0.68 0.116 155)", "oklch(0.80 0.080 155)", "oklch(0.93 0.036 155)"] },
+      "success-text": { "role": "status", "displayName": "Signal Green text", "canonical": "oklch(0.700 0.130 155)", "tonalRamp": ["oklch(0.15 0.026 155)", "oklch(0.25 0.052 155)", "oklch(0.35 0.091 155)", "oklch(0.45 0.117 155)", "oklch(0.55 0.130 155)", "oklch(0.68 0.104 155)", "oklch(0.80 0.072 155)", "oklch(0.93 0.033 155)"] },
+      "warning-fill": { "role": "status", "displayName": "Caution Amber fill", "canonical": "oklch(0.700 0.140 085)", "tonalRamp": ["oklch(0.15 0.028 085)", "oklch(0.25 0.056 085)", "oklch(0.35 0.098 085)", "oklch(0.45 0.126 085)", "oklch(0.55 0.140 085)", "oklch(0.68 0.112 085)", "oklch(0.80 0.077 085)", "oklch(0.93 0.035 085)"] },
+      "warning-text": { "role": "status", "displayName": "Caution Amber text", "canonical": "oklch(0.790 0.120 085)", "tonalRamp": ["oklch(0.15 0.024 085)", "oklch(0.25 0.048 085)", "oklch(0.35 0.084 085)", "oklch(0.45 0.108 085)", "oklch(0.55 0.120 085)", "oklch(0.68 0.096 085)", "oklch(0.80 0.066 085)", "oklch(0.93 0.030 085)"] },
+      "danger-fill": { "role": "status", "displayName": "Alert Red fill", "canonical": "oklch(0.540 0.190 025)", "tonalRamp": ["oklch(0.15 0.038 025)", "oklch(0.25 0.076 025)", "oklch(0.35 0.133 025)", "oklch(0.45 0.171 025)", "oklch(0.55 0.190 025)", "oklch(0.68 0.152 025)", "oklch(0.80 0.105 025)", "oklch(0.93 0.048 025)"] },
+      "danger-deep": { "role": "status", "displayName": "Alert Red deep", "canonical": "oklch(0.480 0.180 025)", "tonalRamp": ["oklch(0.15 0.036 025)", "oklch(0.25 0.072 025)", "oklch(0.35 0.126 025)", "oklch(0.45 0.162 025)", "oklch(0.55 0.180 025)", "oklch(0.68 0.144 025)", "oklch(0.80 0.099 025)", "oklch(0.93 0.045 025)"] },
+      "danger-text": { "role": "status", "displayName": "Alert Red text", "canonical": "oklch(0.705 0.160 025)", "tonalRamp": ["oklch(0.15 0.032 025)", "oklch(0.25 0.064 025)", "oklch(0.35 0.112 025)", "oklch(0.45 0.144 025)", "oklch(0.55 0.160 025)", "oklch(0.68 0.128 025)", "oklch(0.80 0.088 025)", "oklch(0.93 0.040 025)"] },
+      "category-violet": { "role": "tertiary", "displayName": "Category Violet", "canonical": "oklch(0.700 0.120 305)", "tonalRamp": ["oklch(0.15 0.024 305)", "oklch(0.25 0.048 305)", "oklch(0.35 0.084 305)", "oklch(0.45 0.108 305)", "oklch(0.55 0.120 305)", "oklch(0.68 0.096 305)", "oklch(0.80 0.066 305)", "oklch(0.93 0.030 305)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page titles and hero statements only; balanced line breaks." },
+      "body": { "displayName": "Body", "purpose": "All paragraphs and descriptions; 65ch measure for long-form." },
+      "label": { "displayName": "Label", "purpose": "Form labels, table heads, small buttons; sentence case, never uppercase." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "ease-out-expo", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Entrances and lifts; settles fast, lands soft." },
+      { "name": "ease-standard", "value": "cubic-bezier(0.65, 0, 0.35, 1)", "purpose": "State transitions (color, border, shadow)." },
+      { "name": "dur-fast", "value": "120ms", "purpose": "Hovers, presses, focus." },
+      { "name": "dur-base", "value": "180ms", "purpose": "Card and component state changes." },
+      { "name": "dur-slow", "value": "280ms", "purpose": "Entrances (fadeUp, stagger)." },
+      { "name": "stagger-step", "value": "45ms", "purpose": "Per-item delay for list/grid entrances." },
+      { "name": "skeleton-loop", "value": "1.6s", "purpose": "Shimmer sheen translateX loop." },
+      { "name": "reduced-motion", "value": "opacity-only", "purpose": "Under prefers-reduced-motion: no spatial movement, no infinite loops, instant feedback." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one loud action on a surface; Harbor Blue fill, darkens on hover, presses down on click.",
+      "html": "<button class=\"ds-btn ds-btn-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\"/><path d=\"m12 5 7 7-7 7\"/></svg>Search</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 16px; border-radius: 8px; border: 1px solid transparent; font: 500 0.875rem/1.4 'Figtree', system-ui, sans-serif; white-space: nowrap; background: oklch(0.545 0.180 250); color: rgb(248 250 253); cursor: pointer; transition: background-color 120ms cubic-bezier(0.65, 0, 0.35, 1), transform 120ms cubic-bezier(0.65, 0, 0.35, 1); } .ds-btn-primary:hover { background: oklch(0.500 0.170 250); } .ds-btn-primary:active { transform: scale(0.98); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(0.545 0.180 250); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Sunken fill with a field-strength edge; hover brightens only the border.",
+      "html": "<button class=\"ds-btn ds-btn-secondary\">Browse All</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 16px; border-radius: 8px; border: 1px solid oklch(0.520 0.024 245); font: 500 0.875rem/1.4 'Figtree', system-ui, sans-serif; white-space: nowrap; background: oklch(0.255 0.016 245); color: oklch(0.920 0.010 245); cursor: pointer; transition: border-color 120ms cubic-bezier(0.65, 0, 0.35, 1), transform 120ms cubic-bezier(0.65, 0, 0.35, 1); } .ds-btn-secondary:hover { border-color: oklch(0.600 0.026 245); } .ds-btn-secondary:active { transform: scale(0.98); } .ds-btn-secondary:focus-visible { outline: 2px solid oklch(0.545 0.180 250); outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Transparent until hovered; reveals a sunken field and steps text up.",
+      "html": "<button class=\"ds-btn ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 16px; border-radius: 8px; border: 1px solid transparent; font: 500 0.875rem/1.4 'Figtree', system-ui, sans-serif; white-space: nowrap; background: transparent; color: oklch(0.730 0.018 245); cursor: pointer; transition: background-color 120ms cubic-bezier(0.65, 0, 0.35, 1), color 120ms cubic-bezier(0.65, 0, 0.35, 1); } .ds-btn-ghost:hover { background: oklch(0.255 0.016 245); color: oklch(0.920 0.010 245); } .ds-btn-ghost:focus-visible { outline: 2px solid oklch(0.545 0.180 250); outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive intent only; Alert Red fill, deepens on hover.",
+      "html": "<button class=\"ds-btn ds-btn-danger\">Delete</button>",
+      "css": ".ds-btn-danger { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 16px; border-radius: 8px; border: 1px solid transparent; font: 500 0.875rem/1.4 'Figtree', system-ui, sans-serif; white-space: nowrap; background: oklch(0.540 0.190 025); color: rgb(248 250 253); cursor: pointer; transition: background-color 120ms cubic-bezier(0.65, 0, 0.35, 1), transform 120ms cubic-bezier(0.65, 0, 0.35, 1); } .ds-btn-danger:hover { background: oklch(0.480 0.180 025); } .ds-btn-danger:active { transform: scale(0.98); } .ds-btn-danger:focus-visible { outline: 2px solid oklch(0.545 0.180 250); outline-offset: 2px; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Recessed sunken field, ≥3:1 edge, accent caret, focus border + 40% ring.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search for notes, exams, courses...\" />",
+      "css": ".ds-input { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid oklch(0.520 0.024 245); background: oklch(0.255 0.016 245); color: oklch(0.920 0.010 245); font: 400 0.875rem/1.5 'Figtree', system-ui, sans-serif; caret-color: oklch(0.545 0.180 250); transition: border-color 120ms cubic-bezier(0.65, 0, 0.35, 1), box-shadow 120ms cubic-bezier(0.65, 0, 0.35, 1); } .ds-input::placeholder { color: oklch(0.640 0.016 245); } .ds-input:focus { outline: none; border-color: oklch(0.545 0.180 250); box-shadow: 0 0 0 2px oklch(0.545 0.180 250 / 0.40); }"
+    },
+    {
+      "name": "Interactive Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Raised surface, hairline edge; hover lifts 2 px and brightens the edge — one gesture.",
+      "html": "<div class=\"ds-card\"><h3>Thermodynamics — Full Notes</h3><p>ME-201 · Semester 3 · 42 downloads</p></div>",
+      "css": ".ds-card { padding: 20px; border-radius: 8px; border: 1px solid oklch(0.315 0.020 245); background: oklch(0.200 0.014 245); color: oklch(0.920 0.010 245); font: 400 0.875rem/1.6 'Figtree', system-ui, sans-serif; transition: border-color 180ms cubic-bezier(0.65, 0, 0.35, 1), transform 180ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-card:hover { border-color: oklch(0.520 0.024 245); transform: translateY(-2px); } .ds-card h3 { margin: 0 0 6px; font: 700 1.125rem/1.3 'Bricolage Grotesque', 'Figtree', system-ui, sans-serif; } .ds-card p { margin: 0; color: oklch(0.730 0.018 245); font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Quiet metadata chip on sunken field.",
+      "html": "<span class=\"ds-badge\">PDF · 2.4 MB</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; border: 1px solid oklch(0.315 0.020 245); background: oklch(0.255 0.016 245); color: oklch(0.730 0.018 245); font: 500 0.75rem/1.4 'Figtree', system-ui, sans-serif; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Accent Badge",
+      "kind": "chip",
+      "refersTo": "badge-accent",
+      "description": "Harbor Blue as a whisper: 10% fill, sky text, 30% edge.",
+      "html": "<span class=\"ds-badge-accent\">Featured</span>",
+      "css": ".ds-badge-accent { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; border: 1px solid oklch(0.545 0.180 250 / 0.30); background: oklch(0.545 0.180 250 / 0.10); color: oklch(0.780 0.115 250); font: 500 0.75rem/1.4 'Figtree', system-ui, sans-serif; }"
+    },
+    {
+      "name": "Header Navigation",
+      "kind": "nav",
+      "refersTo": "card",
+      "description": "Wordmark tile + inline links over raised midnight; active link steps to ink-high.",
+      "html": "<header class=\"ds-nav\"><a class=\"ds-nav-brand\" href=\"#\"><span class=\"ds-nav-tile\">S</span><span class=\"ds-nav-word\">Student Library</span></a><nav class=\"ds-nav-links\"><a href=\"#\" class=\"ds-nav-link is-active\">Home</a><a href=\"#\" class=\"ds-nav-link\">Browse</a><a href=\"#\" class=\"ds-nav-link ds-nav-cta\">Login</a></nav></header>",
+      "css": ".ds-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; background: oklch(0.200 0.014 245); border-bottom: 1px solid oklch(0.315 0.020 245); font: 500 0.875rem/1.4 'Figtree', system-ui, sans-serif; } .ds-nav-brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; } .ds-nav-tile { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; background: oklch(0.545 0.180 250); color: rgb(248 250 253); font-weight: 700; } .ds-nav-word { color: oklch(0.920 0.010 245); font: 700 1rem/1.2 'Bricolage Grotesque', 'Figtree', system-ui, sans-serif; } .ds-nav-links { display: inline-flex; align-items: center; gap: 20px; } .ds-nav-link { color: oklch(0.730 0.018 245); text-decoration: none; transition: color 120ms cubic-bezier(0.65, 0, 0.35, 1); } .ds-nav-link:hover, .ds-nav-link.is-active { color: oklch(0.920 0.010 245); } .ds-nav-cta { padding: 6px 12px; border-radius: 8px; background: oklch(0.545 0.180 250); color: rgb(248 250 253); } .ds-nav-cta:hover { background: oklch(0.500 0.170 250); } .ds-nav a:focus-visible { outline: 2px solid oklch(0.545 0.180 250); outline-offset: 2px; }"
+    },
+    {
+      "name": "Skeleton",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Signature loading surface: sunken field with a single translating sheen.",
+      "html": "<div class=\"ds-skeleton\" style=\"width: 320px; height: 96px;\"></div>",
+      "css": ".ds-skeleton { position: relative; overflow: hidden; border-radius: 8px; background: oklch(0.255 0.016 245); } .ds-skeleton::after { content: \"\"; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, oklch(0.920 0.010 245 / 0.06), transparent); animation: ds-shimmer 1.6s infinite; } @keyframes ds-shimmer { to { transform: translateX(100%); } } @media (prefers-reduced-motion: reduce) { .ds-skeleton::after { animation: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Midnight Study Hall",
+    "overview": "A quiet, always-open library at night. The whole system is a dark, midnight-blue room — surfaces are near-black planes tinted toward a single azure hue (OKLCH hue 245, no pure grays anywhere) — and one harbor-blue light marks everything that matters: links, primary actions, focus, the way forward. Nothing glows, nothing shouts; the room is calm so the material on the shelves can be trusted.\n\nThe hall keeps its doors open and its shelf layout legible. Access is free and ungatekept (every public action is reachable in a click or two), and academic structure is the map: departments, courses, and semesters organize the shelves exactly the way students think. The interface's job is to disappear behind that structure — comfortable density, scanable tables, honest empty states.\n\nComponents are refined and restrained at rest but tactile in the hand: a single hover gesture (a small lift or a border brighten, never both plus a glow), a satisfying press (scale 0.98), instant focus. Efficient and unpretentious — the design would rather be a good study room than a showcase.",
+    "keyCharacteristics": [
+      "Dark-only system (color-scheme: dark); three surface elevations, all tinted hue 245",
+      "One anchor accent (Harbor Blue); status hues appear only as state, violet only as category marks",
+      "Flat at rest; depth appears only as feedback (lift, border brighten, press scale)",
+      "Composited motion only (transform/opacity), exponential ease-out, staggered entrances at 45 ms",
+      "Tabular figures on every data-heavy number; balanced line breaks on every heading",
+      "Lucide icons at 16–24 px, stroke 2; never emoji as UI icons"
+    ],
+    "rules": [
+      { "name": "The One Hue Rule", "body": "Harbor Blue is the only chromatic hero. Status hues speak only when state changes; violet only marks categories. If a new screen needs \"more color,\" the answer is more structure, not more hues.", "section": "colors" },
+      { "name": "The Tinted Neutral Rule", "body": "There are no pure grays. Every neutral in the system carries hue 245; a stock palette gray or a #fff/#000 is off-system by definition (legacy bridged classes resolve to themed tokens — new code uses tokens directly).", "section": "colors" },
+      { "name": "The Two-Edge Rule", "body": "Edges have exactly three strengths: Subtle for decoration, Field for anything interactive, Hover for the hover state of Field. Never invent a fourth brightness.", "section": "colors" },
+      { "name": "The Tabular Figure Rule", "body": "Any number that will be scanned, compared, or counted (stats, sizes, table columns) gets tabular-nums. Prose numbers don't.", "section": "typography" },
+      { "name": "The Balanced Headline Rule", "body": "Every heading wraps with text-wrap: balance; every prose paragraph with text-wrap: pretty. The type sets itself up to look intentional at any width.", "section": "typography" },
+      { "name": "The One-Signal Rule", "body": "A hover state changes one thing about a component as a single gesture — a lift with its edge brighten, or a color shift — never a stack of color + shadow + motion. If two signals compete, the quieter one wins.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use the semantic token classes (bg-background-secondary, text-text-secondary, border-border-subtle) for all new UI; resolve every color through the theme.",
+      "Do check every new neutral carries the tint — if it reads as pure gray on midnight, it's off-system.",
+      "Do give interactive elements exactly one hover gesture, 120–180 ms, exponential ease-out.",
+      "Do set tabular-nums on every scanned number and text-wrap: balance on every heading.",
+      "Do use lucide icons at 16–24 px (stroke 2) wrapped in accessible names; put icons on icon tiles (Sunken Field, 8 px radius).",
+      "Do honor prefers-reduced-motion: opacity-only feedback, no spatial movement, no infinite loops."
+    ],
+    "donts": [
+      "Don't introduce stock palette steps (blue-500, gray-400) in new code — the legacy bridge exists so old markup renders on-theme, not as an invitation.",
+      "Don't stack hover signals (glow + lift + color) or add resting shadows to flat surfaces.",
+      "Don't use uppercase/letter-spaced label caps, glued arrows in copy (\"Upload your first file →\"), or middle-dot separators — hierarchy is weight and color, not typographic noise.",
+      "Don't animate layout properties (width, height, top/left); movement is composited transform only.",
+      "Don't remove or fade-in focus rings; focus is instant and always visible.",
+      "Don't use emoji as UI icons or invent a second accent hue."
+    ]
+  }
+}
