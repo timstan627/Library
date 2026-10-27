@@ -228,6 +228,22 @@ a:hover {
     @apply bg-accent-primary/10 text-accent-light border-accent-primary/30;
   }
 
+  .badge-secondary {
+    @apply bg-background-tertiary text-text-secondary border-border-medium;
+  }
+
+  .badge-success {
+    @apply bg-success/10 text-success-light border-success/30;
+  }
+
+  .badge-danger {
+    @apply bg-danger/10 text-danger-light border-danger/30;
+  }
+
+  .badge-warning {
+    @apply bg-warning/10 text-warning-light border-warning/30;
+  }
+
   /* Shimmer skeleton: composited transform, defined once, theme-aware */
   .skeleton {
     @apply bg-background-tertiary rounded-lg overflow-hidden relative;

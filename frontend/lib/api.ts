@@ -25,7 +25,8 @@ api.interceptors.request.use(
             if (token) {
                 // console.log('Attaching token:', token.substring(0, 10) + '...')
                 config.headers.Authorization = `Bearer ${token}`
-            } else {
+            } else if (process.env.NODE_ENV === 'development') {
+                // Expected on public pages for anonymous visitors; keep the noise out of production consoles
                 console.warn('No token found in localStorage')
             }
         }
@@ -173,7 +174,7 @@ export const apiHelpers = {
     createDepartment: (data: any) => api.post('/admin/departments', data),
     updateDepartment: (id: string, data: any) => api.put(`/admin/departments/${id}`, data),
     deleteDepartment: (id: string) => api.delete(`/admin/departments/${id}`),
-    toggleDepartment: (id: string) => api.post(`/admin/departments/${id}/toggle`),
+    toggleDepartment: (id: string) => api.patch(`/admin/departments/${id}/toggle`),
 
     // Admin - Courses
     getCoursesAdmin: (departmentId?: string, page = 1, size = 50) =>
