@@ -121,6 +121,14 @@ export default function ResourceDetailPage() {
         }
     }
 
+    // Reflect the user's saved star rating in the widget once ratings and auth are loaded.
+    // Only fills an untouched widget so it never fights an in-progress selection.
+    useEffect(() => {
+        if (!user || userRating > 0) return
+        const own = ratings.find(r => String(r.user_id) === String(user.id) && r.value > 0)
+        if (own) setUserRating(own.value)
+    }, [ratings, user, userRating])
+
     // Helper: check if MIME type is an office document
     const isOfficeFile = (mime: string) => {
         return mime.includes('wordprocessing') ||
@@ -271,8 +279,9 @@ export default function ResourceDetailPage() {
                 value: userRating,
             })
 
-            // Update stats
+            // Refresh ratings list and stats
             const ratingsResponse = await apiHelpers.getResourceRatings(resource.id)
+            setRatings(ratingsResponse.data.results)
             setResource(prev => prev ? {
                 ...prev,
                 average_rating: ratingsResponse.data.average_rating,
@@ -292,13 +301,18 @@ export default function ResourceDetailPage() {
         setSubmittingRating(true)
         try {
             await apiHelpers.createRating(resource.id, {
-                value: 0, // Comment only
+                value: userRating, // Include the selected stars with the review
                 review: userReview,
             })
 
-            // Refresh ratings list
+            // Refresh ratings list and stats
             const ratingsResponse = await apiHelpers.getResourceRatings(resource.id)
             setRatings(ratingsResponse.data.results)
+            setResource(prev => prev ? {
+                ...prev,
+                average_rating: ratingsResponse.data.average_rating,
+                rating_count: ratingsResponse.data.rating_count,
+            } : null)
 
             setUserReview('')
         } catch (err: any) {
@@ -469,7 +483,7 @@ export default function ResourceDetailPage() {
                         <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-text-secondary mt-1">
                             <span className="badge badge-primary text-xs">{resource.course_code}</span>
                             {resource.department && <span>{resource.department}</span>}
-                            {resource.semester && <span>{resource.semester}</span>}
+                            {resource.semester && <span>{/^sem/i.test(resource.semester) ? resource.semester : `Semester ${resource.semester}`}</span>}
                         </div>
                         {/* Edit/Delete buttons — below title, always visible as a row */}
                         {canEdit && (
@@ -577,6 +591,7 @@ export default function ResourceDetailPage() {
                                                     key={star}
                                                     type="button"
                                                     onClick={() => handleStarClick(star)}
+                                                    aria-label={`Rate ${star} star${star === 1 ? '' : 's'}`}
                                                     className="p-1 hover:scale-110 transition-transform"
                                                 >
                                                     <Star
@@ -652,17 +667,19 @@ export default function ResourceDetailPage() {
                                                     {rating.user_name || 'Anonymous'}
                                                 </span>
                                             </div>
-                                            <div className="flex items-center gap-1">
-                                                {[...Array(5)].map((_, i) => (
-                                                    <Star
-                                                        key={i}
-                                                        className={`w-4 h-4 ${i < rating.value
-                                                            ? 'fill-yellow-500 text-yellow-500'
-                                                            : 'text-text-muted'
-                                                            }`}
-                                                    />
-                                                ))}
-                                            </div>
+                                            {rating.value > 0 && (
+                                                <div className="flex items-center gap-1">
+                                                    {[...Array(5)].map((_, i) => (
+                                                        <Star
+                                                            key={i}
+                                                            className={`w-4 h-4 ${i < rating.value
+                                                                ? 'fill-yellow-500 text-yellow-500'
+                                                                : 'text-text-muted'
+                                                                }`}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         {rating.review && (
                                             <p className="text-text-secondary text-sm">{rating.review}</p>

@@ -26,7 +26,13 @@ async def create_or_update_rating(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create or update a rating for a resource."""
+    """Create or update a rating for a resource.
+
+    One rating row per (user, resource). Stars and review compose:
+    - A star value > 0 sets/updates the stars (and the aggregates).
+    - A review (when provided) sets/updates the review text without
+      discarding previously saved stars, so "4 stars + comment" stores both.
+    """
     result = await db.execute(
         select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
     )
@@ -35,54 +41,52 @@ async def create_or_update_rating(
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
-    if data.value > 0:
-        # STAR RATING: Check if user already rated with stars
-        existing_result = await db.execute(
-            select(Rating).where(
-                Rating.user_id == current_user.id,
-                Rating.resource_id == resource_id,
-                Rating.value > 0,
-            )
+    existing_result = await db.execute(
+        select(Rating).where(
+            Rating.user_id == current_user.id,
+            Rating.resource_id == resource_id,
         )
-        existing_rating = existing_result.scalar_one_or_none()
-        
-        if existing_rating:
-            # Update existing star rating
-            old_value = existing_rating.value
-            existing_rating.value = data.value
-            if data.review is not None:
-                existing_rating.review = data.review
-            
-            resource.rating_sum = resource.rating_sum - old_value + data.value
-            await db.flush()
-            return existing_rating
-        else:
-            # Create NEW star rating
-            rating = Rating(
-                user_id=current_user.id,
-                resource_id=resource.id,
-                value=data.value,
-                review=data.review,
-            )
-            db.add(rating)
-            
-            resource.rating_sum += data.value
-            resource.rating_count += 1
-            await db.flush()
-            await db.refresh(rating)
-            return rating
-    else:
-        # COMMENT ONLY (value == 0)
-        rating = Rating(
-            user_id=current_user.id,
-            resource_id=resource.id,
-            value=0,
-            review=data.review or "",
-        )
-        db.add(rating)
+    )
+    existing_rating = existing_result.scalar_one_or_none()
+
+    if existing_rating:
+        # Update the user's single rating row in place.
+        old_value = existing_rating.value
+        new_value = data.value if data.value > 0 else old_value
+        if data.review is not None:
+            existing_rating.review = data.review
+
+        if new_value != old_value:
+            if old_value == 0 and new_value > 0:
+                # Comment-only row becomes a star rating.
+                resource.rating_sum += new_value
+                resource.rating_count += 1
+            elif old_value > 0 and new_value == 0:
+                resource.rating_sum = max(0, resource.rating_sum - old_value)
+                resource.rating_count = max(0, resource.rating_count - 1)
+            else:
+                resource.rating_sum = resource.rating_sum - old_value + new_value
+            existing_rating.value = new_value
+
         await db.flush()
-        await db.refresh(rating)
-        return rating
+        await db.refresh(existing_rating)
+        return existing_rating
+
+    # First rating from this user.
+    rating = Rating(
+        user_id=current_user.id,
+        resource_id=resource.id,
+        value=data.value,
+        review=data.review,
+    )
+    db.add(rating)
+
+    if data.value > 0:
+        resource.rating_sum += data.value
+        resource.rating_count += 1
+    await db.flush()
+    await db.refresh(rating)
+    return rating
 
 
 @router.get("/resources/{resource_id}")
