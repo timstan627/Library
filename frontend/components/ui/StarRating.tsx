@@ -33,7 +33,7 @@ export function StarRating({
                 >
                     <Star
                         className={`${sizes[size]} ${star <= value
-                                ? 'fill-yellow-500 text-yellow-500'
+                                ? 'fill-warning text-warning'
                                 : 'text-text-muted'
                             }`}
                     />

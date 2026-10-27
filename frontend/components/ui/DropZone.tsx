@@ -132,10 +132,10 @@ export const DropZone: React.FC<DropZoneProps> = ({
                 className={`
           relative border-2 border-dashed rounded-lg p-6 md:p-8 text-center cursor-pointer
           overflow-hidden w-full
-          transition-all duration-200 ease-in-out
+          transition-[border-color,background-color] duration-200 ease-standard
           ${isDragging
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                        ? 'border-accent-primary bg-accent-primary/10'
+                        : 'border-border-medium hover:border-border-strong'
                     }
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
@@ -152,19 +152,19 @@ export const DropZone: React.FC<DropZoneProps> = ({
 
                 <div className="space-y-4 flex flex-col items-center justify-center min-h-[150px]">
                     <div className="flex justify-center">
-                        <Upload className={`w-10 h-10 md:w-12 md:h-12 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
+                        <Upload className={`w-10 h-10 md:w-12 md:h-12 ${isDragging ? 'text-accent-primary' : 'text-text-muted'}`} />
                     </div>
 
                     <div className="w-full px-2">
-                        <p className="text-base md:text-lg font-medium text-gray-700 dark:text-gray-300 break-words whitespace-normal">
+                        <p className="text-base md:text-lg font-medium text-text-primary break-words whitespace-normal">
                             {isDragging ? 'Drop your file here' : 'Drag & drop your file here'}
                         </p>
-                        <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-2 break-words">
+                        <p className="text-xs md:text-sm text-text-secondary mt-2 break-words">
                             or click to browse
                         </p>
                     </div>
 
-                    <div className="text-xs text-gray-500 dark:text-gray-400 space-y-2 mt-2 w-full px-4">
+                    <div className="text-xs text-text-muted space-y-2 mt-2 w-full px-4">
                         <p className="break-words leading-relaxed">
                             <span className="font-semibold block sm:inline sm:mr-1">Accepted formats:</span>
                             {accept.split(',').map(ext => ext.replace('.', '').toUpperCase()).join(', ')}
@@ -175,9 +175,9 @@ export const DropZone: React.FC<DropZoneProps> = ({
             </div>
 
             {error && (
-                <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                <div className="mt-4 p-4 bg-danger/10 border border-danger/30 rounded-lg flex items-start gap-3" role="alert">
+                    <AlertCircle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-danger">{error}</p>
                 </div>
             )}
         </div>
@@ -241,19 +241,19 @@ const FilePreviewCard: React.FC<FilePreviewCardProps> = ({ file, progress, statu
     const isUploading = progress !== undefined && progress > 0 && progress < 100;
 
     return (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div className="bg-background-secondary border border-border-subtle rounded-lg p-4">
             <div className="flex items-start gap-4">
                 <div className="flex-shrink-0">
-                    <FileText className="w-10 h-10 text-blue-500" />
+                    <FileText className="w-10 h-10 text-accent-primary" />
                 </div>
 
                 <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            <p className="text-sm font-medium text-text-primary truncate">
                                 {file.name}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            <p className="text-xs text-text-muted mt-1">
                                 {formatSize(file.size)}
                             </p>
                         </div>
@@ -261,13 +261,13 @@ const FilePreviewCard: React.FC<FilePreviewCardProps> = ({ file, progress, statu
                         {!isUploading && (
                             <button
                                 onClick={onRemove}
-                                className="flex-shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                className="flex-shrink-0 p-1 hover:bg-background-tertiary rounded transition-colors"
                                 aria-label="Remove file"
                             >
                                 {isComplete ? (
-                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                    <CheckCircle className="w-5 h-5 text-success" />
                                 ) : (
-                                    <X className="w-5 h-5 text-gray-400" />
+                                    <X className="w-5 h-5 text-text-muted" />
                                 )}
                             </button>
                         )}
@@ -276,10 +276,10 @@ const FilePreviewCard: React.FC<FilePreviewCardProps> = ({ file, progress, statu
                     {progress !== undefined && progress > 0 && (
                         <div className="mt-3">
                             <div className="flex justify-between text-xs mb-1">
-                                <span className="text-gray-500 dark:text-gray-400">
+                                <span className="text-text-muted">
                                     {status || (isComplete ? 'Complete' : 'Uploading...')}
                                 </span>
-                                <span className="font-medium text-gray-700 dark:text-gray-300">
+                                <span className="font-medium text-text-secondary tabular-nums">
                                     {Math.round(progress)}%
                                 </span>
                             </div>

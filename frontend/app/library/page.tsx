@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, BookOpen, FolderOpen, FileText, Trash2, Edit2, Loader2, AlertCircle, Clock, Archive } from 'lucide-react'
+import { Plus, BookOpen, FolderOpen, FileText, Trash2, Edit2, Loader2, AlertCircle, Clock, Archive, Lock, Link2, Key, Globe } from 'lucide-react'
+import { COVER_ICONS, DEFAULT_COVER_ICON, CollectionCoverIcon } from '@/lib/collection-icons'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 
@@ -31,7 +32,6 @@ interface RecentUpload {
     created_at: string
 }
 
-const EMOJI_OPTIONS = ['📁', '📚', '📝', '🧪', '📊', '🎓', '💻', '🔬', '📐', '🎨', '📖', '🗂️']
 const COLOR_OPTIONS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#64748b']
 
 function formatSize(bytes: number) {
@@ -44,10 +44,10 @@ function formatSize(bytes: number) {
 
 function getVisibilityBadge(v: string) {
     switch (v) {
-        case 'private': return { label: '🔒', cls: 'text-red-400' }
-        case 'unlisted': return { label: '🔗', cls: 'text-yellow-400' }
-        case 'password': return { label: '🔑', cls: 'text-purple-400' }
-        default: return { label: '🌐', cls: 'text-green-400' }
+        case 'private': return { Icon: Lock, cls: 'text-danger-light' }
+        case 'unlisted': return { Icon: Link2, cls: 'text-warning-light' }
+        case 'password': return { Icon: Key, cls: 'text-accent-light' }
+        default: return { Icon: Globe, cls: 'text-success-light' }
     }
 }
 
@@ -80,7 +80,7 @@ export default function LibraryPage() {
     const [showCreate, setShowCreate] = useState(false)
     const [newName, setNewName] = useState('')
     const [newDesc, setNewDesc] = useState('')
-    const [newEmoji, setNewEmoji] = useState('📁')
+    const [newEmoji, setNewEmoji] = useState(DEFAULT_COVER_ICON)
     const [newColor, setNewColor] = useState('#6366f1')
     const [creating, setCreating] = useState(false)
 
@@ -88,7 +88,7 @@ export default function LibraryPage() {
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editName, setEditName] = useState('')
     const [editDesc, setEditDesc] = useState('')
-    const [editEmoji, setEditEmoji] = useState('📁')
+    const [editEmoji, setEditEmoji] = useState(DEFAULT_COVER_ICON)
     const [editColor, setEditColor] = useState('#6366f1')
 
     // Redirect if not authenticated
@@ -135,7 +135,7 @@ export default function LibraryPage() {
             setShowCreate(false)
             setNewName('')
             setNewDesc('')
-            setNewEmoji('📁')
+            setNewEmoji(DEFAULT_COVER_ICON)
             setNewColor('#6366f1')
             await fetchData()
         } catch (err: any) {
@@ -283,13 +283,15 @@ export default function LibraryPage() {
                                         <div key={c.id} className="group relative">
                                             <Link
                                                 href={`/library/${c.id}`}
-                                                className="block p-5 bg-background-secondary rounded-xl border border-border-subtle hover:border-accent-primary/40 transition-all duration-200 hover:shadow-lg hover:shadow-accent-primary/5 h-full"
+                                                className="block p-5 bg-background-secondary rounded-xl border border-border-subtle hover:border-accent-primary/40 transition-[border-color] duration-200 h-full"
                                             >
                                                 {/* Color accent bar */}
                                                 <div className="h-1 w-12 rounded-full mb-4" style={{ backgroundColor: c.color }} />
 
                                                 <div className="flex items-center gap-3 mb-2">
-                                                    <span className="text-2xl leading-none">{c.emoji}</span>
+                                                <span className="w-10 h-10 rounded-lg bg-accent-primary/10 flex items-center justify-center shrink-0">
+                                                    <CollectionCoverIcon name={c.emoji} className="w-5 h-5 text-accent-primary" />
+                                                </span>
                                                     <h3 className="font-semibold text-text-primary truncate text-sm sm:text-base flex-1">{c.name}</h3>
                                                 </div>
 
@@ -316,7 +318,7 @@ export default function LibraryPage() {
                                                         setEditingId(c.id)
                                                         setEditName(c.name)
                                                         setEditDesc(c.description || '')
-                                                        setEditEmoji(c.emoji)
+                                                        setEditEmoji(COVER_ICONS[c.emoji] ? c.emoji : DEFAULT_COVER_ICON)
                                                         setEditColor(c.color)
                                                     }}
                                                     className="p-1.5 rounded-lg bg-background-primary/80 backdrop-blur-sm hover:bg-accent-primary/20 text-text-secondary hover:text-accent-primary transition-colors"
@@ -353,8 +355,8 @@ export default function LibraryPage() {
                                 <div className="flex flex-col items-center justify-center py-10 bg-background-secondary/50 rounded-2xl border border-dashed border-border-subtle">
                                     <FileText className="w-10 h-10 text-text-muted/40 mb-3" />
                                     <p className="text-sm text-text-muted mb-2">No uploads yet</p>
-                                    <Link href="/upload" className="text-sm text-accent-primary hover:underline font-medium">
-                                        Upload your first file →
+                                    <Link href="/upload" className="text-sm text-accent-light hover:text-accent-bright hover:underline font-medium transition-colors">
+                                        Upload your first file
                                     </Link>
                                 </div>
                             ) : (
@@ -372,12 +374,14 @@ export default function LibraryPage() {
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-medium text-text-primary truncate">{r.title}</p>
-                                                    <p className="text-xs text-text-muted mt-0.5">
-                                                        {r.file_extension?.toUpperCase()} • {formatSize(r.file_size)} • {timeAgo(r.created_at)}
+                                                    <p className="text-xs text-text-muted mt-0.5 flex flex-wrap gap-x-3">
+                                                        <span>{r.file_extension?.toUpperCase()}</span>
+                                                        <span>{formatSize(r.file_size)}</span>
+                                                        <span>{timeAgo(r.created_at)}</span>
                                                     </p>
                                                 </div>
-                                                <span className={`text-base shrink-0 ${badge.cls}`} title={r.visibility}>
-                                                    {badge.label}
+                                                <span className={`shrink-0 inline-flex ${badge.cls}`} title={r.visibility}>
+                                                    <badge.Icon className="w-4 h-4" aria-hidden="true" />
                                                 </span>
                                             </Link>
                                         )
@@ -438,17 +442,18 @@ export default function LibraryPage() {
                                 <div>
                                     <label className="block text-sm font-medium text-text-secondary mb-2">Icon</label>
                                     <div className="flex flex-wrap gap-2">
-                                        {EMOJI_OPTIONS.map(e => (
+                                        {Object.entries(COVER_ICONS).map(([name, Icon]) => (
                                             <button
-                                                key={e}
+                                                key={name}
                                                 type="button"
-                                                onClick={() => setNewEmoji(e)}
-                                                className={`w-10 h-10 rounded-lg text-xl flex items-center justify-center transition-all ${newEmoji === e
-                                                        ? 'bg-accent-primary/20 ring-2 ring-accent-primary scale-110'
-                                                        : 'bg-background-tertiary hover:bg-background-primary hover:scale-105'
+                                                onClick={() => setNewEmoji(name)}
+                                                aria-pressed={newEmoji === name}
+                                                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-[background-color,box-shadow] ${newEmoji === name
+                                                        ? 'bg-accent-primary/20 ring-2 ring-accent-primary'
+                                                        : 'bg-background-tertiary hover:bg-background-primary'
                                                     }`}
                                             >
-                                                {e}
+                                                <Icon className="w-5 h-5 text-text-primary" aria-hidden="true" />
                                             </button>
                                         ))}
                                     </div>
@@ -462,7 +467,8 @@ export default function LibraryPage() {
                                                 key={c}
                                                 type="button"
                                                 onClick={() => setNewColor(c)}
-                                                className={`w-8 h-8 rounded-full transition-all ${newColor === c
+                                                aria-pressed={newColor === c}
+                                                className={`w-8 h-8 rounded-full transition-[transform,box-shadow] ${newColor === c
                                                         ? 'scale-125 ring-2 ring-offset-2 ring-offset-background-secondary'
                                                         : 'hover:scale-110'
                                                     }`}
@@ -510,11 +516,13 @@ export default function LibraryPage() {
                                 <div>
                                     <label className="block text-sm font-medium text-text-secondary mb-2">Icon</label>
                                     <div className="flex flex-wrap gap-2">
-                                        {EMOJI_OPTIONS.map(e => (
-                                            <button key={e} type="button" onClick={() => setEditEmoji(e)}
-                                                className={`w-10 h-10 rounded-lg text-xl flex items-center justify-center transition-all ${editEmoji === e ? 'bg-accent-primary/20 ring-2 ring-accent-primary scale-110' : 'bg-background-tertiary hover:scale-105'
+                                        {Object.entries(COVER_ICONS).map(([name, Icon]) => (
+                                            <button key={name} type="button" onClick={() => setEditEmoji(name)} aria-pressed={editEmoji === name}
+                                                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-[background-color,box-shadow] ${editEmoji === name ? 'bg-accent-primary/20 ring-2 ring-accent-primary' : 'bg-background-tertiary hover:bg-background-primary'
                                                     }`}
-                                            >{e}</button>
+                                            >
+                                                <Icon className="w-5 h-5 text-text-primary" aria-hidden="true" />
+                                            </button>
                                         ))}
                                     </div>
                                 </div>
@@ -522,8 +530,8 @@ export default function LibraryPage() {
                                     <label className="block text-sm font-medium text-text-secondary mb-2">Color</label>
                                     <div className="flex flex-wrap gap-2.5">
                                         {COLOR_OPTIONS.map(c => (
-                                            <button key={c} type="button" onClick={() => setEditColor(c)}
-                                                className={`w-8 h-8 rounded-full transition-all ${editColor === c ? 'scale-125 ring-2 ring-offset-2 ring-offset-background-secondary' : 'hover:scale-110'}`}
+                                            <button key={c} type="button" onClick={() => setEditColor(c)} aria-pressed={editColor === c}
+                                                className={`w-8 h-8 rounded-full transition-[transform,box-shadow] ${editColor === c ? 'scale-125 ring-2 ring-offset-2 ring-offset-background-secondary' : 'hover:scale-110'}`}
                                                 style={{ backgroundColor: c, boxShadow: editColor === c ? `0 0 12px ${c}40` : undefined }}
                                             />
                                         ))}

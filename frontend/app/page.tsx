@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Search, Upload, Download, FileText, Star, TrendingUp } from 'lucide-react'
+import { Search, Upload, FileText, Star } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 
@@ -38,21 +38,44 @@ export default function HomePage() {
         }
     }
 
+    const liveStats = [
+        { value: stats ? formatNumber(stats.resources) : '0', label: 'Resources' },
+        { value: stats ? formatNumber(stats.users) : '0', label: 'Students' },
+        { value: stats ? formatNumber(stats.downloads) : '0', label: 'Downloads' },
+        { value: stats ? formatNumber(stats.courses) : '0', label: 'Courses' },
+    ]
+
+    const features = [
+        {
+            icon: Upload,
+            title: 'Unlimited Storage',
+            body: 'Upload your notes, exams, and study materials without worrying about storage limits.',
+        },
+        {
+            icon: Search,
+            title: 'Advanced Search',
+            body: 'Find what you need with filters by course, department, and tags.',
+        },
+        {
+            icon: Star,
+            title: 'Community Ratings',
+            body: 'Rate and review resources so the best study materials surface to everyone.',
+        },
+    ]
+
     return (
         <div className="min-h-screen">
-            {/* Hero Section */}
+            {/* Hero */}
             <section className="container-custom py-16 text-center">
                 <div className="max-w-3xl mx-auto">
                     <h1 className="text-4xl md:text-5xl font-bold text-text-primary mb-6 animate-fade-in">
-                        Student Resource{' '}
-                        <span className="text-gradient">Library</span>
+                        Student Resource Library
                     </h1>
                     <p className="text-xl text-text-secondary mb-8 animate-slide-up">
                         Share and discover study materials, notes, and exam papers.
-                        Enterprise-grade cloud storage with unlimited capacity.
                     </p>
 
-                    {/* Search Bar */}
+                    {/* Search */}
                     <form onSubmit={handleSearch} className="flex items-center max-w-xl mx-auto mb-8 animate-slide-up">
                         <div className="relative flex-1">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
@@ -69,7 +92,7 @@ export default function HomePage() {
                         </button>
                     </form>
 
-                    {/* Quick Links */}
+                    {/* Quick links */}
                     <div className="flex flex-wrap justify-center gap-4">
                         <Link href="/browse" className="btn btn-secondary">
                             <FileText className="w-4 h-4 mr-2" />
@@ -84,100 +107,67 @@ export default function HomePage() {
                         {!user && (
                             <Link href="/auth/register" className="btn btn-secondary">
                                 <Star className="w-4 h-4 mr-2" />
-                                Join Now
+                                Create Account
                             </Link>
                         )}
                     </div>
                 </div>
             </section>
 
-            {/* Stats Section - LIVE COUNTS */}
+            {/* Live stats */}
             <section className="border-y border-border-subtle bg-background-secondary py-8">
                 <div className="container-custom">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-                        <div>
-                            <p className="text-3xl font-bold text-accent-primary mb-2">
-                                {stats ? formatNumber(stats.resources) : '...'}
-                            </p>
-                            <p className="text-text-secondary">Resources</p>
-                        </div>
-                        <div>
-                            <p className="text-3xl font-bold text-accent-primary mb-2">
-                                {stats ? formatNumber(stats.users) : '...'}
-                            </p>
-                            <p className="text-text-secondary">Users</p>
-                        </div>
-                        <div>
-                            <p className="text-3xl font-bold text-accent-primary mb-2">
-                                {stats ? formatNumber(stats.downloads) : '...'}
-                            </p>
-                            <p className="text-text-secondary">Downloads</p>
-                        </div>
-                        <div>
-                            <p className="text-3xl font-bold text-accent-primary mb-2">
-                                {stats ? formatNumber(stats.courses) : '...'}
-                            </p>
-                            <p className="text-text-secondary">Courses</p>
-                        </div>
+                        {liveStats.map((stat) => (
+                            <div key={stat.label}>
+                                <p className="text-3xl font-bold font-display text-accent-light mb-2 tabular-nums">
+                                    {stat.value}
+                                </p>
+                                <p className="text-text-secondary">{stat.label}</p>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </section>
 
-            {/* Features Section */}
+            {/* Why this library */}
             <section className="container-custom py-12">
-                <h2 className="text-2xl font-bold text-text-primary text-center mb-12">
-                    Why Use Student Library?
-                </h2>
+                <div className="card p-6 md:p-10">
+                    <h2 className="text-2xl font-bold text-text-primary mb-8 font-display">
+                        Why Use Student Library?
+                    </h2>
 
-                <div className="grid md:grid-cols-3 gap-8">
-                    <div className="card p-6">
-                        <div className="w-12 h-12 bg-accent-primary/10 rounded-lg flex items-center justify-center mb-4">
-                            <Upload className="w-6 h-6 text-accent-primary" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-text-primary mb-2">
-                            Unlimited Storage
-                        </h3>
-                        <p className="text-text-secondary">
-                            Upload your notes, exams, and study materials without worrying about storage limits.
-                        </p>
-                    </div>
-
-                    <div className="card p-6">
-                        <div className="w-12 h-12 bg-accent-primary/10 rounded-lg flex items-center justify-center mb-4">
-                            <Search className="w-6 h-6 text-accent-primary" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-text-primary mb-2">
-                            Advanced Search
-                        </h3>
-                        <p className="text-text-secondary">
-                            Find exactly what you need with powerful filters by course, department, and tags.
-                        </p>
-                    </div>
-
-                    <div className="card p-6">
-                        <div className="w-12 h-12 bg-accent-primary/10 rounded-lg flex items-center justify-center mb-4">
-                            <Star className="w-6 h-6 text-accent-primary" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-text-primary mb-2">
-                            Community Ratings
-                        </h3>
-                        <p className="text-text-secondary">
-                            Rate and review resources to help others find the best study materials.
-                        </p>
-                    </div>
+                    <ul className="md:grid md:grid-cols-2 md:gap-x-12 md:gap-y-0 divide-y divide-border-subtle md:divide-y-0">
+                        {features.map((feature, i) => (
+                            <li
+                                key={feature.title}
+                                className={`flex items-start gap-4 py-6 md:py-8 ${i === 2 ? 'md:col-span-2 md:border-t md:border-border-subtle' : ''}`}
+                            >
+                                <feature.icon className="w-6 h-6 text-accent-primary shrink-0 mt-1" aria-hidden="true" />
+                                <div>
+                                    <h3 className="text-lg font-semibold text-text-primary mb-1.5 font-display">
+                                        {feature.title}
+                                    </h3>
+                                    <p className="text-text-secondary">
+                                        {feature.body}
+                                    </p>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             </section>
 
-            {/* CTA Section */}
+            {/* Closing action */}
             <section className="container-custom py-12">
-                <div className="card p-8 md:p-12 text-center bg-gradient-to-r from-background-secondary to-background-tertiary">
+                <div className="card p-8 md:p-12 text-center">
                     {user ? (
                         <>
-                            <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-4">
-                                Welcome Back, {(user.display_name || 'User').split(' ')[0]}! 👋
+                            <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-4 font-display">
+                                Welcome back, {(user.display_name || 'User').split(' ')[0]}
                             </h2>
                             <p className="text-text-secondary mb-8 max-w-xl mx-auto">
-                                Continue where you left off. Browse new resources or contribute to the community.
+                                Continue where you left off. Browse new resources or contribute your own.
                             </p>
                             <div className="flex flex-wrap justify-center gap-4">
                                 <Link href="/browse" className="btn btn-primary px-8 py-3">
@@ -190,11 +180,11 @@ export default function HomePage() {
                         </>
                     ) : (
                         <>
-                            <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-4">
+                            <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-4 font-display">
                                 Ready to Get Started?
                             </h2>
                             <p className="text-text-secondary mb-8 max-w-xl mx-auto">
-                                Join thousands of students sharing knowledge. It&apos;s free and takes less than a minute.
+                                Join students sharing knowledge with their peers. It's free and takes less than a minute.
                             </p>
                             <div className="flex flex-wrap justify-center gap-4">
                                 <Link href="/auth/register" className="btn btn-primary px-8 py-3">

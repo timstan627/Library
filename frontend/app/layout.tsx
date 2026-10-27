@@ -1,13 +1,35 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
+import { Bricolage_Grotesque, Figtree } from 'next/font/google'
 import './globals.css'
 import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
 import { Providers } from '@/components/Providers'
 
+// Display face with real character; body face tuned for UI legibility.
+// Both ship variable-weight, swap-loaded, with metric-conscious fallbacks.
+const fontDisplay = Bricolage_Grotesque({
+    subsets: ['latin'],
+    variable: '--font-display',
+    display: 'swap',
+})
+
+const fontBody = Figtree({
+    subsets: ['latin'],
+    variable: '--font-body',
+    display: 'swap',
+})
+
 export const metadata: Metadata = {
-    title: 'Student Resource Library',
-    description: 'Enterprise-grade student resource library with unlimited storage',
+    title: {
+        default: 'Student Library',
+        template: '%s · Student Library',
+    },
+    description: 'Share and discover study materials, notes, and exam papers with your peers.',
     keywords: ['student', 'resources', 'library', 'notes', 'exam', 'study materials'],
+}
+
+export const viewport: Viewport = {
+    themeColor: '#080d11',
 }
 
 export default function RootLayout({
@@ -16,7 +38,7 @@ export default function RootLayout({
     children: React.ReactNode
 }) {
     return (
-        <html lang="en" className="dark">
+        <html lang="en" className={`${fontDisplay.variable} ${fontBody.variable} dark`}>
             <body className="min-h-screen flex flex-col">
                 <Providers>
                     <Header />

@@ -1,21 +1,11 @@
 /**
  * Skeleton Loader Components
- * Production-grade loading states with shimmer animations
+ * Theme-aware loading states. The shimmer lives in globals.css as one
+ * `.skeleton` definition — a composited translateX wash — so no per-render
+ * style tags and no background-position animation.
  */
 
 import React from 'react';
-
-// Shimmer keyframes
-const shimmerStyles = `
-  @keyframes shimmer {
-    0% {
-      background-position: -1000px 0;
-    }
-    100% {
-      background-position: 1000px 0;
-    }
-  }
-`;
 
 interface SkeletonProps {
     className?: string;
@@ -30,8 +20,6 @@ export const Skeleton: React.FC<SkeletonProps> = ({
     height,
     variant = 'rectangular',
 }) => {
-    const baseClasses = 'animate-pulse bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:1000px_100%]';
-
     const variantClasses = {
         text: 'rounded',
         circular: 'rounded-full',
@@ -41,26 +29,22 @@ export const Skeleton: React.FC<SkeletonProps> = ({
     const style: React.CSSProperties = {
         width: width || '100%',
         height: height || (variant === 'text' ? '1em' : '100%'),
-        animation: 'shimmer 2s infinite linear',
     };
 
     return (
-        <>
-            <style>{shimmerStyles}</style>
-            <div
-                className={`${baseClasses} ${variantClasses[variant]} ${className}`}
-                style={style}
-                role="status"
-                aria-label="Loading..."
-            />
-        </>
+        <div
+            className={`skeleton ${variantClasses[variant]} ${className}`}
+            style={style}
+            role="status"
+            aria-label="Loading..."
+        />
     );
 };
 
 // Resource Card Skeleton
 export const SkeletonResourceCard = () => (
     <div className="card overflow-hidden h-full flex flex-col border border-border-subtle">
-        <Skeleton height="180px" />
+        <Skeleton height="180px" className="rounded-none" />
         <div className="p-5 flex-1 flex flex-col gap-3">
             <Skeleton height="24px" width="80%" />
             <Skeleton height="16px" width="100%" />
@@ -89,7 +73,7 @@ export const SkeletonGrid: React.FC<{ count?: number; className?: string }> = ({
     return (
         <div className={className}>
             {Array.from({ length: count }).map((_, i) => (
-                <Skeleton key={i} height="120px" className="rounded-xl border border-border-subtle" />
+                <Skeleton key={i} height="120px" className="border border-border-subtle" />
             ))}
         </div>
     );
@@ -102,7 +86,7 @@ export const SkeletonResourceDetail: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-6">
                     <div className="card p-0 overflow-hidden border border-border-subtle">
-                        <Skeleton height="400px" />
+                        <Skeleton height="400px" className="rounded-none" />
                     </div>
                     <div className="card p-6 border border-border-subtle space-y-4">
                         <Skeleton height="32px" width="40%" />

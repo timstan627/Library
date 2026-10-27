@@ -26,10 +26,10 @@ interface ToastContextType {
 const ToastContext = createContext<ToastContextType | undefined>(undefined)
 
 const toastConfig = {
-    success: { icon: CheckCircle, bg: 'bg-green-500', text: 'text-white' },
-    error: { icon: AlertCircle, bg: 'bg-red-500', text: 'text-white' },
-    warning: { icon: AlertTriangle, bg: 'bg-yellow-500', text: 'text-black' },
-    info: { icon: Info, bg: 'bg-blue-500', text: 'text-white' },
+    success: { icon: CheckCircle, bg: 'bg-success', text: 'text-accent-ink' },
+    error: { icon: AlertCircle, bg: 'bg-danger', text: 'text-accent-ink' },
+    warning: { icon: AlertTriangle, bg: 'bg-warning', text: 'text-ink-strong' },
+    info: { icon: Info, bg: 'bg-accent-primary', text: 'text-accent-ink' },
 }
 
 /**

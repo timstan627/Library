@@ -1,28 +1,58 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Azure midnight (custom, OKLCH hue 245) · posture: restrained · modes: dark · nav: wordmark + inline links · footer: link columns + colophon · built: the project · redesign: polish */
+/* Hallmark · waive 28b · modal opened by user action below the fold · preview video is never the first paint */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* MediaPeek-inspired Dark Theme */
+/* ------------------------------------------------------------------
+   Student Library · design tokens
+   System: dark "midnight surface" · one anchor hue (azure-blue,
+   mixed in OKLCH) · every neutral tinted toward it · no pure grays.
+   Values are R G B channel triplets so Tailwind can apply alpha:
+   e.g. accent-primary/10 -> rgb(var(--accent-primary) / 0.1)
+   ------------------------------------------------------------------ */
 :root {
-  /* Background colors */
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #141414;
-  --bg-tertiary: #1e1e1e;
+  /* Surfaces */
+  --bg-primary: 8 13 17;      /* oklch(0.155 0.012 245) */
+  --bg-secondary: 17 23 28;   /* oklch(0.200 0.014 245) */
+  --bg-tertiary: 28 36 42;    /* oklch(0.255 0.016 245) */
 
-  /* Border colors */
-  --border-subtle: #2a2a2a;
-  --border-medium: #3a3a3a;
-  --border-strong: #4a4a4a;
+  /* Edges: subtle = decorative separators; medium = field/interactive edge (3:1); strong = hover edge */
+  --border-subtle: 41 51 59;  /* oklch(0.315 0.020 245) */
+  --border-medium: 94 107 118;/* oklch(0.520 0.024 245) */
+  --border-strong: 116 130 143;/* oklch(0.600 0.026 245) */
 
-  /* Text colors */
-  --text-primary: #e8e8e8;
-  --text-secondary: #a8a8a8;
-  --text-muted: #707070;
+  /* Ink */
+  --text-primary: 223 229 235;  /* oklch(0.920 0.010 245) */
+  --text-secondary: 159 169 179;/* oklch(0.730 0.018 245) */
+  --text-muted: 132 141 149;    /* oklch(0.640 0.016 245) */
 
-  /* Accent colors */
-  --accent-primary: #3b82f6;
-  --accent-hover: #2563eb;
-  --accent-light: #60a5fa;
+  /* Anchor accent (mixed, not a framework swatch) + its paired ink */
+  --accent-primary: 0 113 211;  /* oklch(0.545 0.180 250) */
+  --accent-hover: 0 100 190;    /* oklch(0.500 0.170 250) */
+  --accent-light: 125 189 254;  /* oklch(0.780 0.115 250) links/text on dark */
+  --accent-bright: 186 215 247; /* oklch(0.860 0.080 250) hover step up */
+  --accent-ink: 248 250 253;    /* paired ink on accent fills */
+  --ink-strong: 13 17 22;       /* paired dark ink on warning/success fills */
+
+  /* Status (paired with the prefix ink above) */
+  --success: 0 132 69;      /* oklch(0.535 0.145 155) fills */
+  --warning: 198 150 18;    /* oklch(0.700 0.140 085) fills */
+  --danger: 197 43 48;      /* oklch(0.540 0.190 025) fills */
+  --danger-hover: 172 25 34;/* oklch(0.480 0.180 025) */
+
+  /* Status text levels on dark surfaces (>=4.5:1 verified) */
+  --success-light: 81 182 122;   /* oklch(0.700 0.130 155) */
+  --warning-light: 222 180 89;   /* oklch(0.790 0.120 085) */
+  --danger-light: 243 114 108;   /* oklch(0.705 0.160 025) */
+  --violet-light: 176 138 218;   /* oklch(0.700 0.120 305) category marks */
+
+  /* Motion: exponential ease-out space; durations from the timing table */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 280ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.65, 0, 0.35, 1);
 
   /* Spacing scale */
   --space-1: 4px;
@@ -36,15 +66,37 @@
 /* Global styles */
 html {
   color-scheme: dark;
+  overflow-x: clip;
 }
 
 body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: clip;
+  background-color: rgb(var(--bg-primary));
+  color: rgb(var(--text-primary));
+  font-family: var(--font-body), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Display face for headings; balanced line breaks are progressive */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display), var(--font-body), sans-serif;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* Prose measure inside long-form blocks (legal pages, help, descriptions) */
+.prose-measure {
+  max-width: 65ch;
+}
+
+/* Tabular figures for every data-heavy number */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Custom scrollbar */
@@ -54,73 +106,113 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: rgb(var(--bg-secondary));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-medium);
+  background: rgb(var(--border-subtle));
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-strong);
+  background: rgb(var(--border-strong));
 }
 
-/* Selection */
+/* Browser surfaces the theme owns */
 ::selection {
-  background-color: var(--accent-primary);
-  color: white;
+  background-color: rgb(var(--accent-primary) / 0.45);
+  color: rgb(var(--text-primary));
 }
 
-/* Focus styles */
+input, textarea, select {
+  caret-color: rgb(var(--accent-primary));
+}
+
+/* Focus: instant, high-contrast, never fading in */
 :focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: 2px solid rgb(var(--accent-primary));
   outline-offset: 2px;
 }
 
-/* Links */
+/* Links on dark: dim step-up on hover, never down */
 a {
-  color: var(--accent-light);
+  color: rgb(var(--accent-light));
   text-decoration: none;
-  transition: color 0.2s ease;
+  transition-property: color, text-decoration-color;
+  transition-duration: var(--dur-fast);
+  transition-timing-function: var(--ease-standard);
 }
 
 a:hover {
-  color: var(--accent-primary);
+  color: rgb(var(--accent-bright));
+  text-decoration-color: rgb(var(--accent-bright) / 0.4);
 }
 
 /* Card component */
 @layer components {
   .card {
-    @apply bg-background-secondary border border-border-subtle rounded-md;
-    transition: border-color 0.2s ease;
+    @apply bg-background-secondary border border-border-subtle rounded-lg;
+    transition-property: border-color, background-color;
+    transition-duration: var(--dur-base);
+    transition-timing-function: var(--ease-standard);
   }
 
   .card:hover {
     @apply border-border-medium;
   }
 
+  /* One-signal hover for interactive cards: a small lift, no shadow play */
+  .card-interactive {
+    transition-property: border-color, background-color, transform;
+    transition-duration: var(--dur-base);
+    transition-timing-function: var(--ease-out-expo);
+  }
+
+  .card-interactive:hover {
+    @apply border-border-medium;
+    transform: translateY(-2px);
+  }
+
   .btn {
-    @apply px-4 py-2 rounded-sm font-medium transition-colors duration-200;
+    @apply px-4 py-2 rounded-lg font-medium;
+    transition-property: background-color, color, border-color, box-shadow, transform;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: var(--ease-standard);
+  }
+
+  .btn:active {
+    transform: scale(0.98);
   }
 
   .btn-primary {
-    @apply bg-accent-primary text-white hover:bg-accent-hover;
+    @apply bg-accent-primary text-accent-ink hover:bg-accent-hover border border-transparent;
   }
 
   .btn-secondary {
-    @apply bg-background-tertiary text-text-primary border border-border-subtle hover:border-border-medium;
+    @apply bg-background-tertiary text-text-primary border border-border-medium hover:border-border-strong;
   }
 
   .btn-ghost {
-    @apply bg-transparent text-text-secondary hover:text-text-primary hover:bg-background-tertiary;
+    @apply bg-transparent text-text-secondary hover:text-text-primary hover:bg-background-tertiary border border-transparent;
+  }
+
+  .btn-danger {
+    @apply bg-danger text-accent-ink hover:bg-danger-hover border border-transparent;
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
   }
 
   .input {
-    @apply w-full px-3 py-2 bg-background-tertiary border border-border-subtle rounded-sm;
-    @apply text-text-primary placeholder-text-muted;
-    @apply focus:outline-none focus:border-accent-primary;
-    transition: border-color 0.2s ease;
+    @apply w-full px-3 py-2 bg-background-tertiary border border-border-medium rounded-lg;
+    @apply text-text-primary placeholder:text-text-muted;
+    @apply focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/40 focus:ring-offset-0;
+    transition-property: border-color, box-shadow;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: var(--ease-standard);
   }
 
   .label {
@@ -128,35 +220,55 @@ a:hover {
   }
 
   .badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium;
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium;
     @apply bg-background-tertiary text-text-secondary border border-border-subtle;
   }
 
   .badge-primary {
     @apply bg-accent-primary/10 text-accent-light border-accent-primary/30;
   }
+
+  /* Shimmer skeleton: composited transform, defined once, theme-aware */
+  .skeleton {
+    @apply bg-background-tertiary rounded-lg overflow-hidden relative;
+  }
+
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(var(--text-primary) / 0.06),
+      transparent
+    );
+    animation: shimmer 1.6s infinite;
+  }
+
+  .stagger > * {
+    animation: fadeUp var(--dur-slow) var(--ease-out-expo) backwards;
+    animation-delay: calc(var(--stagger-i, 0) * 45ms);
+  }
 }
 
 /* Utility classes */
 @layer utilities {
-  .text-gradient {
-    @apply bg-gradient-to-r from-accent-light to-accent-primary bg-clip-text text-transparent;
-  }
-
   .animate-fade-in {
-    animation: fadeIn 0.3s ease-out forwards;
+    animation: fadeIn var(--dur-base) var(--ease-standard) both;
   }
 
   .animate-slide-up {
-    animation: slideUp 0.3s ease-out forwards;
+    animation: fadeUp var(--dur-slow) var(--ease-out-expo) both;
   }
 
   .animate-scale-in {
-    animation: scaleIn 0.2s ease-out forwards;
+    animation: scaleIn var(--dur-fast) var(--ease-out-expo) both;
   }
 
   .animate-slide-in-right {
-    animation: slideInRight 0.3s ease-out forwards;
+    animation: slideInRight var(--dur-base) var(--ease-standard) both;
   }
 }
 
@@ -170,10 +282,10 @@ a:hover {
   }
 }
 
-@keyframes slideUp {
+@keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
 
   to {
@@ -185,7 +297,7 @@ a:hover {
 @keyframes scaleIn {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.96);
   }
 
   to {
@@ -197,7 +309,7 @@ a:hover {
 @keyframes slideInRight {
   from {
     opacity: 0;
-    transform: translateX(100%);
+    transform: translateX(16px);
   }
 
   to {
@@ -206,9 +318,46 @@ a:hover {
   }
 }
 
-/* Monospace text */
-.font-mono {
-  font-family: 'SF Mono', Consolas, 'Courier New', monospace;
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Reduced motion: removes spatial movement and infinite loops while
+   preserving opacity / color feedback that carries meaning. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *, *::before, *::after {
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms !important;
+  }
+
+  .animate-slide-up,
+  .animate-slide-in-right,
+  .stagger > * {
+    animation-name: fadeIn;
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
+
+  .skeleton::after {
+    animation: none;
+  }
+
+  .btn:active,
+  .card-interactive:hover {
+    transform: none;
+  }
 }
 
 /* Container */

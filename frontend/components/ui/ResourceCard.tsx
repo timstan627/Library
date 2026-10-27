@@ -48,13 +48,10 @@ export function ResourceCard({
                 </div>
                 <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-text-primary truncate">{title}</h3>
-                    <div className="flex flex-wrap gap-x-2 text-sm text-text-secondary">
+                    <div className="flex flex-wrap gap-x-3 text-sm text-text-secondary">
                         {uploader_name && <span className="font-medium text-text-primary">{uploader_name}</span>}
-                        <span>•</span>
                         <span>{course_code}</span>
-                        <span>•</span>
                         <span>{formatFileSize(file_size)}</span>
-                        <span>•</span>
                         <span>{file_extension.toUpperCase()}</span>
                     </div>
                 </div>
@@ -75,7 +72,7 @@ export function ResourceCard({
                 </span>
                 {average_rating && (
                     <span className="flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 fill-yellow-500 text-yellow-500" />
+                        <Star className="w-3.5 h-3.5 fill-warning text-warning" />
                         {average_rating.toFixed(1)}
                     </span>
                 )}

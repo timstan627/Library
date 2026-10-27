@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, ReactNode } from 'react'
+import { useEffect, useRef, useState, useCallback, ReactNode } from 'react'
 import { X, AlertTriangle, Trash2, LogOut, AlertCircle } from 'lucide-react'
 import { Button } from './Button'
 
@@ -19,20 +19,20 @@ interface ConfirmationModalProps {
 const variantConfig = {
     danger: {
         icon: Trash2,
-        iconBg: 'bg-red-500/10',
-        iconColor: 'text-red-500',
+        iconBg: 'bg-danger/10',
+        iconColor: 'text-danger',
         confirmVariant: 'danger' as const,
     },
     warning: {
         icon: AlertTriangle,
-        iconBg: 'bg-yellow-500/10',
-        iconColor: 'text-yellow-500',
+        iconBg: 'bg-warning/10',
+        iconColor: 'text-warning',
         confirmVariant: 'primary' as const,
     },
     info: {
         icon: AlertCircle,
-        iconBg: 'bg-blue-500/10',
-        iconColor: 'text-blue-500',
+        iconBg: 'bg-accent-primary/10',
+        iconColor: 'text-accent-primary',
         confirmVariant: 'primary' as const,
     },
 }
@@ -210,5 +210,4 @@ export function useConfirmation() {
     return { confirm, ConfirmModal }
 }
 
-// Need to import these
-import { useState, useCallback } from 'react'
+

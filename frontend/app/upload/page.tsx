@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { api, apiHelpers } from '@/lib/api'
 import { FileUploadWithPreview } from '@/components/ui/DropZone'
-import { AlertCircle, CheckCircle, Loader2, Upload, ArrowLeft, Info } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, Loader2, Upload, ArrowLeft, Info } from 'lucide-react'
 import Link from 'next/link'
 
 interface Department {
@@ -286,12 +286,14 @@ export default function UploadPage() {
                             Your resource "{uploadedResource.title}" has been uploaded.
                         </p>
                         {uploadedResource.moderation_status === 'pending' ? (
-                            <p className="text-sm text-yellow-500 mb-6">
-                                ⏳ It will be available after admin approval.
+                            <p className="text-sm text-warning-light mb-6 flex items-center justify-center gap-1.5">
+                                <Clock className="w-4 h-4 shrink-0" aria-hidden="true" />
+                                It will be available after admin approval.
                             </p>
                         ) : (
-                            <p className="text-sm text-green-500 mb-6">
-                                ✓ Auto-approved! Your resource is now live.
+                            <p className="text-sm text-success-light mb-6 flex items-center justify-center gap-1.5">
+                                <CheckCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                                Auto-approved! Your resource is now live.
                             </p>
                         )}
                         <div className="flex gap-3 justify-center">
@@ -531,10 +533,10 @@ export default function UploadPage() {
 
                         {/* Moderation Notice */}
                         {visibility === 'private' ? (
-                            <div className="flex items-start gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                                <Info className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                                <p className="text-sm text-green-400">
-                                    Private files are auto-approved — no moderation needed. Only you can see them.
+                            <div className="flex items-start gap-3 p-4 bg-success/10 border border-success/20 rounded-lg">
+                                <Info className="w-5 h-5 text-success-light shrink-0 mt-0.5" />
+                                <p className="text-sm text-success-light">
+                                    Private files skip moderation and are visible only to you.
                                 </p>
                             </div>
                         ) : (

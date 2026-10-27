@@ -20,11 +20,11 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-    primary: 'bg-accent-primary hover:bg-accent-primary/90 text-white border-transparent',
-    secondary: 'bg-background-tertiary hover:bg-background-secondary text-text-primary border-border-subtle',
-    ghost: 'bg-transparent hover:bg-background-tertiary text-text-secondary border-transparent',
-    danger: 'bg-red-600 hover:bg-red-700 text-white border-transparent',
-    success: 'bg-green-600 hover:bg-green-700 text-white border-transparent',
+    primary: 'bg-accent-primary hover:bg-accent-hover text-accent-ink border-transparent',
+    secondary: 'bg-background-tertiary hover:bg-background-secondary text-text-primary border-border-medium hover:border-border-strong',
+    ghost: 'bg-transparent hover:bg-background-tertiary text-text-secondary hover:text-text-primary border-transparent',
+    danger: 'bg-danger hover:bg-danger-hover text-accent-ink border-transparent',
+    success: 'bg-success hover:bg-success text-accent-ink border-transparent',
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -77,13 +77,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             onClick?.(e)
         }
 
-        // Handle keyboard activation
-        const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-            if (e.key === 'Enter' && !isDisabled) {
-                e.currentTarget.click()
-            }
-        }
-
         // Determine what to show
         let content: React.ReactNode = children
         let icon: React.ReactNode = leftIcon
@@ -104,13 +97,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                 type={type}
                 disabled={isDisabled}
                 onClick={handleClick}
-                onKeyDown={handleKeyDown}
                 aria-busy={isLoading}
                 aria-disabled={isDisabled}
                 className={`
                     inline-flex items-center justify-center font-medium rounded-lg border
-                    transition-all duration-150 ease-in-out
-                    focus:outline-none focus:ring-2 focus:ring-accent-primary/50 focus:ring-offset-2 focus:ring-offset-background
+                    transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-expo
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-0
                     active:scale-[0.98]
                     disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100
                     ${variantClasses[isError ? 'danger' : isSuccess ? 'success' : variant]}

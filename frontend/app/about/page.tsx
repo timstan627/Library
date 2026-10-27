@@ -13,14 +13,14 @@ export default function AboutPage() {
                     <div>
                         <h2 className="text-2xl font-bold text-text-primary mb-4">Our Mission</h2>
                         <p className="text-text-secondary leading-relaxed mb-4">
-                            We believe that education should be accessible to everyone. The Student Library was built to help students share notes, past papers, and study materials effortlessly.
+                            We believe education should be accessible to everyone. The Student Library helps students share notes, past papers, and study materials with their peers.
                         </p>
                         <p className="text-text-secondary leading-relaxed">
                             By fostering a culture of sharing, we can help each other succeed and make learning more collaborative and less stressful.
                         </p>
                     </div>
                     <div>
-                        <h2 className="text-2xl font-bold text-text-primary mb-4">How It Works</h2>
+                        <h2 className="text-2xl font-bold text-text-primary mb-6 font-display">Getting started takes three steps</h2>
                         <ul className="space-y-4">
                             <li className="flex items-start gap-3">
                                 <div className="w-8 h-8 bg-accent-primary/10 rounded-full flex items-center justify-center shrink-0 text-accent-primary font-bold">1</div>

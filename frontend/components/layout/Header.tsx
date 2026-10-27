@@ -35,9 +35,9 @@ export function Header() {
                     {/* Logo */}
                     <Link href="/" className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-accent-primary rounded-md flex items-center justify-center">
-                            <span className="text-white font-bold text-lg">S</span>
+                            <span className="text-accent-ink font-bold text-lg font-display">S</span>
                         </div>
-                        <span className="font-semibold text-text-primary hidden sm:inline">
+                        <span className="font-display font-semibold text-text-primary hidden sm:inline">
                             Student Library
                         </span>
                     </Link>
@@ -69,7 +69,7 @@ export function Header() {
                             <input
                                 type="text"
                                 placeholder="Search..."
-                                className="input h-9 py-1 pl-9 pr-4 w-48 focus:w-64 transition-all bg-background-tertiary border-transparent focus:border-accent-primary focus:bg-background-secondary text-sm"
+                                className="input h-9 py-1 pl-9 pr-4 w-44 bg-background-tertiary border-transparent focus:border-accent-primary focus:bg-background-secondary text-sm"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
@@ -116,7 +116,9 @@ export function Header() {
                         <button
                             className="md:hidden p-2 text-text-secondary hover:text-text-primary"
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            aria-label="Toggle menu"
+                            aria-expanded={mobileMenuOpen}
+                            aria-controls="mobile-nav"
+                            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
                         >
                             {mobileMenuOpen ? (
                                 <X className="w-5 h-5" />
@@ -129,7 +131,7 @@ export function Header() {
 
                 {/* Mobile Navigation */}
                 {mobileMenuOpen && (
-                    <nav className="md:hidden py-4 border-t border-border-subtle animate-fade-in">
+                    <nav id="mobile-nav" className="md:hidden py-4 border-t border-border-subtle animate-fade-in">
                         {navItems.map((item) => {
                             if (item.requiresAuth && !isAuthenticated) return null
                             return (

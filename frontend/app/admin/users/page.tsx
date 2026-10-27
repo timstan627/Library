@@ -99,13 +99,15 @@ export default function UserPromotionPage() {
                 <div className="flex gap-2 p-1 bg-background-secondary rounded-lg border border-border-subtle">
                     <button
                         onClick={() => setActiveTab('trusted')}
-                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'trusted' ? 'bg-accent-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                        aria-pressed={activeTab === 'trusted'}
+                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-[background-color,color] ${activeTab === 'trusted' ? 'bg-accent-primary text-accent-ink' : 'text-text-secondary hover:text-text-primary'}`}
                     >
                         Trusted List
                     </button>
                     <button
                         onClick={() => setActiveTab('search')}
-                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'search' ? 'bg-accent-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                        aria-pressed={activeTab === 'search'}
+                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-[background-color,color] ${activeTab === 'search' ? 'bg-accent-primary text-accent-ink' : 'text-text-secondary hover:text-text-primary'}`}
                     >
                         Search All
                     </button>
@@ -135,10 +137,10 @@ export default function UserPromotionPage() {
                     <table className="w-full">
                         <thead className="bg-background-secondary border-b border-border-subtle">
                             <tr>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">User</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Stats</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-4 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">Actions</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">User</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Stats</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Status</th>
+                                <th className="px-6 py-4 text-right text-xs font-medium text-text-muted">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle">
@@ -180,14 +182,14 @@ export default function UserPromotionPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             {u.is_trusted ? (
-                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-500/10 border border-green-500/20 rounded-full w-fit">
-                                                    <ShieldCheck className="w-3.5 h-3.5 text-green-600" />
-                                                    <span className="text-[10px] font-bold text-green-600 uppercase">Trusted</span>
+                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-success/10 border border-success/20 rounded-full w-fit">
+                                                    <ShieldCheck className="w-3.5 h-3.5 text-success-light" />
+                                                    <span className="text-[11px] font-semibold text-success-light">Trusted</span>
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background-tertiary border border-border-subtle rounded-full w-fit">
                                                     <Shield className="w-3.5 h-3.5 text-text-muted" />
-                                                    <span className="text-[10px] font-bold text-text-muted uppercase">Regular</span>
+                                                    <span className="text-[11px] font-semibold text-text-muted">Regular</span>
                                                 </div>
                                             )}
                                         </td>
@@ -195,7 +197,7 @@ export default function UserPromotionPage() {
                                             {u.role !== 'admin' && (
                                                 <button
                                                     onClick={() => handleToggleTrust(u.id, u.is_trusted)}
-                                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all shadow-sm active:scale-95 ${u.is_trusted ? 'bg-red-500/10 text-red-600 border border-red-500/20 hover:bg-red-500 hover:text-white' : 'bg-green-500/10 text-green-600 border border-green-500/20 hover:bg-green-500 hover:text-white'}`}
+                                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-[background-color,color,border-color,transform] active:scale-95 ${u.is_trusted ? 'bg-danger/10 text-danger-light border border-danger/20 hover:bg-danger hover:text-accent-ink' : 'bg-success/10 text-success-light border border-success/20 hover:bg-success hover:text-accent-ink'}`}
                                                 >
                                                     {u.is_trusted ? 'Revoke Trust' : 'Mark Trusted'}
                                                 </button>

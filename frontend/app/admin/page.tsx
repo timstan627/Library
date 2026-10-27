@@ -131,37 +131,37 @@ function AdminDashboardContent() {
                     <p className="text-text-secondary">System-wide monitoring and management</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Logged in as</span>
-                    <span className="badge badge-primary uppercase text-[10px]">{user.role}</span>
+                    <span className="text-xs font-medium text-text-muted">Logged in as</span>
+                    <span className="badge badge-primary">{user.role}</span>
                 </div>
             </div>
 
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
                 <div className="card p-6 border-l-4 border-blue-500">
-                    <p className="text-text-secondary text-xs font-bold uppercase mb-1">Total Users</p>
-                    <p className="text-3xl font-black text-text-primary">{stats?.total_users.toLocaleString()}</p>
+                    <p className="text-text-secondary text-xs font-medium mb-1">Total Users</p>
+                    <p className="text-3xl font-bold font-display text-text-primary tabular-nums">{stats?.total_users.toLocaleString()}</p>
                     <p className="text-green-500 text-xs mt-2 flex items-center gap-1">
                         <TrendingUp className="w-3 h-3" />
                         +{stats?.new_users_7d} this week
                     </p>
                 </div>
                 <div className="card p-6 border-l-4 border-purple-500">
-                    <p className="text-text-secondary text-xs font-bold uppercase mb-1">Total Resources</p>
-                    <p className="text-3xl font-black text-text-primary">{stats?.total_resources.toLocaleString()}</p>
+                    <p className="text-text-secondary text-xs font-medium mb-1">Total Resources</p>
+                    <p className="text-3xl font-bold font-display text-text-primary tabular-nums">{stats?.total_resources.toLocaleString()}</p>
                     <p className="text-green-500 text-xs mt-2 flex items-center gap-1">
                         <TrendingUp className="w-3 h-3" />
                         +{stats?.new_resources_7d} this week
                     </p>
                 </div>
                 <div className="card p-6 border-l-4 border-green-500">
-                    <p className="text-text-secondary text-xs font-bold uppercase mb-1">Downloads</p>
-                    <p className="text-3xl font-black text-text-primary">{stats?.total_downloads.toLocaleString()}</p>
+                    <p className="text-text-secondary text-xs font-medium mb-1">Downloads</p>
+                    <p className="text-3xl font-bold font-display text-text-primary tabular-nums">{stats?.total_downloads.toLocaleString()}</p>
                     <p className="text-text-muted text-xs mt-2">Aggregated across all files</p>
                 </div>
                 <div className="card p-6 border-l-4 border-orange-500">
-                    <p className="text-text-secondary text-xs font-bold uppercase mb-1">Storage Usage</p>
-                    <p className="text-3xl font-black text-text-primary">
+                    <p className="text-text-secondary text-xs font-medium mb-1">Storage Usage</p>
+                    <p className="text-3xl font-bold font-display text-text-primary tabular-nums">
                         {(stats?.total_storage_mb || 0).toFixed(2)} MB
                     </p>
                     <p className="text-text-muted text-xs mt-2">Cloud storage footprint</p>
@@ -178,30 +178,31 @@ function AdminDashboardContent() {
                     <Link
                         key={section.title}
                         href={section.href}
-                        className="group card p-6 hover:shadow-xl transition-all hover:-translate-y-1 relative overflow-hidden active:scale-[0.98]"
+                        className="group card card-interactive p-6 relative overflow-hidden"
                     >
                         <div className="flex items-start justify-between relative z-10">
                             <div className={`p-3 rounded-xl ${section.bg} ${section.color} mb-4`}>
                                 <section.icon className="w-6 h-6" />
                             </div>
                             {section.count !== undefined && section.count > 0 && (
-                                <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full ring-2 ring-background shadow-lg">
+                                <span className="bg-danger text-accent-ink text-xs font-semibold px-2 py-0.5 rounded-full tabular-nums">
                                     {section.count}
                                 </span>
                             )}
                         </div>
-                        <h3 className="text-lg font-bold text-text-primary group-hover:text-accent-primary transition-colors">
+                        <h3 className="text-lg font-bold text-text-primary">
                             {section.title}
                         </h3>
                         <p className="text-sm text-text-secondary mt-1">
                             {section.desc}
                         </p>
-                        <div className="mt-4 flex items-center text-xs font-bold text-accent-primary group-hover:gap-2 transition-all">
-                            Manage Section <ChevronRight className="w-4 h-4" />
+                        <div className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-accent-primary">
+                            Manage Section
+                            <ChevronRight className="w-4 h-4 transition-transform duration-200 ease-expo group-hover:translate-x-1" />
                         </div>
 
                         {/* Decorative background icon */}
-                        <section.icon className="absolute -right-4 -bottom-4 w-24 h-24 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity" />
+                        <section.icon className="absolute -right-4 -bottom-4 w-24 h-24 opacity-[0.03]" />
                     </Link>
                 ))}
             </div>
@@ -210,8 +211,8 @@ function AdminDashboardContent() {
             <div className="mt-12 p-8 bg-background-secondary rounded-2xl border border-border-subtle relative overflow-hidden">
                 <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
                     <div className="flex items-center gap-6">
-                        <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center animate-pulse">
-                            <Activity className="w-8 h-8 text-green-500" />
+                        <div className="w-16 h-16 bg-success/20 rounded-full flex items-center justify-center">
+                            <Activity className="w-8 h-8 text-success-light" />
                         </div>
                         <div>
                             <h3 className="text-xl font-bold text-text-primary">System Health: Operational</h3>
@@ -220,16 +221,16 @@ function AdminDashboardContent() {
                     </div>
                     <div className="flex flex-wrap gap-4">
                         <div className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border-subtle">
-                            <div className="w-2 h-2 rounded-full bg-green-500" />
-                            <span className="text-xs font-bold uppercase tracking-wider">Telegram API</span>
+                            <div className="w-2 h-2 rounded-full bg-success-light" />
+                            <span className="text-xs font-medium text-text-secondary">Telegram API</span>
                         </div>
                         <div className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border-subtle">
-                            <div className="w-2 h-2 rounded-full bg-green-500" />
-                            <span className="text-xs font-bold uppercase tracking-wider">In-Memory Cache</span>
+                            <div className="w-2 h-2 rounded-full bg-success-light" />
+                            <span className="text-xs font-medium text-text-secondary">In-Memory Cache</span>
                         </div>
                         <div className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border-subtle">
-                            <div className="w-2 h-2 rounded-full bg-green-500" />
-                            <span className="text-xs font-bold uppercase tracking-wider">SQLite DB</span>
+                            <div className="w-2 h-2 rounded-full bg-success-light" />
+                            <span className="text-xs font-medium text-text-secondary">SQLite DB</span>
                         </div>
                     </div>
                 </div>

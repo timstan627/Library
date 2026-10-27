@@ -211,10 +211,10 @@ function CoursesContent() {
                     <table className="w-full">
                         <thead className="bg-background-secondary border-b border-border-subtle">
                             <tr>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Course</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Department</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-4 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">Actions</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Course</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Department</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Status</th>
+                                <th className="px-6 py-4 text-right text-xs font-medium text-text-muted">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle">
@@ -246,7 +246,7 @@ function CoursesContent() {
                                             <span className="text-sm text-text-secondary">{course.department_name || 'N/A'}</span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className={`text-xs font-bold uppercase ${course.is_active ? 'text-green-500' : 'text-text-muted'}`}>
+                                            <span className={`text-xs font-semibold ${course.is_active ? 'text-success-light' : 'text-text-muted'}`}>
                                                 {course.is_active ? 'Active' : 'Hidden'}
                                             </span>
                                         </td>

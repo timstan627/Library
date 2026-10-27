@@ -5,7 +5,8 @@ import { useParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
     Download, Star, Eye, FileText, Calendar, User, Tag, Share2, Flag,
-    ArrowLeft, Lock, CheckCircle, Clock, X, Edit3, Save, Loader2, Trash2
+    ArrowLeft, Lock, CheckCircle, Clock, X, Edit3, Save, Loader2, Trash2,
+    AlertTriangle, Music, Presentation, TrendingUp
 } from 'lucide-react'
 import { apiHelpers, api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
@@ -498,13 +499,13 @@ export default function ResourceDetailPage() {
                 <div className="flex flex-wrap items-center gap-3 sm:gap-6 mt-4 pt-4 border-t border-border-subtle text-xs sm:text-sm">
                     {/* Visibility badge */}
                     {resource.visibility === 'private' && (
-                        <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 text-xs font-medium">🔒 Private</span>
+                        <span className="px-2 py-0.5 rounded-full bg-danger/15 text-danger-light text-xs font-medium">Private</span>
                     )}
                     {resource.visibility === 'unlisted' && (
-                        <span className="px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 text-xs font-medium">🔗 Unlisted</span>
+                        <span className="px-2 py-0.5 rounded-full bg-warning/15 text-warning-light text-xs font-medium">Unlisted</span>
                     )}
                     {resource.visibility === 'password' && (
-                        <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 text-xs font-medium">🔑 Password</span>
+                        <span className="px-2 py-0.5 rounded-full bg-accent-primary/15 text-accent-light text-xs font-medium">Password</span>
                     )}
                     <div className="flex items-center gap-1.5 text-text-secondary">
                         <Download className="w-3.5 h-3.5" />
@@ -580,8 +581,8 @@ export default function ResourceDetailPage() {
                                                 >
                                                     <Star
                                                         className={`w-8 h-8 ${star <= userRating
-                                                            ? 'fill-yellow-500 text-yellow-500'
-                                                            : 'text-text-muted hover:text-yellow-400'
+                                                            ? 'fill-warning text-warning'
+                                                            : 'text-text-muted hover:text-warning-light'
                                                             }`}
                                                     />
                                                 </button>
@@ -682,8 +683,8 @@ export default function ResourceDetailPage() {
                 <div className="space-y-6 lg:sticky lg:top-20 z-10 order-1 lg:order-2">
                     {/* Action Error Banner */}
                     {actionError && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm animate-fade-in flex items-start gap-2">
-                            <span className="shrink-0 mt-0.5">⚠️</span>
+                        <div className="p-3 bg-danger/10 border border-danger/20 rounded-lg text-danger-light text-sm animate-fade-in flex items-start gap-2" role="alert">
+                            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                             <span>{actionError}</span>
                         </div>
                     )}
@@ -722,7 +723,7 @@ export default function ResourceDetailPage() {
                         <button
                             onClick={handleDownload}
                             disabled={downloading}
-                            className="btn btn-primary w-full py-3 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center"
+                            className="btn btn-primary w-full py-3 disabled:opacity-50 flex items-center justify-center"
                         >
                             {downloading ? (
                                 <div className="flex items-center justify-center gap-2">
@@ -779,7 +780,7 @@ export default function ResourceDetailPage() {
                         <div className="flex gap-2 mt-4 pt-4 border-t border-border-subtle">
                             <button
                                 onClick={handleShare}
-                                className={`btn btn-secondary flex-1 text-sm border-transparent transition-all ${copied ? 'bg-green-500/20 text-green-400' : 'bg-background-tertiary hover:bg-background-secondary'}`}
+                                className={`btn btn-secondary flex-1 text-sm border-transparent transition-[background-color,color] ${copied ? 'bg-success/20 text-success-light' : 'bg-background-tertiary hover:bg-background-secondary'}`}
                             >
                                 {copied ? (
                                     <>
@@ -886,40 +887,45 @@ export default function ResourceDetailPage() {
                                 />
                                 /* Audio */
                             ) : resource.mime_type.startsWith('audio/') && previewUrl ? (
-                                <div className="w-full max-w-lg p-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center">
-                                    <div className="text-6xl mb-4">🎵</div>
-                                    <p className="text-lg font-medium mb-4">{resource.file_name}</p>
+                                <div className="w-full max-w-lg p-8 bg-background-secondary border border-border-subtle rounded-lg text-center">
+                                    <Music className="w-16 h-16 text-accent-primary mx-auto mb-4" aria-hidden="true" />
+                                    <p className="text-lg font-medium text-text-primary mb-4">{resource.file_name}</p>
                                     <audio src={previewUrl} controls className="w-full" />
                                 </div>
                                 /* Text content from API */
                             ) : textContent ? (
                                 <div className="w-full h-full flex flex-col">
-                                    <div className="flex items-center justify-between px-4 py-2 bg-gray-200 dark:bg-gray-800 rounded-t-lg text-xs text-gray-600 dark:text-gray-400">
-                                        <span>{resource.file_name} • {textContent.line_count} lines</span>
-                                        {textContent.truncated && (
-                                            <span className="text-yellow-600 dark:text-yellow-400">
-                                                Showing first 100KB of {formatFileSize(resource.file_size)}
-                                            </span>
-                                        )}
+                                    <div className="flex items-center justify-between gap-3 px-4 py-2 bg-background-tertiary border-b border-border-subtle rounded-t-lg text-xs text-text-muted">
+                                        <span className="truncate">{resource.file_name}</span>
+                                        <span className="tabular-nums shrink-0">{textContent.line_count} lines</span>
                                     </div>
-                                    <pre className="flex-1 overflow-auto bg-gray-900 text-gray-100 p-4 rounded-b-lg text-xs sm:text-sm font-mono leading-relaxed whitespace-pre-wrap break-words">
+                                    {textContent.truncated && (
+                                        <p className="px-4 py-1.5 bg-warning/10 text-warning-light text-xs">
+                                            Showing first 100KB of {formatFileSize(resource.file_size)}
+                                        </p>
+                                    )}
+                                    <pre className="flex-1 overflow-auto bg-ink-strong text-text-primary p-4 rounded-b-lg text-xs sm:text-sm font-mono leading-relaxed whitespace-pre-wrap break-words">
                                         {textContent.content}
                                     </pre>
                                 </div>
                                 /* Office files (DOCX, PPTX, XLSX) */
                             ) : isOfficeFile(resource.mime_type) ? (
-                                <div className="text-center p-8 sm:p-12 bg-white dark:bg-gray-800 rounded-xl shadow-lg max-w-md">
-                                    <div className="text-6xl sm:text-7xl mb-6">
-                                        {resource.mime_type.includes('presentation') ? '📊' :
-                                            resource.mime_type.includes('spreadsheet') ? '📈' : '📝'}
+                                <div className="text-center p-8 sm:p-12 bg-background-secondary border border-border-subtle rounded-xl max-w-md">
+                                    <div className="flex justify-center mb-6">
+                                        {resource.mime_type.includes('presentation')
+                                            ? <Presentation className="w-16 h-16 text-accent-primary" aria-hidden="true" />
+                                            : resource.mime_type.includes('spreadsheet')
+                                                ? <TrendingUp className="w-16 h-16 text-accent-primary" aria-hidden="true" />
+                                                : <FileText className="w-16 h-16 text-accent-primary" aria-hidden="true" />}
                                     </div>
-                                    <p className="text-lg sm:text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                                    <p className="text-lg sm:text-xl font-semibold mb-2 text-text-primary">
                                         {resource.file_name}
                                     </p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                                        {formatFileSize(resource.file_size)} • {resource.file_extension.toUpperCase()}
+                                    <p className="text-sm text-text-muted mb-2 flex flex-wrap justify-center gap-x-3">
+                                        <span>{formatFileSize(resource.file_size)}</span>
+                                        <span>{resource.file_extension.toUpperCase()}</span>
                                     </p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                                    <p className="text-sm text-text-secondary mb-6 prose-measure mx-auto">
                                         Office documents cannot be previewed inline. Download the file to view it in your preferred application.
                                     </p>
                                     <button
@@ -932,10 +938,10 @@ export default function ResourceDetailPage() {
                                 </div>
                                 /* Fallback: unknown type */
                             ) : (
-                                <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
-                                    <div className="text-6xl mb-4">📄</div>
-                                    <p className="text-lg font-medium mb-2">{resource.file_name}</p>
-                                    <p className="text-sm text-gray-500 mb-4">This file type ({resource.mime_type}) cannot be previewed inline.</p>
+                                <div className="text-center p-8 bg-background-secondary border border-border-subtle rounded-lg">
+                                    <FileText className="w-16 h-16 text-text-muted mx-auto mb-4" aria-hidden="true" />
+                                    <p className="text-lg font-medium text-text-primary mb-2">{resource.file_name}</p>
+                                    <p className="text-sm text-text-secondary mb-4">This file type ({resource.mime_type}) cannot be previewed inline.</p>
                                     <button
                                         onClick={() => { setShowPreviewModal(false); handleDownload(); }}
                                         className="btn btn-primary"

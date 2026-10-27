@@ -73,7 +73,7 @@ function NetworkErrorBanner() {
             {errors.map(error => (
                 <div
                     key={error.id}
-                    className="max-w-md mx-auto bg-red-600 text-white p-4 rounded-lg shadow-lg flex items-center gap-3 animate-slide-up"
+                    className="max-w-md mx-auto bg-danger text-accent-ink p-4 rounded-lg shadow-lg flex items-center gap-3 animate-slide-up"
                 >
                     <WifiOff className="w-5 h-5 shrink-0" />
                     <p className="flex-1 text-sm">{error.message}</p>

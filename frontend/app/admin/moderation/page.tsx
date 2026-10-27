@@ -106,12 +106,12 @@ export default function ModerationPage() {
                 </div>
                 <div className="flex gap-4">
                     <div className="bg-background-tertiary px-4 py-2 rounded-lg border border-border-subtle">
-                        <p className="text-xs text-text-muted uppercase font-semibold">Pending</p>
-                        <p className="text-xl font-bold text-yellow-500">{stats.pending}</p>
+                        <p className="text-xs text-text-muted font-medium">Pending</p>
+                        <p className="text-xl font-bold text-warning-light tabular-nums">{stats.pending}</p>
                     </div>
                     <div className="bg-background-tertiary px-4 py-2 rounded-lg border border-border-subtle">
-                        <p className="text-xs text-text-muted uppercase font-semibold">Approved</p>
-                        <p className="text-xl font-bold text-green-500">{stats.approved}</p>
+                        <p className="text-xs text-text-muted font-medium">Approved</p>
+                        <p className="text-xl font-bold text-success-light tabular-nums">{stats.approved}</p>
                     </div>
                 </div>
             </div>
@@ -121,12 +121,12 @@ export default function ModerationPage() {
                     <table className="w-full">
                         <thead className="bg-background-secondary border-b border-border-subtle">
                             <tr>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Resource</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Uploader</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Course</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Size</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Date</th>
-                                <th className="px-6 py-4 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">Actions</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Resource</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Uploader</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Course</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Size</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Date</th>
+                                <th className="px-6 py-4 text-right text-xs font-medium text-text-muted">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle">
@@ -166,7 +166,7 @@ export default function ModerationPage() {
                                         <td className="px-6 py-4">
                                             <span className="badge badge-secondary text-xs">{res.course_code}</span>
                                         </td>
-                                        <td className="px-6 py-4 text-xs text-text-secondary uppercase">
+                                        <td className="px-6 py-4 text-xs text-text-secondary tabular-nums">
                                             {formatFileSize(res.file_size)}
                                         </td>
                                         <td className="px-6 py-4 text-xs text-text-secondary">
@@ -185,7 +185,7 @@ export default function ModerationPage() {
                                                 <button
                                                     onClick={() => handleModerate(res.id, 'approve')}
                                                     disabled={processingId === res.id}
-                                                    className="p-2 text-green-600 hover:bg-green-500/10 rounded-md transition-all active:scale-90"
+                                                    className="p-2 text-success-light hover:bg-success/10 rounded-md transition-[background-color,transform] active:scale-90"
                                                     title="Approve"
                                                 >
                                                     <CheckCircle className={`w-5 h-5 ${processingId === res.id && 'animate-spin'}`} />
@@ -193,7 +193,7 @@ export default function ModerationPage() {
                                                 <button
                                                     onClick={() => setShowRejectionModal(res.id)}
                                                     disabled={processingId === res.id}
-                                                    className="p-2 text-red-600 hover:bg-red-500/10 rounded-md transition-all active:scale-90"
+                                                    className="p-2 text-danger-light hover:bg-danger/10 rounded-md transition-[background-color,transform] active:scale-90"
                                                     title="Reject"
                                                 >
                                                     <XCircle className="w-5 h-5" />

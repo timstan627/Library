@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Search, Filter, X, Download, Star, Eye, FileText } from 'lucide-react'
+import { Search, Filter, X, Download, Star, Eye, FileText, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { apiHelpers } from '@/lib/api'
 import { SkeletonResourceGrid } from '@/components/ui/Skeleton'
@@ -210,8 +210,9 @@ function BrowseContent() {
 
             {/* Search Error */}
             {searchError && (
-                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm animate-fade-in">
-                    ⚠️ {searchError}
+                <div className="mb-6 p-4 bg-danger/10 border border-danger/20 rounded-lg text-danger-light text-sm animate-fade-in flex items-start gap-2" role="alert">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                    <span>{searchError}</span>
                 </div>
             )}
 

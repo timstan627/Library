@@ -1,6 +1,7 @@
 /**
  * Progress Bar Component
- * For file upload/download progress tracking
+ * For file upload/download progress tracking.
+ * Linear bars animate via transform: scaleX (composited, no layout thrash).
  */
 
 import React from 'react';
@@ -26,10 +27,10 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     const clampedValue = Math.min(100, Math.max(0, value));
 
     const variantColors = {
-        default: 'bg-blue-600',
-        success: 'bg-green-600',
-        error: 'bg-red-600',
-        warning: 'bg-yellow-600',
+        default: 'bg-accent-primary',
+        success: 'bg-success',
+        error: 'bg-danger',
+        warning: 'bg-warning',
     };
 
     const heights = {
@@ -43,22 +44,22 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             {(label || showPercentage) && (
                 <div className="flex justify-between items-center mb-2">
                     {label && (
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <span className="text-sm font-medium text-text-secondary tabular-nums">
                             {label}
                         </span>
                     )}
                     {showPercentage && (
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <span className="text-sm font-medium text-text-secondary tabular-nums">
                             {Math.round(clampedValue)}%
                         </span>
                     )}
                 </div>
             )}
 
-            <div className={`w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden ${heights[size]}`}>
+            <div className={`w-full bg-background-tertiary rounded-full overflow-hidden ${heights[size]}`}>
                 <div
-                    className={`${variantColors[variant]} ${heights[size]} rounded-full transition-all duration-300 ease-out`}
-                    style={{ width: `${clampedValue}%` }}
+                    className={`w-full ${variantColors[variant]} h-full rounded-full transform-gpu origin-left transition-transform duration-300 ease-out`}
+                    style={{ transform: `scaleX(${clampedValue / 100})` }}
                     role="progressbar"
                     aria-valuenow={clampedValue}
                     aria-valuemin={0}
@@ -90,10 +91,10 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
     const offset = circumference - (clampedValue / 100) * circumference;
 
     const variantColors = {
-        default: 'text-blue-600',
-        success: 'text-green-600',
-        error: 'text-red-600',
-        warning: 'text-yellow-600',
+        default: 'text-accent-primary',
+        success: 'text-success',
+        error: 'text-danger',
+        warning: 'text-warning',
     };
 
     return (
@@ -101,7 +102,10 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
             <svg
                 width={size}
                 height={size}
+                viewBox={`0 0 ${size} ${size}`}
                 className="transform -rotate-90"
+                aria-hidden="true"
+                focusable="false"
             >
                 {/* Background circle */}
                 <circle
@@ -111,7 +115,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
                     stroke="currentColor"
                     strokeWidth={strokeWidth}
                     fill="none"
-                    className="text-gray-200 dark:text-gray-700"
+                    className="text-background-tertiary"
                 />
                 {/* Progress circle */}
                 <circle
@@ -124,13 +128,13 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
                     strokeDasharray={circumference}
                     strokeDashoffset={offset}
                     strokeLinecap="round"
-                    className={`${variantColors[variant]} transition-all duration-300 ease-out`}
+                    className={`${variantColors[variant]} transition-[stroke-dashoffset] duration-300 ease-out`}
                 />
             </svg>
 
             {showPercentage && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={`text-2xl font-bold ${variantColors[variant]}`}>
+                    <span className={`text-2xl font-bold tabular-nums ${variantColors[variant]}`}>
                         {Math.round(clampedValue)}%
                     </span>
                 </div>

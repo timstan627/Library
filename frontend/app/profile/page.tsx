@@ -123,7 +123,7 @@ export default function ProfilePage() {
                             {user?.role === 'admin' && (
                                 <Link
                                     href="/admin"
-                                    className="btn bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:opacity-90 flex items-center shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 text-sm"
+                                    className="btn btn-secondary flex items-center text-sm"
                                 >
                                     <Shield className="w-4 h-4 mr-1.5" />
                                     Admin
@@ -133,7 +133,7 @@ export default function ProfilePage() {
                                 <Settings className="w-4 h-4 mr-1.5" />
                                 Settings
                             </Link>
-                            <button onClick={handleLogout} className="btn btn-ghost text-red-500 text-sm">
+                            <button onClick={handleLogout} className="btn btn-ghost text-danger text-sm">
                                 <LogOut className="w-4 h-4 mr-1.5" />
                                 Logout
                             </button>
@@ -160,11 +160,11 @@ export default function ProfilePage() {
                                 </p>
                                 <div className="w-full h-2 bg-background-tertiary rounded-full overflow-hidden mb-2">
                                     <div
-                                        className="h-full bg-accent-primary rounded-full transition-all duration-500"
-                                        style={{ width: `${Math.min(storage.usage_percent || 0, 100)}%` }}
+                                        className="h-full bg-accent-primary rounded-full transition-transform duration-500 ease-expo"
+                                        style={{ transform: `scaleX(${Math.min(storage.usage_percent || 0, 100) / 100})`, transformOrigin: 'left' }}
                                     />
                                 </div>
-                                <p className="text-xs text-green-500 flex items-center">
+                                <p className="text-xs text-success-light flex items-center">
                                     <Shield className="w-3 h-3 mr-1" />
                                     {(storage.quota_mb || 0) > 100000 ? 'Unlimited Storage' : 'Standard Storage'}
                                 </p>
@@ -241,7 +241,7 @@ export default function ProfilePage() {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-text-primary font-mono text-sm">
+                                        <p className="text-text-primary text-sm tabular-nums">
                                             {resource.downloads} downloads
                                         </p>
                                         <p className="text-text-muted text-xs">{formatDate(resource.created_at)}</p>

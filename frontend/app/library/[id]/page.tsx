@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, FileText, Trash2, Loader2, Search, Check, X as XIcon, AlertCircle, FolderOpen } from 'lucide-react'
+import { ArrowLeft, Plus, FileText, Trash2, Loader2, Search, Check, X as XIcon, AlertCircle, FolderOpen, Lock, Link2, Key, Globe } from 'lucide-react'
+import { CollectionCoverIcon } from '@/lib/collection-icons'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 
@@ -56,10 +57,10 @@ function formatSize(bytes: number) {
 
 function getVisibilityBadge(v: string | null) {
     switch (v) {
-        case 'private': return { label: '🔒', cls: 'text-red-400' }
-        case 'unlisted': return { label: '🔗', cls: 'text-yellow-400' }
-        case 'password': return { label: '🔑', cls: 'text-purple-400' }
-        default: return { label: '🌐', cls: 'text-green-400' }
+        case 'private': return { Icon: Lock, cls: 'text-danger-light' }
+        case 'unlisted': return { Icon: Link2, cls: 'text-warning-light' }
+        case 'password': return { Icon: Key, cls: 'text-accent-light' }
+        default: return { Icon: Globe, cls: 'text-success-light' }
     }
 }
 
@@ -238,7 +239,9 @@ export default function CollectionDetailPage() {
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                         <div className="flex-1 min-w-0">
                             <h1 className="text-xl sm:text-2xl font-bold text-text-primary flex items-center gap-3">
-                                <span className="text-3xl leading-none">{collection.emoji}</span>
+                                <span className="w-12 h-12 rounded-xl bg-accent-primary/10 flex items-center justify-center shrink-0">
+                                    <CollectionCoverIcon name={collection.emoji} className="w-6 h-6 text-accent-primary" />
+                                </span>
                                 <span className="truncate">{collection.name}</span>
                             </h1>
                             {collection.description && (
@@ -297,19 +300,21 @@ export default function CollectionDetailPage() {
                                             <p className="text-sm font-medium text-text-primary truncate">
                                                 {item.title || item.file_name || 'Untitled'}
                                             </p>
-                                            <p className="text-xs text-text-muted mt-0.5">
-                                                {(item.file_extension || '').toUpperCase()} • {formatSize(item.file_size || 0)} • Added {timeAgo(item.added_at)}
+                                            <p className="text-xs text-text-muted mt-0.5 flex flex-wrap gap-x-3">
+                                                <span>{(item.file_extension || '').toUpperCase()}</span>
+                                                <span>{formatSize(item.file_size || 0)}</span>
+                                                <span>Added {timeAgo(item.added_at)}</span>
                                             </p>
                                         </div>
                                     </Link>
 
                                     <div className="flex items-center gap-2 shrink-0">
-                                        <span className={`text-base ${badge.cls}`} title={item.visibility || 'public'}>
-                                            {badge.label}
+                                        <span className={`inline-flex ${badge.cls}`} title={item.visibility || 'public'}>
+                                            <badge.Icon className="w-4 h-4" aria-hidden="true" />
                                         </span>
                                         <button
                                             onClick={() => handleRemoveItem(item.resource_id, item.title)}
-                                            className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/15 text-text-muted hover:text-red-400 transition-all"
+                                            className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-danger/15 text-text-muted hover:text-danger-light transition-[opacity,background-color,color]"
                                             title="Remove from collection"
                                         >
                                             <XIcon className="w-3.5 h-3.5" />
@@ -360,16 +365,17 @@ export default function CollectionDetailPage() {
                                     <div className="space-y-1.5">
                                         {filteredResources.map(r => {
                                             const isSelected = selectedIds.has(r.id)
+                                            const badge = getVisibilityBadge(r.visibility)
                                             return (
                                                 <button
                                                     key={r.id}
                                                     onClick={() => toggleSelect(r.id)}
-                                                    className={`w-full flex items-center gap-3 p-3.5 rounded-xl text-left transition-all ${isSelected
+                                                    className={`w-full flex items-center gap-3 p-3.5 rounded-xl text-left transition-[background-color,border-color] ${isSelected
                                                             ? 'bg-accent-primary/10 border border-accent-primary/30'
                                                             : 'hover:bg-background-tertiary/70 border border-transparent'
                                                         }`}
                                                 >
-                                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${isSelected
+                                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-[background-color,border-color] ${isSelected
                                                             ? 'bg-accent-primary border-accent-primary'
                                                             : 'border-border-medium'
                                                         }`}>
@@ -377,12 +383,13 @@ export default function CollectionDetailPage() {
                                                     </div>
                                                     <div className="min-w-0 flex-1">
                                                         <p className="text-sm font-medium text-text-primary truncate">{r.title}</p>
-                                                        <p className="text-xs text-text-muted mt-0.5">
-                                                            {r.file_extension?.toUpperCase()} • {formatSize(r.file_size)}
+                                                        <p className="text-xs text-text-muted mt-0.5 flex flex-wrap gap-x-3">
+                                                            <span>{r.file_extension?.toUpperCase()}</span>
+                                                            <span>{formatSize(r.file_size)}</span>
                                                         </p>
                                                     </div>
-                                                    <span className={`text-sm shrink-0 ${getVisibilityBadge(r.visibility).cls}`}>
-                                                        {getVisibilityBadge(r.visibility).label}
+                                                    <span className={`shrink-0 inline-flex ${badge.cls}`} title={r.visibility}>
+                                                        <badge.Icon className="w-4 h-4" aria-hidden="true" />
                                                     </span>
                                                 </button>
                                             )

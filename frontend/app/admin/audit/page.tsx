@@ -83,14 +83,14 @@ export default function AuditLogsPage() {
                     <table className="w-full">
                         <thead className="bg-background-secondary border-b border-border-subtle">
                             <tr>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Timestamp</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Action</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Admin</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Target</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Details</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Timestamp</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Action</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Admin</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Target</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Details</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-border-subtle font-mono text-[11px]">
+                        <tbody className="divide-y divide-border-subtle text-xs">
                             {loading ? (
                                 [...Array(10)].map((_, i) => (
                                     <tr key={i}><td colSpan={5} className="px-6 py-4"><div className="h-4 bg-background-tertiary animate-pulse rounded" /></td></tr>
@@ -132,7 +132,7 @@ export default function AuditLogsPage() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-3">
-                                            <div className="max-w-md overflow-hidden text-ellipsis whitespace-nowrap text-text-muted hover:whitespace-normal hover:overflow-visible hover:bg-background-secondary p-1 rounded transition-all">
+                                            <div className="max-w-md overflow-hidden text-ellipsis whitespace-nowrap text-text-muted hover:whitespace-normal hover:overflow-visible hover:bg-background-secondary p-1 rounded">
                                                 {JSON.stringify(log.details)}
                                             </div>
                                         </td>

@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { Github, Twitter } from 'lucide-react'
 
 export function Footer() {
     const currentYear = new Date().getFullYear()
@@ -19,8 +18,7 @@ export function Footer() {
                             </span>
                         </div>
                         <p className="text-text-secondary text-sm max-w-md">
-                            Enterprise-grade student resource library with unlimited cloud storage.
-                            Share notes, exams, and study materials with your peers.
+                            A shared library where students trade notes, exams, and study materials with their peers. Free to use, unlimited storage.
                         </p>
                     </div>
 
@@ -70,30 +68,10 @@ export function Footer() {
                 </div>
 
                 {/* Bottom bar */}
-                <div className="flex flex-col sm:flex-row items-center justify-between mt-8 pt-8 border-t border-border-subtle">
-                    <p className="text-text-muted text-sm">
-                        © {currentYear} Student Library. All rights reserved.
+                <div className="flex flex-col sm:flex-row items-center justify-center sm:justify-between mt-8 pt-8 border-t border-border-subtle gap-3">
+                    <p className="text-text-muted text-sm text-center sm:text-left">
+                        © {currentYear} Student Library. Built by students, for students.
                     </p>
-                    <div className="flex items-center gap-4 mt-4 sm:mt-0">
-                        <a
-                            href="https://github.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-text-muted hover:text-text-secondary transition-colors"
-                            aria-label="GitHub"
-                        >
-                            <Github className="w-5 h-5" />
-                        </a>
-                        <a
-                            href="https://twitter.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-text-muted hover:text-text-secondary transition-colors"
-                            aria-label="Twitter"
-                        >
-                            <Twitter className="w-5 h-5" />
-                        </a>
-                    </div>
                 </div>
             </div>
         </footer>

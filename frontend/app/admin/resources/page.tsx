@@ -194,10 +194,10 @@ function ResourcesContent() {
                                         )}
                                     </button>
                                 </th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase">Resource</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase">Course</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold text-text-muted uppercase">Stats</th>
-                                <th className="px-4 py-4 text-right text-xs font-semibold text-text-muted uppercase">Actions</th>
+                                <th className="px-4 py-4 text-left text-xs font-medium text-text-muted">Resource</th>
+                                <th className="px-4 py-4 text-left text-xs font-medium text-text-muted">Course</th>
+                                <th className="px-4 py-4 text-left text-xs font-medium text-text-muted">Stats</th>
+                                <th className="px-4 py-4 text-right text-xs font-medium text-text-muted">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle">

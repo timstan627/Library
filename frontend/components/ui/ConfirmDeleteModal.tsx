@@ -66,11 +66,11 @@ export function ConfirmDeleteModal({
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="card w-full max-w-md p-0 shadow-2xl overflow-hidden animate-scale-in">
                 {/* Header */}
-                <div className="bg-red-500/10 p-6 border-b border-red-500/20">
+                <div className="bg-danger/10 p-6 border-b border-danger/20">
                     <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center">
-                                <AlertTriangle className="w-5 h-5 text-red-500" />
+                            <div className="w-10 h-10 bg-danger/20 rounded-full flex items-center justify-center">
+                                <AlertTriangle className="w-5 h-5 text-danger" />
                             </div>
                             <div>
                                 <h2 className="text-lg font-bold text-text-primary">{title}</h2>
@@ -98,12 +98,12 @@ export function ConfirmDeleteModal({
                     </div>
 
                     {cascadeWarning && (
-                        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
-                            <p className="text-sm text-red-600 dark:text-red-400 font-medium">
-                                ⚠️ {cascadeWarning}
+                        <div className="p-4 bg-danger/10 border border-danger/30 rounded-lg">
+                            <p className="text-sm text-danger font-medium">
+                                {cascadeWarning}
                             </p>
                             {cascadeCount !== undefined && cascadeCount > 0 && (
-                                <p className="text-xs text-red-500 mt-1">
+                                <p className="text-xs text-danger mt-1">
                                     {cascadeCount} item(s) will be deleted
                                 </p>
                             )}
@@ -126,7 +126,7 @@ export function ConfirmDeleteModal({
                     </div>
 
                     {error && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-600 text-sm">
+                        <div className="p-3 bg-danger/10 border border-danger/30 rounded-lg text-danger text-sm" role="alert">
                             {error}
                         </div>
                     )}
@@ -144,7 +144,7 @@ export function ConfirmDeleteModal({
                     <button
                         onClick={handleConfirm}
                         disabled={!canDelete || isDeleting}
-                        className="btn bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn btn-danger disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isDeleting ? (
                             <span className="flex items-center gap-2">
