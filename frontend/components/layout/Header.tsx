@@ -105,7 +105,7 @@ export function Header() {
                         ) : (
                             <Link
                                 href={`/auth/login?returnUrl=${encodeURIComponent(pathname)}`}
-                                className="btn btn-primary text-sm"
+                                className="btn btn-primary text-sm whitespace-nowrap"
                             >
                                 <LogIn className="w-4 h-4 mr-2" />
                                 Login
