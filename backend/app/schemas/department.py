@@ -32,6 +32,7 @@ class DepartmentResponse(DepartmentBase):
     """Schema for department response."""
     id: str
     is_active: bool
+    course_count: int = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     

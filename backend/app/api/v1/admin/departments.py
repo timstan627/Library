@@ -46,10 +46,21 @@ async def list_departments(
         .offset((page - 1) * page_size).limit(page_size)
     )
     departments = result.scalars().all()
-    
+
+    # Batch course counts for the page (single GROUP BY query)
+    course_counts: dict = {}
+    if departments:
+        counts_result = await db.execute(
+            select(Course.department_id, func.count())
+            .where(Course.department_id.in_([d.id for d in departments]))
+            .group_by(Course.department_id)
+        )
+        course_counts = {dept_id: count for dept_id, count in counts_result.all()}
+
     return DepartmentListResponse(
         results=[DepartmentResponse(id=str(d.id), name=d.name, code=d.code,
                 description=d.description, is_active=d.is_active, display_order=d.display_order,
+                course_count=course_counts.get(d.id, 0),
                 created_at=d.created_at, updated_at=d.updated_at)
                 for d in departments],
         total=total, page=page, page_size=page_size,

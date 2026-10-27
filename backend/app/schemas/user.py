@@ -4,7 +4,7 @@ User Schemas - Authentication and Profile
 import uuid
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 import re
 
 
@@ -54,6 +54,10 @@ class UserResponse(BaseModel):
 
 class UserUpdate(BaseModel):
     """Schema for updating user profile."""
+    # Reject unknown fields (e.g. role, is_active) with 422 instead of
+    # silently ignoring them — makes tamper attempts visible to clients.
+    model_config = ConfigDict(extra="forbid")
+
     display_name: Optional[str] = Field(None, max_length=100)
     avatar_url: Optional[str] = Field(None, max_length=500)
 
