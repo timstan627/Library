@@ -184,7 +184,8 @@ export default function ResourceDetailPage() {
                 responseType: 'blob',
             })
 
-            const mimeType = resource.mime_type || response.headers['content-type']
+            const headerType = response.headers['content-type']
+            const mimeType = resource.mime_type || (typeof headerType === 'string' ? headerType : undefined)
             const url = window.URL.createObjectURL(new Blob([response.data], { type: mimeType }))
             setPreviewUrl(url)
             setShowPreviewModal(true)

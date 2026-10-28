@@ -78,8 +78,10 @@ export default function LoginPage() {
             const searchParams = new URLSearchParams(window.location.search)
             const returnUrl = searchParams.get('returnUrl')
 
-            // Force hard navigation to ensure auth state is synced cleanly
-            if (returnUrl && returnUrl.startsWith('/')) {
+            // Force hard navigation to ensure auth state is synced cleanly.
+            // Same-origin relative paths only: must start with '/' and must
+            // NOT be protocol-relative ('//evil.com' would leave the site).
+            if (returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//')) {
                 window.location.href = returnUrl
             } else {
                 window.location.href = '/'
