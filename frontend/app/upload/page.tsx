@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth-context'
 import { api, apiHelpers } from '@/lib/api'
 import { FileUploadWithPreview } from '@/components/ui/DropZone'
 import FetchError from '@/components/ui/FetchError'
-import { AlertCircle, CheckCircle, Clock, Loader2, Upload, ArrowLeft, Info } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, Loader2, Upload, ArrowLeft, Info, Globe, Link2, Lock, KeyRound } from 'lucide-react'
 import Link from 'next/link'
 
 interface Department {
@@ -489,10 +489,10 @@ export default function UploadPage() {
                             <label className="label">Visibility</label>
                             <div className="grid grid-cols-2 gap-3">
                                 {[
-                                    { value: 'public', label: '🌐 Public', desc: 'Anyone can find & download' },
-                                    { value: 'unlisted', label: '🔗 Unlisted', desc: 'Only with direct link' },
-                                    { value: 'private', label: '🔒 Private', desc: 'Only you can see' },
-                                    { value: 'password', label: '🔑 Password', desc: 'Public + password to download' },
+                                    { value: 'public', label: 'Public', desc: 'Anyone can find & download', Icon: Globe },
+                                    { value: 'unlisted', label: 'Unlisted', desc: 'Only with direct link', Icon: Link2 },
+                                    { value: 'private', label: 'Private', desc: 'Only you can see', Icon: Lock },
+                                    { value: 'password', label: 'Password', desc: 'Public + password to download', Icon: KeyRound },
                                 ].map(opt => (
                                     <button
                                         key={opt.value}
@@ -510,8 +510,18 @@ export default function UploadPage() {
                                             }
                                         `}
                                     >
-                                        <p className="font-medium text-text-primary text-sm">{opt.label}</p>
-                                        <p className="text-xs text-text-muted">{opt.desc}</p>
+                                        <span className="flex items-center gap-2">
+                                            <opt.Icon
+                                                className={`w-4 h-4 shrink-0 transition-colors ${
+                                                    visibility === opt.value
+                                                        ? 'text-accent-primary'
+                                                        : 'text-text-muted'
+                                                }`}
+                                                aria-hidden="true"
+                                            />
+                                            <p className="font-medium text-text-primary text-sm">{opt.label}</p>
+                                        </span>
+                                        <p className="text-xs text-text-muted mt-0.5">{opt.desc}</p>
                                     </button>
                                 ))}
                             </div>
@@ -548,9 +558,9 @@ export default function UploadPage() {
                                 </p>
                             </div>
                         ) : (
-                            <div className="flex items-start gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                                <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-                                <p className="text-sm text-blue-400">
+                            <div className="flex items-start gap-3 p-4 bg-accent-primary/10 border border-accent-primary/20 rounded-lg">
+                                <Info className="w-5 h-5 text-accent-light shrink-0 mt-0.5" />
+                                <p className="text-sm text-accent-light">
                                     {isTrustedUploader
                                         ? 'Your uploads are auto-approved.'
                                         : 'Uploads are reviewed by moderators before becoming publicly available.'
