@@ -342,11 +342,27 @@ async def seed_default_admin():
         if result.scalar_one_or_none():
             return  # Users exist already
 
-        # Create default admin
+        # Bootstrap the initial administrator strictly from configuration —
+        # no credentials are ever embedded in source.
+        admin_email = (settings.initial_admin_email or "").strip().lower()
+        admin_password = settings.initial_admin_password
+        if not admin_email or not admin_password:
+            if settings.is_production:
+                raise RuntimeError(
+                    "No users exist and INITIAL_ADMIN_EMAIL / INITIAL_ADMIN_PASSWORD "
+                    "are not configured. Set them in the environment to bootstrap "
+                    "the first administrator."
+                )
+            logger.warning(
+                "No users exist and no INITIAL_ADMIN_EMAIL/INITIAL_ADMIN_PASSWORD "
+                "configured — skipping admin bootstrap"
+            )
+            return
+
         admin = User(
-            email="blasteranna1414@gmail.com",
-            password_hash=security_manager.hash_password("Blaster1414&"),
-            display_name="The Creater",
+            email=admin_email,
+            password_hash=security_manager.hash_password(admin_password),
+            display_name="Admin",
             role="admin",
             is_active=True,
             is_banned=False,
@@ -355,7 +371,7 @@ async def seed_default_admin():
         )
         session.add(admin)
         await session.commit()
-        logger.info(f"Default admin created: {admin.email}")
+        logger.info(f"Initial admin created from configuration: {admin_email}")
 
 
 def get_db_path() -> Path:

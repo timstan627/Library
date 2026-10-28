@@ -3,12 +3,12 @@ Users API Routes (SQLAlchemy)
 """
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import security_manager
-from app.models.user import User
+from app.models.user import User, Session
 from app.models.resource import Resource
 from app.schemas.user import UserResponse, UserUpdate, PasswordChangeRequest
 from app.api.v1.deps import get_current_active_user
@@ -56,6 +56,10 @@ async def change_password(
         )
     
     current_user.password_hash = security_manager.hash_password(data.new_password)
+    
+    # Password changed: invalidate every session. Devices holding a refresh
+    # token (stolen or not) must re-authenticate with the new password.
+    await db.execute(delete(Session).where(Session.user_id == current_user.id))
     await db.flush()
     
     return {"message": "Password changed successfully"}

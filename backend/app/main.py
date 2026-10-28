@@ -249,6 +249,22 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
+
+def _cors_headers_for(request: Request) -> dict:
+    """Origin echo restricted to the same allowlist the CORS middleware uses.
+
+    The CORS middleware doesn't run on exception-handler responses, so
+    reflecting an arbitrary Origin with credentials here would let any site
+    read authenticated error responses cross-origin.
+    """
+    origin = request.headers.get("origin")
+    if origin and origin.rstrip("/") in {o.rstrip("/") for o in allowed_origins}:
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+        }
+    return {}
+
 # GZip compression middleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
@@ -266,13 +282,8 @@ if settings.enable_rate_limiting:
 # HTTPException handler with CORS headers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    origin = request.headers.get("origin")
     headers = dict(exc.headers or {})
-    if origin:
-        headers.update({
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Credentials": "true",
-        })
+    headers.update(_cors_headers_for(request))
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
@@ -284,13 +295,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception(f"Unhandled exception: {exc}")
-    origin = request.headers.get("origin")
-    headers = {}
-    if origin:
-        headers.update({
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Credentials": "true",
-        })
+    headers = _cors_headers_for(request)
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error", "type": type(exc).__name__},

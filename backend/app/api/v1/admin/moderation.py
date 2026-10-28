@@ -12,7 +12,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.resource import Resource
 from app.schemas.moderation import ModerationAction, ResourceModerationStatus
-from app.api.v1.deps import require_admin
+from app.api.v1.deps import require_moderator
 from app.models.audit_log import AuditLog
 
 router = APIRouter()
@@ -22,7 +22,7 @@ router = APIRouter()
 async def get_pending_resources(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_moderator),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all pending resources awaiting moderation."""
@@ -63,7 +63,7 @@ async def get_pending_resources(
 async def moderate_resource(
     resource_id: str,
     action: ModerationAction,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_moderator),
     db: AsyncSession = Depends(get_db),
 ):
     """Approve or reject a resource."""
@@ -130,7 +130,7 @@ async def get_moderation_history(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     status_filter: str = Query(None, pattern="^(approved|rejected)$"),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_moderator),
     db: AsyncSession = Depends(get_db),
 ):
     """Get moderation history."""
@@ -175,7 +175,7 @@ async def get_moderation_history(
 
 @router.get("/stats")
 async def get_moderation_stats(
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_moderator),
     db: AsyncSession = Depends(get_db),
 ):
     """Get moderation statistics (served from StatsEngine cache)."""
@@ -199,7 +199,7 @@ async def get_audit_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     action: str = Query(None),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_moderator),
     db: AsyncSession = Depends(get_db),
 ):
     """Get the admin audit trail (paginated, optionally filtered by action)."""

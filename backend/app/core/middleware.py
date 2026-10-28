@@ -87,6 +87,27 @@ class AuthRateLimiter:
 auth_rate_limiter = AuthRateLimiter(max_attempts=5, lockout_minutes=15)
 
 
+def get_client_ip(request: Request) -> str:
+    """Rate-limit identity: the direct peer address.
+
+    X-Forwarded-For / X-Real-IP are client-controlled headers — trusting them
+    blindly would let anyone spoof a fresh rate-limit bucket (or get a victim
+    IP locked out). They are honoured only when the request arrives from a
+    trusted reverse proxy (settings.trusted_proxies), e.g. nginx on loopback.
+    """
+    client_host = request.client.host if request.client else "unknown"
+    if client_host in settings.trusted_proxies_list:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            first_hop = forwarded.split(",")[0].strip()
+            if first_hop:
+                return first_hop
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            return real_ip.strip()
+    return client_host
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
     Simple in-memory rate limiting middleware.
@@ -103,8 +124,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in ["/health", "/metrics"]:
             return await call_next(request)
         
-        # Get client IP
-        client_ip = request.client.host if request.client else "unknown"
+        # Get client IP (trusted-proxy aware)
+        client_ip = get_client_ip(request)
         
         # Clean old requests
         current_time = time.time()

@@ -27,6 +27,35 @@ pwd_context = CryptContext(
 )
 
 
+def _ensure_runtime_secrets() -> None:
+    """Make the config contract real: never run with an empty secret.
+
+    Empty values in development are replaced with a process-local random
+    secret (tokens reset on restart); in production this refuses to start.
+    """
+    import warnings
+
+    for name in ("secret_key", "jwt_secret_key", "hmac_secret_key"):
+        value = getattr(settings, name, None)
+        if value and str(value).strip():
+            continue
+        if settings.is_production:
+            raise RuntimeError(
+                f"{name.upper()} is empty. Generate one with "
+                '`python -c "import secrets; print(secrets.token_urlsafe(64))"` '
+                "and set it in the environment before starting in production."
+            )
+        setattr(settings, name, secrets.token_urlsafe(64))
+        warnings.warn(
+            f"{name.upper()} is not configured; using a process-local random "
+            "secret. Tokens and HMACs reset on every restart — set it in .env.",
+            stacklevel=2,
+        )
+
+
+_ensure_runtime_secrets()
+
+
 class SecurityManager:
     """Centralized security utilities."""
     

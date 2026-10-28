@@ -12,7 +12,7 @@ from app.models.user import User
 from app.models.resource import Resource
 from app.models.rating import Rating
 from app.schemas.rating import RatingCreate, RatingResponse
-from app.api.v1.deps import get_current_active_user
+from app.api.v1.deps import get_current_active_user, get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +38,15 @@ async def create_or_update_rating(
     )
     resource = result.scalar_one_or_none()
     
-    if not resource:
+    if not resource or resource.moderation_status != "approved":
+        # Unapproved content is unratable (and its existence stays hidden)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
+    
+    if resource.uploader_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot rate your own resource",
+        )
     
     existing_result = await db.execute(
         select(Rating).where(
@@ -94,6 +101,7 @@ async def get_resource_ratings(
     resource_id: str,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
+    current_user: Optional[User] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get ratings for a resource."""
@@ -104,6 +112,13 @@ async def get_resource_ratings(
     
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
+    
+    if resource.moderation_status != "approved":
+        # Non-approved resources: ratings visible only to owner/moderators
+        is_owner = current_user is not None and resource.uploader_id == current_user.id
+        is_mod = current_user is not None and current_user.is_moderator
+        if not (is_owner or is_mod):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
     # Count
     count_result = await db.execute(
@@ -127,7 +142,7 @@ async def get_resource_ratings(
     if user_ids:
         users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
         users = users_result.scalars().all()
-        user_map = {u.id: (u.display_name or u.email.split('@')[0]) for u in users}
+        user_map = {u.id: (u.display_name or "Student") for u in users}
     
     # Build response
     results = []
@@ -171,8 +186,10 @@ async def delete_rating(
     resource = res_result.scalar_one_or_none()
     
     if resource:
-        resource.rating_sum -= rating.value
-        resource.rating_count = max(0, resource.rating_count - 1)
+        if rating.value > 0:
+            # Review-only rows (value 0) never contributed to the aggregates
+            resource.rating_sum = max(0, resource.rating_sum - rating.value)
+            resource.rating_count = max(0, resource.rating_count - 1)
     
     await db.delete(rating)
     await db.flush()

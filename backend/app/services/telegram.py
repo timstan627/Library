@@ -476,18 +476,24 @@ class TelegramStorageService:
                 await message.reply_text(f"❌ Error: {str(e)}")
 
         # Register with Owner Filter
-        # RESTRICTION: Only respond to owner ID configured in settings
-        owner_id = settings.telegram_owner_id or 5422016608 # Fallback if not set
-        owner_filter = filters.user(owner_id)
-        
-        self.client.add_handler(MessageHandler(start_handler, filters.command("start") & owner_filter))
-        self.client.add_handler(MessageHandler(help_handler, filters.command("help") & owner_filter))
-        self.client.add_handler(MessageHandler(search_handler, filters.command("search") & owner_filter))
-        self.client.add_handler(MessageHandler(get_file_handler, filters.regex(r"^/get_\d+") & owner_filter))
-        self.client.add_handler(MessageHandler(backup_handler, filters.command("backup") & owner_filter))
-        self.client.add_handler(MessageHandler(dbstatus_handler, filters.command("dbstatus") & owner_filter))
-        self.client.add_handler(MessageHandler(dbsend_handler, filters.command("dbsend") & owner_filter))
-        self.client.add_handler(MessageHandler(dbinit_handler, filters.command("dbinit") & owner_filter))
+        # RESTRICTION: Only respond to the owner ID configured in settings.
+        # No hardcoded fallback: without TELEGRAM_OWNER_ID the bot ignores
+        # every command (these handlers include DB backup/replace — handing
+        # those to a guessed ID would be catastrophic).
+        owner_id = settings.telegram_owner_id
+        if owner_id:
+            owner_filter = filters.user(owner_id)
+            
+            self.client.add_handler(MessageHandler(start_handler, filters.command("start") & owner_filter))
+            self.client.add_handler(MessageHandler(help_handler, filters.command("help") & owner_filter))
+            self.client.add_handler(MessageHandler(search_handler, filters.command("search") & owner_filter))
+            self.client.add_handler(MessageHandler(get_file_handler, filters.regex(r"^/get_\d+") & owner_filter))
+            self.client.add_handler(MessageHandler(backup_handler, filters.command("backup") & owner_filter))
+            self.client.add_handler(MessageHandler(dbstatus_handler, filters.command("dbstatus") & owner_filter))
+            self.client.add_handler(MessageHandler(dbsend_handler, filters.command("dbsend") & owner_filter))
+            self.client.add_handler(MessageHandler(dbinit_handler, filters.command("dbinit") & owner_filter))
+        else:
+            logger.warning("TELEGRAM_OWNER_ID not configured — bot command handlers disabled")
     
     async def disconnect(self):
         """Disconnect Telegram client."""

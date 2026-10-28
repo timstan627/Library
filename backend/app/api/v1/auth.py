@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import security_manager
-from app.core.middleware import auth_rate_limiter
+from app.core.middleware import auth_rate_limiter, get_client_ip
 from app.core.database import get_db
 from app.models.user import User, Session
 from app.schemas.user import (
@@ -66,7 +66,7 @@ async def login(
 ):
     """Login with email and password."""
     # Brute force protection
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     auth_rate_limiter.check_and_record(client_ip, login_data.email)
     
     # Find user
@@ -104,6 +104,9 @@ async def login(
             )
         
         if not security_manager.verify_mfa_code(user.mfa_secret, login_data.mfa_code):
+            # MFA attempts draw from the same lockout budget as passwords so
+            # the challenge can't be brute-forced around the login limiter.
+            auth_rate_limiter.record_failure(client_ip, login_data.email)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid MFA code",
@@ -176,6 +179,19 @@ async def refresh_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session not found or expired",
+        )
+    
+    # Re-check account state: banned or deactivated users must not mint new
+    # tokens even when their session row is still valid. The session is
+    # revoked so the refresh token becomes unusable immediately.
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+    if not user or not user.is_active or user.is_banned:
+        session.is_revoked = True
+        await db.flush()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account is disabled or banned",
         )
     
     # Generate new tokens

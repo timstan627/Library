@@ -4,6 +4,8 @@ Resources API Routes - Upload, Download, Management (SQLAlchemy)
 import re
 import time
 import hashlib
+import mimetypes
+from urllib.parse import quote
 from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Query, Request, Response
@@ -32,6 +34,44 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _ensure_viewable(resource: Resource, current_user: Optional[User]) -> bool:
+    """Raise 404/403 unless the caller may view this resource.
+
+    - Pending/rejected resources are visible only to their owner and the
+      moderation team until approved — existence is hidden from everyone
+      else, matching the public search index (search.py).
+    - Private resources stay owner/moderator-only.
+    Returns True when the caller is owner or moderator (password bypass).
+    """
+    is_owner = current_user is not None and resource.uploader_id == current_user.id
+    is_mod = current_user is not None and current_user.is_moderator
+
+    if resource.moderation_status != "approved" and not (is_owner or is_mod):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found"
+        )
+    if resource.visibility == "private" and not (is_owner or is_mod):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="This resource is private"
+        )
+    return is_owner or is_mod
+
+
+def _content_disposition(file_name: Optional[str], inline: bool) -> str:
+    """RFC 6266/5987 Content-Disposition built from a client-supplied filename.
+
+    Control characters, CR/LF and quotes are stripped (header-injection
+    safety); non-ASCII rides in the RFC 5987 parameter with an ASCII fallback.
+    """
+    name = (file_name or "download").replace("\x00", "")
+    ascii_name = "".join(
+        ch for ch in name if 32 <= ord(ch) < 127 and ch not in '"\\'
+    ).strip() or "download"
+    utf8_name = "".join(ch for ch in name if ord(ch) >= 32)
+    disposition = "inline" if inline else "attachment"
+    return f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(utf8_name)}"
 
 # In-memory view deduplication: tracks {hash: timestamp} to prevent
 # the same visitor from incrementing views on repeated page loads.
@@ -126,14 +166,36 @@ async def upload_resource(
     db: AsyncSession = Depends(get_db),
 ):
     """Upload a new resource file."""
-    # Validate file size
-    file_bytes = await file.read()
-    file_size = len(file_bytes)
+    # Validate file size — read in chunks so an oversized body can't exhaust
+    # memory, and answer 413 (not 400) when the cap is exceeded.
+    max_bytes = settings.max_file_size_bytes
+    chunks: list[bytes] = []
+    file_size = 0
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        file_size += len(chunk)
+        if file_size > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File too large. Maximum size is {settings.max_file_size_mb}MB",
+            )
+        chunks.append(chunk)
+    file_bytes = b"".join(chunks)
     
-    if file_size > settings.max_file_size_bytes:
+    # Validate visibility + password BEFORE any storage upload so a rejected
+    # request can never leave an orphaned file in the Telegram channel.
+    allowed_visibilities = {"public", "unlisted", "private", "password"}
+    if visibility not in allowed_visibilities:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File too large. Maximum size is {settings.max_file_size_mb}MB",
+            detail=f"Invalid visibility. Must be one of: {', '.join(sorted(allowed_visibilities))}",
+        )
+    if visibility == "password" and not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password is required for password-protected visibility",
         )
     
     # Check storage quota
@@ -185,22 +247,7 @@ async def upload_resource(
     tag_list = [t.strip().lower() for t in tags.split(',')] if tags else []
     tag_list = list(set(tag_list))[:10]
     
-    # Validate visibility value
-    allowed_visibilities = {"public", "unlisted", "private", "password"}
-    if visibility not in allowed_visibilities:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid visibility. Must be one of: {', '.join(allowed_visibilities)}",
-        )
-    
-    # Password visibility requires a password
-    if visibility == "password" and not password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password is required for password-protected visibility",
-        )
-    
-    # Private visibility: no password needed
+    # Private visibility: no password needed (validated earlier)
     if visibility == "private":
         password = None
     
@@ -234,7 +281,10 @@ async def upload_resource(
             # File metadata
             file_name=file.filename,
             file_size=file_size,
-            mime_type=file.content_type or "application/octet-stream",
+            # Server-derived MIME: the client-declared Content-Type is not
+            # trusted (it is trivially spoofable and is what the preview
+            # endpoint serves); the extension allowlist constrains this value.
+            mime_type=mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream",
             file_hash=file_hash,
             file_extension=file_extension,
             
@@ -297,18 +347,15 @@ async def preview_resource(
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
-    # Check visibility — private resources only accessible by owner/admin
-    if resource.visibility == "private":
-        if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This resource is private")
+    # Moderation + visibility gate: pending/rejected resources are hidden
+    # (404) from everyone but their owner and the moderation team; private
+    # resources remain owner/moderator-only.
+    is_owner_or_admin = _ensure_viewable(resource, current_user)
     
     # Check password for password-protected resources
-    if resource.visibility == "password":
-        # Owner and admins can bypass password
-        is_owner_or_admin = current_user and (resource.uploader_id == current_user.id or current_user.is_moderator)
-        if not is_owner_or_admin:
-            if not password or not security_manager.verify_password(password, resource.password_hash):
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
+    if resource.visibility == "password" and not is_owner_or_admin:
+        if not password or not security_manager.verify_password(password, resource.password_hash):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
     
     # Eagerly resolve file (disk cache or Telegram download) BEFORE starting response
     # This ensures errors return proper HTTP status codes instead of network errors
@@ -333,7 +380,7 @@ async def preview_resource(
         path=str(file_path),
         media_type=resource.mime_type or "application/octet-stream",
         headers={
-            "Content-Disposition": f"inline; filename*=UTF-8''{resource.file_name}",
+            "Content-Disposition": _content_disposition(resource.file_name, inline=True),
         },
     )
 
@@ -354,17 +401,15 @@ async def download_resource(
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
-    # Check visibility — private resources only accessible by owner/admin
-    if resource.visibility == "private":
-        if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This resource is private")
+    # Moderation + visibility gate: pending/rejected resources are hidden
+    # (404) from everyone but their owner and the moderation team; private
+    # resources remain owner/moderator-only.
+    is_owner_or_admin = _ensure_viewable(resource, current_user)
     
     # Check password for password-protected resources
-    if resource.visibility == "password":
-        is_owner_or_admin = current_user and (resource.uploader_id == current_user.id or current_user.is_moderator)
-        if not is_owner_or_admin:
-            if not password or not security_manager.verify_password(password, resource.password_hash):
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
+    if resource.visibility == "password" and not is_owner_or_admin:
+        if not password or not security_manager.verify_password(password, resource.password_hash):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
     
     # Eagerly resolve file BEFORE starting response — prevents network errors
     try:
@@ -401,9 +446,8 @@ async def download_resource(
     return FileResponse(
         path=str(file_path),
         media_type=resource.mime_type,
-        filename=resource.file_name,
         headers={
-            "Content-Disposition": f'attachment; filename="{resource.file_name}"',
+            "Content-Disposition": _content_disposition(resource.file_name, inline=False),
         },
     )
 
@@ -431,17 +475,15 @@ async def preview_text_resource(
     if not is_text:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only text-based files can be previewed as text")
     
-    # Check visibility — private resources only accessible by owner/admin
-    if resource.visibility == "private":
-        if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This resource is private")
+    # Moderation + visibility gate: pending/rejected resources are hidden
+    # (404) from everyone but their owner and the moderation team; private
+    # resources remain owner/moderator-only.
+    is_owner_or_admin = _ensure_viewable(resource, current_user)
     
     # Check password for password-protected resources
-    if resource.visibility == "password":
-        is_owner_or_admin = current_user and (resource.uploader_id == current_user.id or current_user.is_moderator)
-        if not is_owner_or_admin:
-            if not password or not security_manager.verify_password(password, resource.password_hash):
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
+    if resource.visibility == "password" and not is_owner_or_admin:
+        if not password or not security_manager.verify_password(password, resource.password_hash):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password required or incorrect")
     
     # Get the file
     try:
@@ -501,10 +543,8 @@ async def get_resource(
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
-    # Check visibility — private resources only accessible by owner/admin
-    if resource.visibility == "private":
-        if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This resource is private")
+    # Moderation + visibility gate (pending/rejected hidden, private owner-only)
+    _ensure_viewable(resource, current_user)
     
     # Increment view count (deduplicated by IP + User-Agent, 1 hour window)
     if _should_count_view(resource.id, request):
@@ -531,10 +571,8 @@ async def get_resource_by_slug(
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
-    # Check visibility — private resources only accessible by owner/admin
-    if resource.visibility == "private":
-        if not current_user or (resource.uploader_id != current_user.id and not current_user.is_moderator):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This resource is private")
+    # Moderation + visibility gate (pending/rejected hidden, private owner-only)
+    _ensure_viewable(resource, current_user)
     
     # Increment view count (deduplicated by IP + User-Agent, 1 hour window)
     if _should_count_view(resource.id, request):
@@ -566,6 +604,15 @@ async def update_resource(
     
     # Update fields
     update_data = data.model_dump(exclude_unset=True)
+    
+    # Close the moderation bypass: a private upload is auto-approved (only
+    # the owner can see it), so a non-moderator flipping it to public/unlisted
+    # must re-enter the moderation queue.
+    new_visibility = update_data.get("visibility")
+    if new_visibility and new_visibility != resource.visibility:
+        if resource.moderation_status == "approved" and new_visibility != "private" and not current_user.is_moderator:
+            update_data["moderation_status"] = "pending"
+    
     for field, value in update_data.items():
         setattr(resource, field, value)
     
@@ -639,13 +686,15 @@ async def list_resources(
         filters.append(Resource.uploader_id == uploader_id)
         
         if not is_owner and not is_moderator:
-            # Non-owners only see public + password resources
+            # Non-owners only see approved public + password resources
             filters.append(Resource.visibility.in_(["public", "password"]))
+            filters.append(Resource.moderation_status == "approved")
         # Owner sees ALL their resources (public, unlisted, private, password)
     else:
-        # Public browse: show public + password-protected (with lock icon)
-        # Exclude private and unlisted
+        # Public browse: approved public + password-protected (with lock icon)
+        # only — pending/rejected content stays out of listings
         filters.append(Resource.visibility.in_(["public", "password"]))
+        filters.append(Resource.moderation_status == "approved")
     
     if course_code:
         filters.append(Resource.course_code == course_code.upper())
