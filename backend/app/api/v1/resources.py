@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Query, Request, Response
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, func, and_, update as sql_update
+from sqlalchemy import select, func, and_, or_, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -18,6 +18,7 @@ from app.core.security import security_manager
 from app.core.database import get_db
 from app.models.user import User
 from app.models.resource import Resource
+from app.models.department import Department
 from app.models.download import Download
 from app.schemas.resource import (
     ResourceCreate,
@@ -109,6 +110,30 @@ def generate_slug(title: str, existing_check: bool = False) -> str:
     
     suffix = security_manager.generate_secure_token(4)
     return f"{slug[:50]}-{suffix}"
+
+
+async def resolve_department(db: AsyncSession, name_or_code: str) -> Department:
+    """Resolve a department by name or code (case-insensitive).
+
+    Raises 400 when no active department matches — the upload/update UIs
+    send names straight from /departments, so an unknown value means stale
+    client data, not something to silently drop.
+    """
+    result = await db.execute(
+        select(Department).where(
+            or_(
+                func.lower(Department.name) == name_or_code.strip().lower(),
+                func.lower(Department.code) == name_or_code.strip().lower(),
+            )
+        )
+    )
+    department = result.scalar_one_or_none()
+    if not department:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown department: {name_or_code}",
+        )
+    return department
 
 
 @router.get("/my", response_model=ResourceListResponse)
@@ -204,6 +229,13 @@ async def upload_resource(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Storage quota exceeded",
         )
+
+    # Resolve the department (sent by name from the upload UI); an unknown
+    # value is a 400, not a silently-dropped field.
+    department_id = None
+    if department and department.strip():
+        department_row = await resolve_department(db, department)
+        department_id = department_row.id
     
     # Validate file extension
     file_extension = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
@@ -267,6 +299,7 @@ async def upload_resource(
         slug=generate_slug(title),
         description=description.strip() if description else None,
         course_code=course_code.upper().strip(),
+        department_id=department_id,
         semester=semester.strip() if semester else None,
         branch=branch.strip() if branch else None,
         tags_str=",".join(tag_list) if tag_list else None,
@@ -619,11 +652,34 @@ async def update_resource(
     
     # Update fields
     update_data = data.model_dump(exclude_unset=True)
-    
+
+    # Department is resolved to its id, never set as a raw string.
+    new_department = update_data.pop("department", None)
+    if new_department is not None:
+        if new_department.strip() == "":
+            update_data["department_id"] = None  # explicit clear
+        else:
+            department_row = await resolve_department(db, new_department)
+            update_data["department_id"] = department_row.id
+
+    # Password handling: only valid for password-protected visibility;
+    # switching away from "password" clears any stored hash.
+    new_password = update_data.pop("password", None)
+    new_visibility = update_data.get("visibility")
+    if new_password is not None:
+        target_visibility = new_visibility if new_visibility is not None else resource.visibility
+        if target_visibility != "password":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password can only be set when visibility is 'password'",
+            )
+        update_data["password_hash"] = security_manager.hash_password(new_password)
+    if new_visibility is not None and new_visibility != "password":
+        update_data["password_hash"] = None
+
     # Close the moderation bypass: a private upload is auto-approved (only
     # the owner can see it), so a non-moderator flipping it to public/unlisted
     # must re-enter the moderation queue.
-    new_visibility = update_data.get("visibility")
     if new_visibility and new_visibility != resource.visibility:
         if resource.moderation_status == "approved" and new_visibility != "private" and not current_user.is_moderator:
             update_data["moderation_status"] = "pending"
@@ -714,6 +770,17 @@ async def list_resources(
     
     if course_code:
         filters.append(Resource.course_code == course_code.upper())
+    if department:
+        filters.append(
+            Resource.department_id.in_(
+                select(Department.id).where(
+                    or_(
+                        func.lower(Department.name) == department.strip().lower(),
+                        func.lower(Department.code) == department.strip().lower(),
+                    )
+                )
+            )
+        )
     
     # Count
     count_result = await db.execute(select(func.count()).select_from(Resource).where(and_(*filters)))

@@ -45,42 +45,72 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 class AuthRateLimiter:
-    """Track failed login attempts per IP+email for brute force protection."""
-    
+    """Track failed login attempts per IP+email AND per account.
+
+    Two windows:
+    - (ip, email): stops a single source hammering one account.
+    - email only (larger budget): stops distributed/rotating-IP brute force
+      against a single account, where every request looks like a new source.
+
+    The account-wide budget is deliberately higher (shared NATs put many
+    real users behind one IP/email pair).
+    """
+
+    ACCOUNT_WIDE_MULTIPLIER = 3
+
     def __init__(self, max_attempts: int = 5, lockout_minutes: int = 15):
         self.max_attempts = max_attempts
         self.lockout_seconds = lockout_minutes * 60
-        # Key: (ip, email) -> list of failed attempt timestamps
+        # Key: "ip:email" -> list of failed attempt timestamps
         self.failed_attempts: Dict[str, list] = defaultdict(list)
-    
+        # Key: email -> list of failed attempt timestamps (any IP)
+        self.email_failures: Dict[str, list] = defaultdict(list)
+
+    @staticmethod
+    def _remaining(attempts: list, lockout_seconds: int) -> int:
+        first = attempts[0]
+        return max(1, int(lockout_seconds - (time.time() - first)))
+
     def check_and_record(self, ip: str, email: str) -> None:
-        """Check if login is allowed, raise 429 if locked out."""
+        """Check if login is allowed; raise 429 if either window is locked."""
         key = f"{ip}:{email.lower()}"
-        current_time = time.time()
-        
-        # Clean old attempts outside the lockout window
+        email_key = email.lower()
+        now = time.time()
+
+        # Keep only attempts inside the lockout window
         self.failed_attempts[key] = [
-            t for t in self.failed_attempts[key]
-            if current_time - t < self.lockout_seconds
+            t for t in self.failed_attempts[key] if now - t < self.lockout_seconds
         ]
-        
+        self.email_failures[email_key] = [
+            t for t in self.email_failures[email_key] if now - t < self.lockout_seconds
+        ]
+
         if len(self.failed_attempts[key]) >= self.max_attempts:
-            remaining = int(self.lockout_seconds - (current_time - self.failed_attempts[key][0]))
+            remaining = self._remaining(self.failed_attempts[key], self.lockout_seconds)
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Too many failed login attempts. Try again in {remaining // 60 + 1} minutes.",
                 headers={"Retry-After": str(remaining)},
             )
-    
+
+        email_budget = self.max_attempts * self.ACCOUNT_WIDE_MULTIPLIER
+        if len(self.email_failures[email_key]) >= email_budget:
+            remaining = self._remaining(self.email_failures[email_key], self.lockout_seconds)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Too many failed login attempts for this account. Try again in {remaining // 60 + 1} minutes.",
+                headers={"Retry-After": str(remaining)},
+            )
+
     def record_failure(self, ip: str, email: str) -> None:
-        """Record a failed login attempt."""
-        key = f"{ip}:{email.lower()}"
-        self.failed_attempts[key].append(time.time())
-    
+        """Record a failed login attempt in both windows."""
+        self.failed_attempts[f"{ip}:{email.lower()}"].append(time.time())
+        self.email_failures[email.lower()].append(time.time())
+
     def clear(self, ip: str, email: str) -> None:
         """Clear failed attempts on successful login."""
-        key = f"{ip}:{email.lower()}"
-        self.failed_attempts.pop(key, None)
+        self.failed_attempts.pop(f"{ip}:{email.lower()}", None)
+        self.email_failures.pop(email.lower(), None)
 
 
 # Global instance for auth rate limiting

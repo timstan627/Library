@@ -118,6 +118,10 @@ async def _db_isolated():
     await _create_tables()
     await _wipe_tables()
     auth_rate_limiter.failed_attempts.clear()
+    auth_rate_limiter.email_failures.clear()
+    from app.api.v1.password_reset import password_reset_tokens, _email_requests  # noqa: E402
+    password_reset_tokens.clear()
+    _email_requests.clear()
     resources_module._view_tracker.clear()
     yield
     await _wipe_tables()
@@ -246,6 +250,21 @@ def resource_seq() -> int:
     global _next_user_seq
     _next_user_seq += 1
     return _next_user_seq
+
+
+# ---------------------------------------------------------------------------
+# Department / course factories
+# ---------------------------------------------------------------------------
+async def make_department(name: str = "Computer Science", code: str = "CSE", **overrides) -> "Department":
+    from app.models.department import Department
+    defaults = dict(name=name, code=code, description=None, display_order=0, is_active=True)
+    defaults.update(overrides)
+    department = Department(**defaults)
+    async with dbmod.async_session() as session:
+        session.add(department)
+        await session.commit()
+        await session.refresh(department)
+    return department
 
 
 # ---------------------------------------------------------------------------

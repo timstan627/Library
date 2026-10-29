@@ -92,6 +92,11 @@ class Resource(Base, TimestampMixin):
         if not self.tags_str:
             return []
         return [t.strip() for t in self.tags_str.split(",") if t.strip()]
+
+    @property
+    def department_name(self) -> Optional[str]:
+        """Safe string for responses (the `department` attribute is a relationship)."""
+        return self.department.name if self.department is not None else None
     
     @tags.setter
     def tags(self, value: List[str]):

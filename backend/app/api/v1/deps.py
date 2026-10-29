@@ -74,11 +74,14 @@ async def get_current_active_user(
     
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    
+
     if not user:
+        # A valid JWT for a deleted user is a stale credential, not a
+        # missing resource — 401 tells the client to re-authenticate.
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     
     if not user.is_active:
@@ -121,26 +124,7 @@ async def get_moderator_user(
     return current_user
 
 
-# Aliases
-async def require_admin(
-    current_user: User = Depends(get_current_active_user),
-) -> User:
-    """Require admin role for endpoint access."""
-    if current_user.role not in ['admin']:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
-    return current_user
-
-
-async def require_moderator(
-    current_user: User = Depends(get_current_active_user),
-) -> User:
-    """Require moderator or admin role for endpoint access."""
-    if current_user.role not in ['admin', 'moderator']:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Moderator access required",
-        )
-    return current_user
+# Aliases — the canonical role checks live above; these names are kept
+# because several routers import them (single implementation, no drift).
+require_admin = get_admin_user
+require_moderator = get_moderator_user

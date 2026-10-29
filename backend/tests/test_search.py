@@ -5,6 +5,7 @@ from sqlalchemy import update
 
 from tests.conftest import make_user, make_resource
 from app.core.database import async_session
+from app.models.resource import Resource
 
 
 @pytest.mark.asyncio
@@ -100,6 +101,62 @@ async def test_recent_orders_by_created(client: AsyncClient, admin_user):
 
 
 # ---------------------------------------------------------------------------
+# Department filtering (end-to-end)
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_search_department_filter(client: AsyncClient, admin_user):
+    from tests.conftest import make_department
+    cse = await make_department(name="Computer Science", code="CSE")
+    ece = await make_department(name="Electronics", code="ECE")
+    await make_resource(admin_user, title="CSE Doc", department_id=cse.id)
+    await make_resource(admin_user, title="ECE Doc", department_id=ece.id)
+
+    by_name = await client.get("/api/v1/search", params={"department": "computer science"})
+    assert [r["title"] for r in by_name.json()["results"]] == ["CSE Doc"]
+    by_code = await client.get("/api/v1/search", params={"department": "ECE"})
+    assert [r["title"] for r in by_code.json()["results"]] == ["ECE Doc"]
+
+
+@pytest.mark.asyncio
+async def test_resources_list_department_filter(client: AsyncClient, admin_user):
+    from tests.conftest import make_department
+    cse = await make_department(name="Computer Science", code="CSE")
+    await make_resource(admin_user, title="CSE Doc", department_id=cse.id)
+    await make_resource(admin_user, title="No Dept Doc")
+    resp = await client.get("/api/v1/resources", params={"department": "CSE"})
+    assert [r["title"] for r in resp.json()["results"]] == ["CSE Doc"]
+
+
+@pytest.mark.asyncio
+async def test_filters_returns_active_departments(client: AsyncClient, admin_user):
+    from tests.conftest import make_department
+    await make_department(name="Civil Engineering", code="CE")
+    await make_department(name="Retired Dept", code="OLD", is_active=False)
+    await make_resource(admin_user, title="A", course_code="CS101")
+    resp = await client.get("/api/v1/search/filters")
+    body = resp.json()
+    assert body["departments"] == ["Civil Engineering"]
+    assert "CS101" in body["courses"]
+
+
+@pytest.mark.asyncio
+async def test_search_sort_by_rating_uses_average(client: AsyncClient, admin_user):
+    from sqlalchemy import update
+    from app.core.database import async_session
+    # A: avg 5.0 (sum 10, count 2) — B: avg 3.0 (sum 9, count 3)
+    # B has the higher SUM; the old sort_by=rating ranked it first.
+    a = await make_resource(admin_user, title="Avg Five")
+    b = await make_resource(admin_user, title="Avg Three")
+    async with async_session() as session:
+        await session.execute(update(Resource).where(Resource.id == a.id).values(rating_sum=10, rating_count=2))
+        await session.execute(update(Resource).where(Resource.id == b.id).values(rating_sum=9, rating_count=3))
+        await session.commit()
+    resp = await client.get("/api/v1/search", params={"sort_by": "rating"})
+    titles = [r["title"] for r in resp.json()["results"]]
+    assert titles == ["Avg Five", "Avg Three"]
+
+
+# ---------------------------------------------------------------------------
 # SECURITY regression guard: popular/recent must return safe summaries,
 # not raw ORM rows (leaks password_hash, uploader email/mfa_secret,
 # telegram file ids, file_hash). Fixed by Task 1.1; strict xfail ratchets.
@@ -112,7 +169,6 @@ FORBIDDEN_KEYS = {
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, reason="SECURITY: /search/popular serializes raw ORM rows (Task 1.1)")
 async def test_popular_no_orm_leak(client: AsyncClient):
     uploader = await make_user(email="leakpop@test.example", password="Sup3rSecret!")
     await make_resource(uploader, title="Leak Check Pop")
@@ -123,7 +179,6 @@ async def test_popular_no_orm_leak(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(strict=True, reason="SECURITY: /search/recent serializes raw ORM rows (Task 1.1)")
 async def test_recent_no_orm_leak(client: AsyncClient):
     uploader = await make_user(email="leakrecent@test.example", password="Sup3rSecret!")
     await make_resource(uploader, title="Leak Check Recent")

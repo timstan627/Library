@@ -43,11 +43,24 @@ class ResourceUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=3, max_length=255)
     description: Optional[str] = Field(None, max_length=2000)
     course_code: Optional[str] = Field(None, min_length=2, max_length=20)
+    # Department by name or code; resolved to department_id server-side.
     department: Optional[str] = Field(None, max_length=100)
     semester: Optional[str] = Field(None, max_length=20)
     branch: Optional[str] = Field(None, max_length=100)
     tags: Optional[List[str]] = Field(None, max_length=10)
-    visibility: Optional[str] = Field(None, pattern="^(public|unlisted|private)$")
+    visibility: Optional[str] = Field(None, pattern="^(public|unlisted|private|password)$")
+    # Only valid when visibility is "password"; switching visibility away
+    # from "password" clears the stored hash.
+    password: Optional[str] = Field(None, min_length=4, max_length=50)
+
+    @field_validator("course_code")
+    @classmethod
+    def validate_course_code(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not re.match(r"^[A-Za-z]{2,6}\d{2,4}[A-Za-z]?$", v.strip()):
+            raise ValueError("Invalid course code format (e.g., CS101, ECE2001)")
+        return v.upper().strip()
 
 
 class ResourceResponse(BaseModel):
@@ -57,17 +70,22 @@ class ResourceResponse(BaseModel):
     slug: str
     description: Optional[str]
     course_code: str
-    department: Optional[str] = None  # Legacy field, optional for backward compatibility
+
+    # Academic (department_name comes from a model property; `department` on
+    # the ORM is a relationship object and must never be serialized directly)
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
+    course_id: Optional[str] = None
     semester: Optional[str] = None
     branch: Optional[str] = None
     tags: Optional[List[str]] = []
-    
+
     # File info
     file_name: str
     file_size: int
     file_extension: str
     mime_type: str
-    
+
     # Stats
     downloads: int
     views: int

@@ -3,7 +3,7 @@ Library API — Personal collection management for users.
 """
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,78 +13,19 @@ from app.api.v1.deps import get_current_active_user
 from app.models.user import User
 from app.models.resource import Resource
 from app.models.collection import Collection, CollectionItem
+from app.schemas.library import (
+    CollectionCreate,
+    CollectionUpdate,
+    CollectionItemAdd,
+    CollectionReorder,
+    CollectionItemResponse,
+    CollectionResponse,
+    CollectionDetailResponse,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/library", tags=["library"])
-
-
-# ────────────────────────────────────────────────────────────────
-# Schemas (inline Pydantic for simplicity)
-# ────────────────────────────────────────────────────────────────
-from pydantic import BaseModel, Field
-from datetime import datetime
-
-
-class CollectionCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=200)
-    description: Optional[str] = None
-    emoji: str = Field(default="📁", max_length=10)
-    color: str = Field(default="#6366f1", max_length=7)
-
-
-class CollectionUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = None
-    emoji: Optional[str] = Field(None, max_length=10)
-    color: Optional[str] = Field(None, max_length=7)
-
-
-class CollectionItemAdd(BaseModel):
-    resource_ids: List[str]
-
-
-class CollectionReorder(BaseModel):
-    """List of resource IDs in the new order."""
-    resource_ids: List[str]
-
-
-class CollectionItemResponse(BaseModel):
-    id: str
-    resource_id: str
-    sort_order: int
-    added_at: datetime
-    # Resource details (flattened)
-    title: Optional[str] = None
-    file_name: Optional[str] = None
-    file_size: Optional[int] = None
-    file_extension: Optional[str] = None
-    mime_type: Optional[str] = None
-    visibility: Optional[str] = None
-    slug: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-
-class CollectionResponse(BaseModel):
-    id: str
-    name: str
-    description: Optional[str] = None
-    emoji: str
-    color: str
-    sort_order: int
-    item_count: int = 0
-    total_size: int = 0
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class CollectionDetailResponse(CollectionResponse):
-    items: List[CollectionItemResponse] = []
 
 
 # ────────────────────────────────────────────────────────────────
@@ -307,27 +248,29 @@ async def add_items_to_collection(
     # Get existing resource IDs in this collection
     existing_ids = {item.resource_id for item in collection.items}
     max_sort = max((item.sort_order for item in collection.items), default=-1)
+
+    # One query verifies every requested id (was one SELECT per id — N+1)
+    requested = list(dict.fromkeys(data.resource_ids))  # de-dup, keep order
+    owned_result = await db.execute(
+        select(Resource.id).where(
+            Resource.id.in_(requested),
+            Resource.uploader_id == current_user.id,
+            Resource.is_deleted == False,
+        )
+    )
+    valid_ids = set(owned_result.scalars().all())
     
     added = 0
     skipped = 0
     
     for resource_id in data.resource_ids:
-        # Skip duplicates
+        # Skip duplicates (already in the collection, or repeated in this
+        # request — the first occurrence is the one that gets added)
         if resource_id in existing_ids:
             skipped += 1
             continue
         
-        # Verify resource exists and belongs to user
-        res_result = await db.execute(
-            select(Resource).where(
-                Resource.id == resource_id,
-                Resource.uploader_id == current_user.id,
-                Resource.is_deleted == False,
-            )
-        )
-        resource = res_result.scalar_one_or_none()
-        
-        if not resource:
+        if resource_id not in valid_ids:
             skipped += 1
             continue
         
@@ -354,23 +297,22 @@ async def remove_item_from_collection(
     db: AsyncSession = Depends(get_db),
 ):
     """Remove a resource from a collection."""
+    # Single ownership-scoped query: whether the item exists in someone
+    # else's collection must be indistinguishable from it not existing at
+    # all (a check-item-then-ownership order leaked a 403-vs-404 oracle).
     result = await db.execute(
-        select(CollectionItem).where(
+        select(CollectionItem)
+        .join(Collection, CollectionItem.collection_id == Collection.id)
+        .where(
             CollectionItem.collection_id == collection_id,
             CollectionItem.resource_id == resource_id,
+            Collection.user_id == current_user.id,
         )
     )
     item = result.scalar_one_or_none()
     
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found in collection")
-    
-    # Verify ownership via collection
-    coll_result = await db.execute(
-        select(Collection).where(Collection.id == collection_id, Collection.user_id == current_user.id)
-    )
-    if not coll_result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your collection")
     
     await db.delete(item)
     await db.flush()
@@ -414,16 +356,20 @@ async def reorder_collection_items(
 
 @router.get("/recent")
 async def get_recent_uploads(
-    limit: int = 10,
+    limit: int = Query(10, ge=1, le=50),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get user's most recent uploads."""
+    """Get user's most recent uploads.
+
+    `limit` is validated (1–50): SQLite treats a negative LIMIT as
+    "unlimited", so an unclamped value would dump the user's entire library.
+    """
     result = await db.execute(
         select(Resource)
         .where(Resource.uploader_id == current_user.id, Resource.is_deleted == False)
         .order_by(Resource.created_at.desc())
-        .limit(min(limit, 50))
+        .limit(limit)
     )
     resources = result.scalars().all()
     

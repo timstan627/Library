@@ -1,7 +1,9 @@
 """Authentication contract: register, login, refresh, logout, me, MFA."""
 import pytest
+from fastapi import HTTPException
 from httpx import AsyncClient
 
+from app.core.middleware import AuthRateLimiter
 from tests.conftest import make_user
 
 
@@ -94,9 +96,96 @@ async def test_refresh_rotation(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_refresh_missing_body_400(client: AsyncClient):
+async def test_refresh_missing_body_422(client: AsyncClient):
+    """Missing refresh_token is a request-validation failure → 422.
+
+    The handler takes a typed RefreshRequest, so FastAPI rejects the empty
+    body before the handler runs (was a manual 400 with `dict`).
+    """
     resp = await client.post("/api/v1/auth/refresh", json={})
-    assert resp.status_code == 400
+    assert resp.status_code == 422
+    # No body at all is also a validation failure, not a 500
+    no_body = await client.post("/api/v1/auth/refresh")
+    assert no_body.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Brute-force lockout: per-(ip, email) AND account-wide (email-only) windows
+# ---------------------------------------------------------------------------
+def test_lockout_per_ip_window_unit():
+    limiter = AuthRateLimiter(max_attempts=5, lockout_minutes=15)
+    for _ in range(5):
+        limiter.record_failure("10.0.0.1", "unit@x.example")
+    with pytest.raises(HTTPException) as exc:
+        limiter.check_and_record("10.0.0.1", "unit@x.example")
+    assert exc.value.status_code == 429
+    # A different IP for the same email is not blocked by the per-IP window
+    limiter.check_and_record("10.0.0.2", "unit@x.example")
+
+
+def test_lockout_account_wide_window_unit():
+    """Distributed brute force (rotating IPs) trips the email-only budget."""
+    limiter = AuthRateLimiter(max_attempts=5, lockout_minutes=15)
+    budget = 5 * AuthRateLimiter.ACCOUNT_WIDE_MULTIPLIER
+    for i in range(budget):
+        ip = f"10.{i // 255}.{i % 255}.9"
+        # Each IP stays below its own per-IP limit (1 failure each)
+        limiter.check_and_record(ip, "victim@x.example")
+        limiter.record_failure(ip, "victim@x.example")
+    # Budget exhausted → a brand-new IP is blocked on the account
+    with pytest.raises(HTTPException) as exc:
+        limiter.check_and_record("10.9.9.9", "victim@x.example")
+    assert exc.value.status_code == 429
+    # A different account from that same fresh IP is unaffected
+    limiter.check_and_record("10.9.9.9", "bystander@x.example")
+
+
+def test_lockout_clear_resets_both_windows():
+    limiter = AuthRateLimiter(max_attempts=5, lockout_minutes=15)
+    for _ in range(5):
+        limiter.record_failure("10.0.0.1", "clear@x.example")
+    for _ in range(15):
+        limiter.record_failure("10.2.0.1", "clear@x.example")
+    with pytest.raises(HTTPException):
+        limiter.check_and_record("10.0.0.1", "clear@x.example")
+    limiter.clear("10.0.0.1", "clear@x.example")
+    limiter.check_and_record("10.0.0.1", "clear@x.example")  # no raise
+
+
+@pytest.mark.asyncio
+async def test_login_lockout_account_wide_rotating_ips(client: AsyncClient):
+    """End-to-end: rotating XFF IPs cannot evade the per-account lockout.
+
+    httpx's ASGITransport presents 127.0.0.1 — a default-trusted proxy — so
+    X-Forwarded-For is honored exactly as behind nginx.
+    """
+    user = await make_user(email="rotating@test.example")
+    for i in range(15):  # 3 × per-IP budget of failed attempts
+        r = await client.post(
+            "/api/v1/auth/login",
+            json={"email": user.email, "password": "WrongPass1"},
+            headers={"X-Forwarded-For": f"203.0.113.{i}"},
+        )
+        assert r.status_code == 401, f"attempt {i} → {r.status_code}"
+
+    # Account budget exhausted → a brand-new IP is locked out of the ACCOUNT,
+    # even with the CORRECT password.
+    locked = await client.post(
+        "/api/v1/auth/login",
+        json={"email": user.email, "password": "Passw0rd123"},
+        headers={"X-Forwarded-For": "203.0.113.200"},
+    )
+    assert locked.status_code == 429
+    assert "account" in locked.json()["detail"].lower()
+
+    # A different account from that same fresh IP is unaffected
+    other = await make_user(email="rotating-other@test.example")
+    ok = await client.post(
+        "/api/v1/auth/login",
+        json={"email": other.email, "password": "Passw0rd123"},
+        headers={"X-Forwarded-For": "203.0.113.200"},
+    )
+    assert ok.status_code == 200
 
 
 @pytest.mark.asyncio

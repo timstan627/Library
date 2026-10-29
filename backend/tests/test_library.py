@@ -65,7 +65,7 @@ async def test_collection_isolated_between_users(client: AsyncClient):
     assert resp.status_code in (403, 404)
     resp = await client.post(
         f"/api/v1/library/collections/{collection_id}/items",
-        json={"resource_ids": []},
+        json={"resource_ids": ["some-resource-id"]},
         headers=stranger_headers,
     )
     assert resp.status_code == 404
@@ -135,6 +135,95 @@ async def test_remove_item_and_reorder(client: AsyncClient):
     assert removed.status_code == 200
     detail = await client.get(f"/api/v1/library/collections/{collection_id}", headers=headers)
     assert [i["resource_id"] for i in detail.json()["items"]] == [r3.id, r2.id]
+
+
+@pytest.mark.asyncio
+async def test_remove_item_no_ownership_oracle(client: AsyncClient):
+    """A stranger probing DELETE must see 404 whether or not the item exists.
+
+    Check-item-then-ownership answered 403 for existing items in other
+    people's collections — an existence oracle. Both cases now return 404.
+    """
+    owner = await make_user()
+    stranger = await make_user()
+    r1 = await make_resource(owner, title="Owned Item")
+    headers = await auth_headers(client, owner)
+    collection_id = (await create_collection(client, headers)).json()["id"]
+    await client.post(
+        f"/api/v1/library/collections/{collection_id}/items",
+        json={"resource_ids": [r1.id]},
+        headers=headers,
+    )
+
+    stranger_headers = await auth_headers(client, stranger)
+    # Item exists but belongs to someone else's collection → 404 (not 403)
+    leak = await client.delete(
+        f"/api/v1/library/collections/{collection_id}/items/{r1.id}",
+        headers=stranger_headers,
+    )
+    assert leak.status_code == 404
+    # Same status for a nonexistent item → indistinguishable
+    missing = await client.delete(
+        f"/api/v1/library/collections/{collection_id}/items/00000000-0000-0000-0000-000000000000",
+        headers=stranger_headers,
+    )
+    assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_add_items_request_size_and_recent_limit_bounds(client: AsyncClient):
+    owner = await make_user()
+    headers = await auth_headers(client, owner)
+    collection_id = (await create_collection(client, headers)).json()["id"]
+
+    # resource_ids beyond the 100-item request cap → 422
+    big = await client.post(
+        f"/api/v1/library/collections/{collection_id}/items",
+        json={"resource_ids": [f"id-{i}" for i in range(101)]},
+        headers=headers,
+    )
+    assert big.status_code == 422
+
+    # Empty add request is a validation error, not a silent no-op
+    empty = await client.post(
+        f"/api/v1/library/collections/{collection_id}/items",
+        json={"resource_ids": []},
+        headers=headers,
+    )
+    assert empty.status_code == 422
+
+    # /recent: limit must be within 1..50 (negative LIMIT = unlimited in SQLite)
+    for bad in (0, -1, 51):
+        resp = await client.get("/api/v1/library/recent", params={"limit": bad}, headers=headers)
+        assert resp.status_code == 422, f"limit={bad} → {resp.status_code}"
+    ok = await client.get("/api/v1/library/recent", params={"limit": 50}, headers=headers)
+    assert ok.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_add_items_batch_counts(client: AsyncClient):
+    """Mixed validity in one request: owned added, foreign/unknown skipped."""
+    owner = await make_user()
+    other = await make_user()
+    mine1 = await make_resource(owner, title="M1")
+    mine2 = await make_resource(owner, title="M2")
+    theirs = await make_resource(other, title="T")
+    headers = await auth_headers(client, owner)
+    collection_id = (await create_collection(client, headers)).json()["id"]
+
+    resp = await client.post(
+        f"/api/v1/library/collections/{collection_id}/items",
+        json={"resource_ids": [mine1.id, theirs.id, "nonexistent-id", mine2.id]},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["added"] == 2
+    assert body["skipped"] == 2
+
+    detail = await client.get(f"/api/v1/library/collections/{collection_id}", headers=headers)
+    order = [i["resource_id"] for i in detail.json()["items"]]
+    assert order == [mine1.id, mine2.id]  # request order preserved
 
 
 @pytest.mark.asyncio

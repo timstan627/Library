@@ -20,6 +20,7 @@ from app.schemas.user import (
     TokenResponse,
     MFASetupResponse,
     MFAVerifyRequest,
+    RefreshRequest,
 )
 from app.api.v1.deps import get_current_user, get_current_active_user
 
@@ -153,16 +154,11 @@ async def login(
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
-    request: dict,
+    refresh_data: RefreshRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """Refresh access token using refresh token."""
-    refresh_tok = request.get("refresh_token")
-    if not refresh_tok:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="refresh_token is required",
-        )
+    refresh_tok = refresh_data.refresh_token
     payload = security_manager.verify_token(refresh_tok, token_type="refresh")
     
     if not payload:
@@ -226,7 +222,12 @@ async def logout(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Logout and revoke current session."""
+    """Logout: revoke ALL of the user's sessions.
+
+    Deliberately broader than "current device only" — on a shared password
+    reset/change/logout, every held refresh token must die. Devices simply
+    log back in.
+    """
     result = await db.execute(
         select(Session).where(
             Session.user_id == current_user.id,

@@ -4,17 +4,32 @@ Search API Routes (SQLAlchemy) - Full-text search and filtering
 import time
 from typing import Optional, List
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.resource import Resource
+from app.models.department import Department
 from app.schemas.search import SearchQuery, SearchResponse, FilterOptions, ResourceSummaryListResponse
 
 import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(redirect_slashes=False)
+
+
+def _escape_like(value: str) -> str:
+    """Escape LIKE wildcards so user input can't widen the match."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _department_id_subquery(name_or_code: str):
+    return select(Department.id).where(
+        or_(
+            func.lower(Department.name) == name_or_code.strip().lower(),
+            func.lower(Department.code) == name_or_code.strip().lower(),
+        )
+    )
 
 
 @router.get("", response_model=SearchResponse)
@@ -42,23 +57,25 @@ async def search_resources(
         Resource.moderation_status == "approved",
     ]
     
-    # Text search → SQLite LIKE
+    # Text search → SQLite LIKE (wildcards escaped)
     if q:
-        q_like = f"%{q}%"
+        q_like = f"%{_escape_like(q)}%"
         filters.append(
             or_(
-                Resource.title.ilike(q_like),
-                Resource.course_code.ilike(q_like),
-                Resource.description.ilike(q_like),
-                Resource.file_name.ilike(q_like),
-                Resource.semester.ilike(q_like),
-                Resource.tags_str.ilike(q_like),
+                Resource.title.ilike(q_like, escape="\\"),
+                Resource.course_code.ilike(q_like, escape="\\"),
+                Resource.description.ilike(q_like, escape="\\"),
+                Resource.file_name.ilike(q_like, escape="\\"),
+                Resource.semester.ilike(q_like, escape="\\"),
+                Resource.tags_str.ilike(q_like, escape="\\"),
             )
         )
     
     # Field filters
     if course_code:
         filters.append(Resource.course_code == course_code.upper())
+    if department:
+        filters.append(Resource.department_id.in_(_department_id_subquery(department)))
     if semester:
         filters.append(Resource.semester == semester)
     if branch:
@@ -68,45 +85,41 @@ async def search_resources(
     if tags:
         tag_list = [t.strip().lower() for t in tags.split(',') if t.strip()]
         for tag in tag_list:
-            filters.append(Resource.tags_str.ilike(f"%{tag}%"))
+            filters.append(Resource.tags_str.ilike(f"%{_escape_like(tag)}%", escape="\\"))
     
     # Rating filter
     if min_rating and min_rating > 0:
-        # rating_sum / max(rating_count, 1) >= min_rating
         filters.append(Resource.rating_count > 0)
-        # Use SQL expression: rating_sum >= min_rating * rating_count
+        # rating_sum / rating_count >= min_rating  ⇔  sum >= min * count
         filters.append(Resource.rating_sum >= min_rating * Resource.rating_count)
     
-    try:
-        combined = and_(*filters)
-        
-        # Count
-        count_result = await db.execute(select(func.count()).select_from(Resource).where(combined))
-        total = count_result.scalar()
-        
-        # Sort
-        if sort_by == "downloads":
-            order = Resource.downloads.desc()
-        elif sort_by == "rating":
-            order = Resource.rating_sum.desc()
-        elif sort_by == "recent":
-            order = Resource.created_at.desc()
-        else:  # relevance
-            order = Resource.downloads.desc()
-        
-        result = await db.execute(
-            select(Resource)
-            .where(combined)
-            .order_by(order)
-            .offset((page - 1) * size)
-            .limit(size)
-        )
-        resources = result.scalars().all()
-        
-    except Exception as e:
-        logger.error(f"Search query failed: {e}")
-        total = 0
-        resources = []
+    combined = and_(*filters)
+    
+    # Count
+    count_result = await db.execute(select(func.count()).select_from(Resource).where(combined))
+    total = count_result.scalar()
+    
+    # Sort
+    if sort_by == "downloads":
+        order = Resource.downloads.desc()
+    elif sort_by == "rating":
+        # Average rating, not raw sum (a 2×5-star must beat a 2×3+2-star)
+        order = (
+            func.cast(Resource.rating_sum, Float) / func.max(Resource.rating_count, 1)
+        ).desc()
+    elif sort_by == "recent":
+        order = Resource.created_at.desc()
+    else:  # relevance
+        order = Resource.downloads.desc()
+    
+    result = await db.execute(
+        select(Resource)
+        .where(combined)
+        .order_by(order)
+        .offset((page - 1) * size)
+        .limit(size)
+    )
+    resources = result.scalars().all()
     
     pages = (total + size - 1) // size if total > 0 else 0
     took_ms = int((time.time() - start_time) * 1000)
@@ -127,31 +140,46 @@ async def get_filter_options(
 ):
     """Get available filter options for the search UI."""
     try:
-        base_filter = and_(Resource.is_deleted == False, Resource.visibility == "public")
-        
+        # Only options that exist on live public content — a filter that
+        # returns zero results is a dead dropdown.
+        base_filter = and_(
+            Resource.is_deleted == False,
+            Resource.visibility == "public",
+            Resource.moderation_status == "approved",
+        )
+
         async def get_distinct(column, extra_filter=None):
             f = and_(base_filter, column.isnot(None), column != "")
             result = await db.execute(select(column).distinct().where(f).order_by(column))
             return [r[0] for r in result.all()]
-        
+
         courses = await get_distinct(Resource.course_code)
         semesters = await get_distinct(Resource.semester)
         branches = await get_distinct(Resource.branch)
         file_types = await get_distinct(Resource.file_extension)
-        
+
+        # Departments come from the Departments table (the upload UI's
+        # source of truth), not from resource rows.
+        dept_result = await db.execute(
+            select(Department.name)
+            .where(Department.is_active == True)  # noqa: E712
+            .order_by(Department.display_order, Department.name)
+        )
+        departments = [r[0] for r in dept_result.all()]
+
         # Static tags
         tags_list = ["notes", "exam", "syllabus", "assignments", "lecture", "tutorial", "solved"]
-        
+
         return FilterOptions(
             courses=courses,
-            departments=[],
+            departments=departments,
             semesters=semesters,
             branches=branches,
             tags=tags_list,
             file_types=file_types,
         )
-    except Exception as e:
-        logger.error(f"Failed to load filters: {e}")
+    except Exception:
+        logger.exception("Failed to load filter options")
         return FilterOptions(
             courses=[], departments=[], semesters=[], branches=[], tags=[], file_types=[]
         )

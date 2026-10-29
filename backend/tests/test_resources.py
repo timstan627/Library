@@ -325,3 +325,110 @@ async def test_preview_text_only_for_text_files(client: AsyncClient, admin_user)
     res = await make_resource(admin_user, mime_type="application/pdf", file_extension="pdf")
     resp = await client.get(f"/api/v1/resources/{res.id}/preview-text")
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Department contract (upload stores it; unknown → 400; update resolves)
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_upload_with_department_resolves_id(client: AsyncClient, monkeypatch):
+    from tests.conftest import make_department
+    dept = await make_department(name="Mechanical Engineering", code="ME")
+    owner = await make_user()
+    fake_telegram_upload(monkeypatch)
+    headers = await auth_headers(client, owner)
+    resp = await client.post(
+        "/api/v1/resources/upload",
+        files=_upload_files(),
+        data=_upload_data(department="mechanical engineering"),
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    # Student uploads are pending → only the owner can view the detail
+    detail = await client.get(f"/api/v1/resources/{resp.json()['id']}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["department_id"] == dept.id
+    assert detail.json()["department_name"] == "Mechanical Engineering"
+
+
+@pytest.mark.asyncio
+async def test_upload_unknown_department_400(client: AsyncClient, monkeypatch):
+    owner = await make_user()
+    fake_telegram_upload(monkeypatch)
+    headers = await auth_headers(client, owner)
+    resp = await client.post(
+        "/api/v1/resources/upload",
+        files=_upload_files(),
+        data=_upload_data(department="Atlantis Studies"),
+        headers=headers,
+    )
+    assert resp.status_code == 400
+    assert "Unknown department" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_update_department_set_and_clear(client: AsyncClient):
+    from tests.conftest import make_department
+    dept = await make_department(name="Physics", code="PHY")
+    owner = await make_user()
+    res = await make_resource(owner)
+    headers = await auth_headers(client, owner)
+
+    set_resp = await client.put(
+        f"/api/v1/resources/{res.id}", json={"department": "PHY"}, headers=headers
+    )
+    assert set_resp.status_code == 200
+    fresh = await reloaded(res)
+    assert fresh.department_id == dept.id
+
+    clear_resp = await client.put(
+        f"/api/v1/resources/{res.id}", json={"department": ""}, headers=headers
+    )
+    assert clear_resp.status_code == 200
+    fresh = await reloaded(res)
+    assert fresh.department_id is None
+
+    unknown = await client.put(
+        f"/api/v1/resources/{res.id}", json={"department": "Nope"}, headers=headers
+    )
+    assert unknown.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Password/visibility parity on update
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_update_to_password_visibility(client: AsyncClient, admin_user):
+    owner = await make_user()
+    res = await make_resource(owner)
+    headers = await auth_headers(client, owner)
+
+    # Set password visibility with a password
+    set_resp = await client.put(
+        f"/api/v1/resources/{res.id}",
+        json={"visibility": "password", "password": "newpass1"},
+        headers=headers,
+    )
+    assert set_resp.status_code == 200
+    fresh = await reloaded(res)
+    assert fresh.visibility == "password"
+    assert fresh.password_hash is not None
+
+    # Switching away clears the hash
+    away = await client.put(
+        f"/api/v1/resources/{res.id}", json={"visibility": "public"}, headers=headers
+    )
+    assert away.status_code == 200
+    fresh = await reloaded(res)
+    assert fresh.password_hash is None
+
+
+@pytest.mark.asyncio
+async def test_update_password_without_password_visibility_400(client: AsyncClient):
+    owner = await make_user()
+    res = await make_resource(owner)
+    headers = await auth_headers(client, owner)
+    resp = await client.put(
+        f"/api/v1/resources/{res.id}", json={"password": "somepass1"}, headers=headers
+    )
+    assert resp.status_code == 400
