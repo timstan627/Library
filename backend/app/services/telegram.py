@@ -3,6 +3,7 @@ Telegram Storage Service - File upload/download via Telegram channels
 """
 import asyncio
 import logging
+from pathlib import Path
 from typing import Optional, AsyncIterator, Dict, Any
 from io import BytesIO
 
@@ -26,13 +27,16 @@ class TelegramStorageService:
     def __init__(self):
         self.client: Optional[Client] = None
         self.is_connected = False
-        
+
         # Channel IDs
         self.primary_channel = settings.telegram_primary_channel
         self.backup_channel = settings.telegram_backup_channel
-        
+
         # Connection settings
         self._lock = asyncio.Lock()
+
+        # Strong references to fire-and-forget tasks (prevents GC mid-flight)
+        self._background_tasks: set = set()
     
     async def connect(self) -> bool:
         """Initialize and connect Telegram client."""
@@ -262,17 +266,24 @@ class TelegramStorageService:
         async def dbsend_handler(client, message):
             """Send the raw DB file directly to the owner for manual download."""
             try:
-                from app.core.database import DB_PATH
+                from app.core.database import DB_PATH, create_backup
                 from io import BytesIO
                 from datetime import datetime, timezone, timedelta
-                
+
                 if not DB_PATH.exists():
                     await message.reply_text("❌ Database file not found!")
                     return
-                
-                wait_msg = await message.reply_text("📤 Sending database file...")
-                
-                db_bytes = DB_PATH.read_bytes()
+
+                wait_msg = await message.reply_text("📤 Creating consistent backup...")
+
+                # Snapshot via the SQLite backup API — a raw read of the live
+                # WAL file can be torn or miss recent transactions.
+                backup_result = await create_backup()
+                if backup_result["status"] != "success":
+                    await wait_msg.edit_text(f"❌ Backup failed: {backup_result['message']}")
+                    return
+                db_bytes = Path(backup_result["path"]).read_bytes()
+                await wait_msg.edit_text("📤 Sending database file...")
                 IST = timezone(timedelta(hours=5, minutes=30))
                 now = datetime.now(IST)
                 
@@ -508,10 +519,11 @@ class TelegramStorageService:
         filename: str,
         caption: str = "",
         progress_callback: Optional[callable] = None,
+        _retries: int = 0,
     ) -> Dict[str, Any]:
         """
         Upload a file to the primary Telegram channel.
-        
+
         Returns:
             dict with file_id, message_id, channel_id, file_size
         """
@@ -549,23 +561,31 @@ class TelegramStorageService:
                 "mime_type": message.document.mime_type,
             }
             
-            # Schedule backup upload (non-blocking)
+            # Schedule backup upload (non-blocking); retain a reference so the
+            # task isn't garbage-collected mid-flight.
             if self.backup_channel:
-                asyncio.create_task(
+                task = asyncio.create_task(
                     self._backup_upload(file_bytes, filename, caption)
                 )
-            
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
+
             logger.info(f"File uploaded successfully: {filename} ({result['file_size']} bytes, file_id: {result['file_id']})")
-            
+
             # Rate limiting: Wait after upload
             await asyncio.sleep(1)  # 1 second cooldown
-            
+
             return result
-            
+
         except FloodWait as e:
-            logger.warning(f"FloodWait: sleeping for {e.value} seconds")
+            if _retries >= 3:
+                logger.error(f"Upload failed after {_retries} FloodWait retries")
+                raise Exception(f"Failed to upload to Telegram: repeated FloodWait ({e.value}s)")
+            logger.warning(f"FloodWait: sleeping for {e.value} seconds (retry {_retries + 1}/3)")
             await asyncio.sleep(e.value)
-            return await self.upload_file(file_bytes, filename, caption, progress_callback)
+            return await self.upload_file(
+                file_bytes, filename, caption, progress_callback, _retries=_retries + 1
+            )
         
         except Exception as e:
             logger.error(f"Upload failed: {e}")

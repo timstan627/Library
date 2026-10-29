@@ -34,14 +34,15 @@ async def _send_db_to_telegram():
         return False
 
     try:
-        # Create a local backup first (validates + copies)
+        # Create a local backup first (consistent snapshot via SQLite backup API)
         backup_result = await create_backup()
         if backup_result["status"] != "success":
             logger.error(f"Scheduled backup: Local backup failed: {backup_result['message']}")
             return False
 
-        # Read the DB file
-        db_bytes = DB_PATH.read_bytes()
+        # Read the validated snapshot — NOT the live WAL database file
+        backup_path = Path(backup_result["path"])
+        db_bytes = backup_path.read_bytes()
         db_size_kb = len(db_bytes) / 1024
         db_size_mb = db_size_kb / 1024
 
@@ -71,7 +72,7 @@ async def _send_db_to_telegram():
 
             caption += f"\n\n📊 **Stats:** {resources} resources, {users} users"
         except Exception:
-            pass  # Stats are optional in caption
+            logger.debug("Backup caption stats unavailable", exc_info=True)
 
         # Send to Telegram
         channel_id = settings.telegram_backup_channel or settings.telegram_primary_channel
@@ -149,12 +150,16 @@ def start_backup_scheduler():
     return _backup_task
 
 
-def stop_backup_scheduler():
-    """Cancel the background backup scheduler task."""
+async def stop_backup_scheduler():
+    """Cancel the background backup scheduler and wait for it to finish."""
     global _backup_task
-    if _backup_task and not _backup_task.done():
+    if _backup_task is not None:
         _backup_task.cancel()
-        logger.info("🕐 Scheduled backup task stopped")
+        try:
+            await _backup_task
+        except asyncio.CancelledError:
+            pass
+        _backup_task = None
 
 
 async def trigger_backup_now():

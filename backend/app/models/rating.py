@@ -14,7 +14,11 @@ class Rating(Base, TimestampMixin):
     """User rating/review record."""
     __tablename__ = "ratings"
     __table_args__ = (
-        Index("ix_ratings_user_resource", "user_id", "resource_id"),
+        # One rating row per (user, resource): without this, a concurrent
+        # double-submit inserts two rows and double-counts the aggregates.
+        Index(
+            "uq_ratings_user_resource", "user_id", "resource_id", unique=True,
+        ),
     )
     
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))

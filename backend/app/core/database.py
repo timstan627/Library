@@ -199,6 +199,23 @@ engine = create_async_engine(
     connect_args={"check_same_thread": False},  # Required for SQLite
 )
 
+
+@event.listens_for(engine.sync_engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, connection_record):
+    """Apply per-connection SQLite settings on EVERY new connection.
+
+    journal_mode=WAL persists in the DB file, but foreign_keys and
+    busy_timeout are per-connection in SQLite — without this listener they
+    would silently be OFF on every pooled connection except the one that
+    happened to run init_db's PRAGMA statements.
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA busy_timeout=5000")
+    cursor.close()
+
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 AsyncSessionLocal = async_session  # Alias for standalone usage (stats queries, etc.)
 
@@ -259,6 +276,41 @@ async def init_db():
     db_size = DB_PATH.stat().st_size if DB_PATH.exists() else 0
     logger.info(f"✅ SQLite database ready (WAL mode, foreign keys ON, {db_size / 1024:.1f} KB)")
 
+    # Step 5: Idempotent schema upgrades for databases created before a
+    # given model change (create_all only adds missing TABLES, never
+    # constraints on existing tables).
+    await _ensure_schema_upgrades()
+
+
+async def _ensure_schema_upgrades():
+    """Apply idempotent, non-destructive schema upgrades.
+
+    Current upgrades:
+    - ratings: dedupe (user_id, resource_id) rows, then enforce uniqueness
+      with a unique index (backed by the model's unique Index for fresh DBs).
+    """
+    try:
+        async with engine.begin() as conn:
+            # Keep the most recent rating per (user_id, resource_id)…
+            await conn.execute(db_text("""
+                DELETE FROM ratings
+                WHERE id NOT IN (
+                    SELECT id FROM (
+                        SELECT id, ROW_NUMBER() OVER (
+                            PARTITION BY user_id, resource_id ORDER BY created_at DESC
+                        ) AS rn
+                        FROM ratings
+                    ) WHERE rn = 1
+                )
+            """))
+            # …then enforce one-row-per-(user, resource) going forward.
+            await conn.execute(db_text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_ratings_user_resource "
+                "ON ratings (user_id, resource_id)"
+            ))
+    except Exception as e:
+        logger.warning(f"Schema upgrade check failed (non-fatal): {e}")
+
 
 async def close_db():
     """Dispose engine and close all connections."""
@@ -305,8 +357,12 @@ async def check_db_health() -> dict:
 
 async def create_backup() -> dict:
     """
-    Create a backup of the current database.
-    Returns dict with status and file info.
+    Create a consistent backup of the current database.
+
+    Uses the SQLite Online Backup API instead of a file copy: a raw copy of
+    a live WAL-mode database can miss recent transactions (they sit in the
+    -wal file) or be torn mid-write. The backup API produces a
+    point-in-time consistent snapshot.
     """
     if not DB_PATH.exists():
         return {"status": "error", "message": "No database to backup"}
@@ -315,7 +371,18 @@ async def create_backup() -> dict:
         return {"status": "error", "message": "Current database is corrupt, cannot backup"}
 
     try:
-        shutil.copy2(str(DB_PATH), str(DB_BACKUP_PATH))
+        import aiosqlite
+
+        source = await aiosqlite.connect(str(DB_PATH))
+        try:
+            target = await aiosqlite.connect(str(DB_BACKUP_PATH))
+            try:
+                await source.backup(target)
+            finally:
+                await target.close()
+        finally:
+            await source.close()
+
         size = DB_BACKUP_PATH.stat().st_size
         logger.info(f"✅ Database backup created: {DB_BACKUP_PATH} ({size / 1024:.1f} KB)")
         return {

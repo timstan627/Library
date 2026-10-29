@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.resource import Resource
-from app.schemas.search import SearchQuery, SearchResponse, FilterOptions
+from app.schemas.search import SearchQuery, SearchResponse, FilterOptions, ResourceSummaryListResponse
 
 import logging
 logger = logging.getLogger(__name__)
@@ -157,12 +157,12 @@ async def get_filter_options(
         )
 
 
-@router.get("/popular")
+@router.get("/popular", response_model=ResourceSummaryListResponse)
 async def get_popular_resources(
     limit: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get most downloaded resources."""
+    """Get most downloaded resources (safe summary fields only)."""
     result = await db.execute(
         select(Resource)
         .where(Resource.is_deleted == False, Resource.visibility == "public", Resource.moderation_status == "approved")
@@ -173,12 +173,12 @@ async def get_popular_resources(
     return {"results": resources}
 
 
-@router.get("/recent")
+@router.get("/recent", response_model=ResourceSummaryListResponse)
 async def get_recent_resources(
     limit: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get recently uploaded resources."""
+    """Get recently uploaded resources (safe summary fields only)."""
     result = await db.execute(
         select(Resource)
         .where(Resource.is_deleted == False, Resource.visibility == "public", Resource.moderation_status == "approved")

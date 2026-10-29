@@ -4,7 +4,8 @@ Ratings API Routes (SQLAlchemy)
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, update as sql_update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -28,26 +29,32 @@ async def create_or_update_rating(
 ):
     """Create or update a rating for a resource.
 
-    One rating row per (user, resource). Stars and review compose:
+    One rating row per (user, resource) — enforced by a unique index, with
+    concurrent double-submits surfacing as IntegrityError → 409.
+
+    Stars and review compose:
     - A star value > 0 sets/updates the stars (and the aggregates).
     - A review (when provided) sets/updates the review text without
       discarding previously saved stars, so "4 stars + comment" stores both.
+
+    Aggregate changes are applied as atomic UPDATE statements (x = x + delta),
+    never read-modify-write: concurrent ratings cannot lose increments.
     """
     result = await db.execute(
         select(Resource).where(Resource.id == resource_id, Resource.is_deleted == False)
     )
     resource = result.scalar_one_or_none()
-    
+
     if not resource or resource.moderation_status != "approved":
         # Unapproved content is unratable (and its existence stays hidden)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
-    
+
     if resource.uploader_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You cannot rate your own resource",
         )
-    
+
     existing_result = await db.execute(
         select(Rating).where(
             Rating.user_id == current_user.id,
@@ -66,13 +73,29 @@ async def create_or_update_rating(
         if new_value != old_value:
             if old_value == 0 and new_value > 0:
                 # Comment-only row becomes a star rating.
-                resource.rating_sum += new_value
-                resource.rating_count += 1
+                await db.execute(
+                    sql_update(Resource)
+                    .where(Resource.id == resource_id)
+                    .values(
+                        rating_sum=Resource.rating_sum + new_value,
+                        rating_count=Resource.rating_count + 1,
+                    )
+                )
             elif old_value > 0 and new_value == 0:
-                resource.rating_sum = max(0, resource.rating_sum - old_value)
-                resource.rating_count = max(0, resource.rating_count - 1)
+                await db.execute(
+                    sql_update(Resource)
+                    .where(Resource.id == resource_id)
+                    .values(
+                        rating_sum=func.max(0, Resource.rating_sum - old_value),
+                        rating_count=func.max(0, Resource.rating_count - 1),
+                    )
+                )
             else:
-                resource.rating_sum = resource.rating_sum - old_value + new_value
+                await db.execute(
+                    sql_update(Resource)
+                    .where(Resource.id == resource_id)
+                    .values(rating_sum=Resource.rating_sum - old_value + new_value)
+                )
             existing_rating.value = new_value
 
         await db.flush()
@@ -89,9 +112,23 @@ async def create_or_update_rating(
     db.add(rating)
 
     if data.value > 0:
-        resource.rating_sum += data.value
-        resource.rating_count += 1
-    await db.flush()
+        await db.execute(
+            sql_update(Resource)
+            .where(Resource.id == resource_id)
+            .values(
+                rating_sum=Resource.rating_sum + data.value,
+                rating_count=Resource.rating_count + 1,
+            )
+        )
+    try:
+        await db.flush()
+    except IntegrityError:
+        # Lost a race against a concurrent first-rating from the same user.
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You have already rated this resource",
+        )
     await db.refresh(rating)
     return rating
 
@@ -177,21 +214,22 @@ async def delete_rating(
         )
     )
     rating = result.scalar_one_or_none()
-    
+
     if not rating:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rating not found")
-    
-    # Update resource aggregates
-    res_result = await db.execute(select(Resource).where(Resource.id == resource_id))
-    resource = res_result.scalar_one_or_none()
-    
-    if resource:
-        if rating.value > 0:
-            # Review-only rows (value 0) never contributed to the aggregates
-            resource.rating_sum = max(0, resource.rating_sum - rating.value)
-            resource.rating_count = max(0, resource.rating_count - 1)
-    
+
+    if rating.value > 0:
+        # Review-only rows (value 0) never contributed to the aggregates.
+        await db.execute(
+            sql_update(Resource)
+            .where(Resource.id == resource_id)
+            .values(
+                rating_sum=func.max(0, Resource.rating_sum - rating.value),
+                rating_count=func.max(0, Resource.rating_count - 1),
+            )
+        )
+
     await db.delete(rating)
     await db.flush()
-    
+
     return {"message": "Rating deleted successfully"}

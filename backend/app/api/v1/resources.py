@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Query, Request, Response
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -251,69 +251,71 @@ async def upload_resource(
     if visibility == "private":
         password = None
     
-    # Create resource
+    # Determine moderation status:
+    # - Private → auto-approved (only uploader sees it)
+    # - Admin/moderator → auto-approved
+    # - Everyone else → pending
+    if visibility == "private":
+        mod_status = "approved"
+    elif current_user.role in ["admin", "moderator"]:
+        mod_status = "approved"
+    else:
+        mod_status = "pending"
+
+    resource = Resource(
+        title=title.strip(),
+        slug=generate_slug(title),
+        description=description.strip() if description else None,
+        course_code=course_code.upper().strip(),
+        semester=semester.strip() if semester else None,
+        branch=branch.strip() if branch else None,
+        tags_str=",".join(tag_list) if tag_list else None,
+
+        # Telegram storage
+        telegram_file_id=telegram_result["file_id"],
+        telegram_message_id=telegram_result["message_id"],
+        telegram_channel_id=telegram_result["channel_id"],
+
+        # File metadata
+        file_name=file.filename,
+        file_size=file_size,
+        # Server-derived MIME: the client-declared Content-Type is not
+        # trusted (it is trivially spoofable and is what the preview
+        # endpoint serves); the extension allowlist constrains this value.
+        mime_type=mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream",
+        file_hash=file_hash,
+        file_extension=file_extension,
+
+        # Uploader
+        uploader_id=current_user.id,
+
+        # Access
+        visibility=visibility,
+        password_hash=security_manager.hash_password(password) if password else None,
+
+        # Moderation
+        moderation_status=mod_status,
+    )
+    db.add(resource)
     try:
-        # Determine moderation status:
-        # - Private → auto-approved (only uploader sees it)
-        # - Admin/moderator → auto-approved
-        # - Everyone else → pending
-        if visibility == "private":
-            mod_status = "approved"
-        elif current_user.role in ["admin", "moderator"]:
-            mod_status = "approved"
-        else:
-            mod_status = "pending"
-        
-        resource = Resource(
-            title=title.strip(),
-            slug=generate_slug(title),
-            description=description.strip() if description else None,
-            course_code=course_code.upper().strip(),
-            semester=semester.strip() if semester else None,
-            branch=branch.strip() if branch else None,
-            tags_str=",".join(tag_list) if tag_list else None,
-            
-            # Telegram storage
-            telegram_file_id=telegram_result["file_id"],
-            telegram_message_id=telegram_result["message_id"],
-            telegram_channel_id=telegram_result["channel_id"],
-            
-            # File metadata
-            file_name=file.filename,
-            file_size=file_size,
-            # Server-derived MIME: the client-declared Content-Type is not
-            # trusted (it is trivially spoofable and is what the preview
-            # endpoint serves); the extension allowlist constrains this value.
-            mime_type=mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream",
-            file_hash=file_hash,
-            file_extension=file_extension,
-            
-            # Uploader
-            uploader_id=current_user.id,
-            
-            # Access
-            visibility=visibility,
-            password_hash=security_manager.hash_password(password) if password else None,
-            
-            # Moderation
-            moderation_status=mod_status,
-        )
-        db.add(resource)
         await db.flush()
-        await db.refresh(resource)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        logger.error(f"Resource creation error: {e}")
+        logger.exception("Resource creation error")
         if "UNIQUE" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This exact resource (file/slug) already exists. Try changing the title.",
             )
-        raise e
-    
-    # Update user storage
-    current_user.storage_used_bytes += file_size
+        raise
+    await db.refresh(resource)
+
+    # Update user storage atomically (concurrent uploads must not lose
+    # increments).
+    await db.execute(
+        sql_update(User)
+        .where(User.id == current_user.id)
+        .values(storage_used_bytes=User.storage_used_bytes + file_size)
+    )
     await db.flush()
     
     # Invalidate cached stats
@@ -436,9 +438,12 @@ async def download_resource(
         resource_id=resource.id,
     )
     db.add(download_log)
-    
-    # Increment download count
-    resource.downloads += 1
+
+    # Increment download count atomically (concurrent downloads must not
+    # lose increments).
+    await db.execute(
+        sql_update(Resource).where(Resource.id == resource.id).values(downloads=Resource.downloads + 1)
+    )
     await db.flush()
     
     # Serve file from disk (efficient, low memory)
@@ -547,10 +552,16 @@ async def get_resource(
     _ensure_viewable(resource, current_user)
     
     # Increment view count (deduplicated by IP + User-Agent, 1 hour window)
+    # Atomic UPDATE: a read-modify-write `resource.views += 1` loses
+    # increments under concurrent views. The execute() syncs the ORM state;
+    # refresh to read the authoritative value for the response.
     if _should_count_view(resource.id, request):
-        resource.views += 1
+        await db.execute(
+            sql_update(Resource).where(Resource.id == resource.id).values(views=Resource.views + 1)
+        )
+        await db.refresh(resource, attribute_names=["views"])
         await db.commit()
-    
+
     return resource
 
 
@@ -575,10 +586,14 @@ async def get_resource_by_slug(
     _ensure_viewable(resource, current_user)
     
     # Increment view count (deduplicated by IP + User-Agent, 1 hour window)
+    # Atomic UPDATE (see get_resource).
     if _should_count_view(resource.id, request):
-        resource.views += 1
+        await db.execute(
+            sql_update(Resource).where(Resource.id == resource.id).values(views=Resource.views + 1)
+        )
+        await db.refresh(resource, attribute_names=["views"])
         await db.commit()
-    
+
     return resource
 
 
@@ -650,12 +665,13 @@ async def delete_resource(
     resource.slug = f"{resource.slug}_deleted_{timestamp}"
     resource.title = f"{resource.title} [DELETED]"
     
-    # Update user storage
+    # Update user storage atomically
     if resource.uploader_id:
-        uploader_result = await db.execute(select(User).where(User.id == resource.uploader_id))
-        uploader = uploader_result.scalar_one_or_none()
-        if uploader:
-            uploader.storage_used_bytes = max(0, uploader.storage_used_bytes - resource.file_size)
+        await db.execute(
+            sql_update(User)
+            .where(User.id == resource.uploader_id)
+            .values(storage_used_bytes=func.max(0, User.storage_used_bytes - resource.file_size))
+        )
     
     await db.flush()
     

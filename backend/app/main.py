@@ -213,12 +213,18 @@ async def lifespan(app: FastAPI):
     from app.tasks.scheduled_backup import start_backup_scheduler, stop_backup_scheduler
     start_backup_scheduler()
     logger.info("Scheduled backup task started (midnight IST)")
-    
+
+    # Start daily maintenance (session expiry, soft-delete purge)
+    from app.tasks.cleanup import start_cleanup_scheduler, stop_cleanup_scheduler
+    start_cleanup_scheduler()
+    logger.info("Daily cleanup task started")
+
     yield
     
     # Shutdown
     logger.info("Shutting down...")
-    stop_backup_scheduler()
+    await stop_backup_scheduler()
+    await stop_cleanup_scheduler()
     await cache_service.stop()
     await close_db()
     logger.info("Database connections closed")

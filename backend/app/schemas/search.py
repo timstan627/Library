@@ -3,7 +3,7 @@ Search Schemas
 """
 from typing import Optional, List
 from pydantic import BaseModel, Field
-from app.schemas.resource import ResourceResponse
+from app.schemas.resource import ResourceResponse, ResourceSummary
 
 
 class SearchQuery(BaseModel):
@@ -39,3 +39,8 @@ class FilterOptions(BaseModel):
     branches: List[str]
     tags: List[str]
     file_types: List[str]
+
+
+class ResourceSummaryListResponse(BaseModel):
+    """Paginated-safe list of public resource summaries (popular/recent)."""
+    results: List[ResourceSummary]

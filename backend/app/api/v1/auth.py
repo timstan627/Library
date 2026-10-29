@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -38,7 +39,7 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
-    
+
     # Create user
     user = User(
         email=user_data.email.lower(),
@@ -46,9 +47,18 @@ async def register(
         display_name=user_data.display_name,
         storage_quota_bytes=settings.storage_quota_bytes,
     )
-    
+
     db.add(user)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError:
+        # Two concurrent registrations for the same email both passed the
+        # check above; the unique constraint is the arbiter.
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
     await db.refresh(user)
     
     # Invalidate cached stats

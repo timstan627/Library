@@ -123,3 +123,29 @@ class ResourceDownloadResponse(BaseModel):
     expires_in: int
     file_name: str
     file_size: int
+
+
+class ResourceSummary(BaseModel):
+    """Safe public summary for cross-endpoint listings (popular/recent).
+
+    Explicit allowlist: never serialize ORM rows directly — the ORM graph
+    carries password_hash, telegram storage ids, file_hash, and the uploader
+    relationship (email, mfa_secret).
+    """
+    id: str
+    title: str
+    slug: str
+    course_code: str
+    file_name: str
+    file_size: int
+    file_extension: str
+    mime_type: str
+    downloads: int = 0
+    views: int = 0
+    average_rating: Optional[float] = None
+    rating_count: int = 0
+    visibility: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
