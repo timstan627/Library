@@ -1,0 +1,34 @@
+# Backend image build context (backend/)
+# Secrets, live data, and dev artifacts must never enter image layers.
+.env
+.env.*
+!.env.example
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Live databases and backups (C5: `COPY . .` baked these into layers)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.db.bak*
+*.bak
+backups/
+
+# Dev/test-only content (prod image runs the app, not the suite)
+tests/
+requirements-dev.txt
+
+# VCS / tooling
+.git/
+.gitignore
+.dockerignore
+Dockerfile

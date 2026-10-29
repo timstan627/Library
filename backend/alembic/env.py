@@ -1,5 +1,12 @@
 """
 Alembic Migrations Configuration
+
+- Base lives in app.core.database (NOT app.models.base, which only holds
+  TimestampMixin — the old import crashed every alembic command).
+- URL comes from the app's own DB_URL so migrations always target the same
+  SQLite file the app uses.
+- render_as_batch is REQUIRED for SQLite: ALTER TABLE support is emulated
+  via batch copies; without it future column changes crash.
 """
 import asyncio
 from logging.config import fileConfig
@@ -9,17 +16,16 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
-from app.core.config import settings
-from app.models.base import Base
+from app.core.database import Base, DB_URL
 
-# All models must be imported for Alembic to detect them
-from app.models import User, Session, APIKey, Resource, Rating, Download, AuditLog, Report
+# Importing the models package registers every mapped class on Base.metadata
+import app.models  # noqa: F401
 
 # Alembic Config object
 config = context.config
 
-# Set database URL from settings
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("postgresql+asyncpg://", "postgresql://"))
+# Set database URL from the application settings (same file the app uses)
+config.set_main_option("sqlalchemy.url", DB_URL)
 
 # Logging configuration
 if config.config_file_name is not None:
@@ -31,7 +37,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
-    
+
     This configures the context with just a URL
     and not an Engine, though an Engine is acceptable
     here as well. By skipping the Engine creation
@@ -43,6 +49,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        render_as_batch=True,
     )
 
     with context.begin_transaction():
@@ -50,7 +57,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        render_as_batch=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

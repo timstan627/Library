@@ -1,0 +1,35 @@
+# Root image build context (full repo: frontend build + backend + nginx)
+.git/
+.github/
+tasks/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/.npm/
+
+# Python
+backend/venv/
+backend/.venv/
+**/__pycache__/
+*.py[cod]
+backend/.pytest_cache/
+backend/.mypy_cache/
+
+# Secrets & live data
+.env
+.env.*
+backend/.env
+backend/.env.*
+!.env.example
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+**/*.db.bak*
+backend/backups/
+
+# Docs / dev
+*.md
+!README.md

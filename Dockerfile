@@ -4,7 +4,8 @@
 FROM node:18-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
+# npm ci = reproducible install from package-lock (was bare `npm install`)
+RUN npm ci
 COPY frontend/ ./
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_API_URL=""
@@ -22,7 +23,7 @@ RUN apt-get update && apt-get install -y \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy backend requirements and install
+# Copy backend requirements and install (runtime deps only)
 COPY backend/requirements.txt ./backend/
 RUN pip install --no-cache-dir -r ./backend/requirements.txt
 
@@ -54,5 +55,12 @@ nginx -g "daemon off;"
 EOF
 
 RUN chmod +x /app/start.sh
+
+# Container-level liveness: check the backend directly (nginx does not
+# proxy /health). NOTE: this image keeps running as root because the
+# nginx master must bind :80 and manage its pid/log files — the backend
+# itself is the only process touching user data and runs under uvicorn.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8000/health || exit 1
 
 CMD ["/app/start.sh"]
