@@ -560,10 +560,15 @@ class TelegramStorageService:
             }
             
             # Schedule backup upload (non-blocking); retain a reference so the
-            # task isn't garbage-collected mid-flight.
+            # task isn't garbage-collected mid-flight. The primary message id
+            # is passed along so the backup copy's ids can be persisted (M12).
             if self.backup_channel:
                 task = asyncio.create_task(
-                    self._backup_upload(file_bytes, filename, caption)
+                    self._backup_upload(
+                        file_bytes, filename, caption,
+                        primary_message_id=message.id,
+                        primary_channel_id=self.primary_channel,
+                    )
                 )
                 self._background_tasks.add(task)
                 task.add_done_callback(self._background_tasks.discard)
@@ -589,18 +594,53 @@ class TelegramStorageService:
             logger.error(f"Upload failed: {e}")
             raise Exception(f"Failed to upload to Telegram: {str(e)}")
     
+    async def _persist_backup_info(
+        self,
+        primary_message_id: int,
+        primary_channel_id: int,
+        backup_file_id: str,
+        backup_message_id: int,
+    ):
+        """Persist backup-channel message ids onto the matching resource row (M12).
+
+        Uses its own short-lived session because this runs in a detached
+        background task. Matching on message id AND channel avoids collisions
+        between per-channel message id sequences. A no-op when no resource row
+        matches (e.g. scheduled DB backups).
+        """
+        from sqlalchemy import update
+
+        from app.core.database import async_session
+        from app.models.resource import Resource
+
+        async with async_session() as session:
+            await session.execute(
+                update(Resource)
+                .where(
+                    Resource.telegram_message_id == primary_message_id,
+                    Resource.telegram_channel_id == primary_channel_id,
+                )
+                .values(
+                    backup_telegram_file_id=backup_file_id,
+                    backup_telegram_message_id=backup_message_id,
+                )
+            )
+            await session.commit()
+
     async def _backup_upload(
         self,
         file_bytes: bytes,
         filename: str,
         caption: str,
+        primary_message_id: Optional[int] = None,
+        primary_channel_id: Optional[int] = None,
     ):
-        """Upload file to backup channel (background task)."""
+        """Upload file to backup channel (background task) and persist its ids."""
         try:
             file_stream = BytesIO(file_bytes)
             file_stream.name = filename
             
-            await self.client.send_document(
+            message = await self.client.send_document(
                 chat_id=self.backup_channel,
                 document=file_stream,
                 file_name=filename,
@@ -608,6 +648,20 @@ class TelegramStorageService:
                 disable_notification=True,
             )
             logger.debug(f"Backup upload successful: {filename}")
+
+            if primary_message_id is not None:
+                try:
+                    await self._persist_backup_info(
+                        primary_message_id=primary_message_id,
+                        primary_channel_id=primary_channel_id or self.primary_channel,
+                        backup_file_id=message.document.file_id,
+                        backup_message_id=message.id,
+                    )
+                except Exception:
+                    # Persistence must never take down the upload task.
+                    logger.exception(
+                        f"Backup message ids not persisted for {filename}"
+                    )
             
         except Exception as e:
             logger.error(f"Backup upload failed: {e}")

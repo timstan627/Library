@@ -6,6 +6,10 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# M10: an unbounded SMTP connect can hang a request thread forever; every
+# socket must be closed even when the send fails mid-flight.
+SMTP_TIMEOUT_SECONDS = 30
+
 class EmailService:
     def __init__(self):
         self.smtp_host = settings.smtp_host
@@ -15,14 +19,17 @@ class EmailService:
         self.sender = settings.emails_from_email or settings.smtp_user
         self.sender_name = settings.emails_from_name
 
-    def _setup_smtp(self):
+    def _send_message(self, msg, to_email: str):
+        """Send a prepared MIME message, closing the socket on any outcome."""
         if not self.smtp_user or not self.smtp_password:
             raise Exception("SMTP credentials not configured")
-        
-        server = smtplib.SMTP(self.smtp_host, self.smtp_port)
-        server.starttls()
-        server.login(self.smtp_user, self.smtp_password)
-        return server
+
+        with smtplib.SMTP(
+            self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT_SECONDS
+        ) as server:
+            server.starttls()
+            server.login(self.smtp_user, self.smtp_password)
+            server.sendmail(self.sender, to_email, msg.as_string())
 
     def send_reset_password_email(self, to_email: str, token: str):
         """Send password reset email."""
@@ -60,9 +67,7 @@ class EmailService:
 
             msg.attach(MIMEText(html_content, "html"))
 
-            server = self._setup_smtp()
-            server.sendmail(self.sender, to_email, msg.as_string())
-            server.quit()
+            self._send_message(msg, to_email)
             
             logger.info(f"Reset email sent to {to_email}")
 

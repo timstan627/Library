@@ -5,7 +5,7 @@ import json
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from datetime import datetime, timezone
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -67,7 +67,13 @@ async def moderate_resource(
     db: AsyncSession = Depends(get_db),
 ):
     """Approve or reject a resource."""
-    result = await db.execute(select(Resource).where(Resource.id == resource_id))
+    # M5: soft-deleted resources are out of the moderation queue entirely.
+    result = await db.execute(
+        select(Resource).where(
+            Resource.id == resource_id,
+            Resource.is_deleted == False,  # noqa: E712
+        )
+    )
     resource = result.scalar_one_or_none()
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
@@ -78,19 +84,49 @@ async def moderate_resource(
     if action.action not in ["approve", "reject"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Action must be 'approve' or 'reject'")
     
+    now = datetime.now(timezone.utc)
     if action.action == "approve":
-        resource.moderation_status = "approved"
-        resource.moderated_by_id = current_user.id
-        resource.moderated_at = datetime.now(timezone.utc)
+        new_status = "approved"
         audit_action = "approve_resource"
+        rejection_reason = None
     else:
         if not action.rejection_reason:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Rejection reason is required")
-        resource.moderation_status = "rejected"
-        resource.moderated_by_id = current_user.id
-        resource.moderated_at = datetime.now(timezone.utc)
-        resource.rejection_reason = action.rejection_reason
+        new_status = "rejected"
         audit_action = "reject_resource"
+        rejection_reason = action.rejection_reason
+
+    # M5: atomic write closes the check-then-act race between two moderators.
+    upd = await db.execute(
+        update(Resource)
+        .where(
+            Resource.id == resource_id,
+            Resource.moderation_status == "pending",
+        )
+        .values(
+            moderation_status=new_status,
+            moderated_by_id=current_user.id,
+            moderated_at=now,
+            rejection_reason=rejection_reason,
+        )
+    )
+    if upd.rowcount == 0:
+        # Lost the race (or concurrently soft-deleted): re-read for an accurate error.
+        recheck = await db.execute(
+            select(Resource).where(Resource.id == resource_id)
+        )
+        current = recheck.scalar_one_or_none()
+        if current is None or current.is_deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Resource is already {current.moderation_status}",
+        )
+
+    resource.moderation_status = new_status
+    resource.moderated_by_id = current_user.id
+    resource.moderated_at = now
+    resource.rejection_reason = rejection_reason
     
     # Audit log
     audit = AuditLog(

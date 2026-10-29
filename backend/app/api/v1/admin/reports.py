@@ -90,6 +90,13 @@ async def resolve_report(
     if not report:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
+    # M6: a resolved/dismissed report is final — never silently overwrite it.
+    if report.status in ("resolved", "dismissed"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Report is already {report.status}",
+        )
+
     report.status = data.action
     report.resolved_by_id = current_user.id
     if data.resolution_note is not None:
