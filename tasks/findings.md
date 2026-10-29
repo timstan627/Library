@@ -26,7 +26,7 @@ response. Statuses update as phases complete.
 | H5 | `admin/resources.py:89-113` | Bulk delete: unbounded body, N sequential SELECTs, bare `except`, duplicates inflate counter, no audit | open |
 | H6 | `core/database.py` | `PRAGMA foreign_keys=ON` set once on one pooled connection, not per-connection; no busy_timeout → FK effectively off + "database is locked" risk | **fixed (Phase 1)** — per-connection pragma listener |
 | H7 | `tasks/cleanup.py`, `tasks/analytics.py` | Nothing schedules them; sessions accumulate forever, soft-deleted resources never purge; `cleanup` hard-DELETEs resources that have child FK rows → IntegrityError swallowed | **fixed (Phase 1)** — daily scheduler in lifespan, child-first purge |
-| H8 | `models/user.py` | `User.resources`/`User.sessions` `lazy="selectin"` → every auth request eager-loads the user's entire resource list + all sessions | open → Task 3.2 |
+| H8 | `models/user.py` | `User.resources`/`User.sessions` `lazy="selectin"` → every auth request eager-loads the user's entire resource list + all sessions | **fixed (Phase 3)** — `lazy="raise"` on all implicitly-unread relationships; serialization-dependent ones stay selectin |
 | H9 | `.github/workflows/ci.yml` | Fictional CI: Postgres+Redis services (unused), refs missing `Dockerfile.prod`/`docker-compose.prod.yml`, runs nonexistent pytest suite | open → Task 4.2 |
 | H10 | `scripts/*` + root scripts | 12 dead Mongo/Beanie scripts (unrunnable); `reset_password*.py`/`promote_admin.py` contain real user emails + a real password | open → delete + rotate |
 
@@ -44,9 +44,9 @@ response. Statuses update as phases complete.
 | M8 | `auth.py` | Register check-then-insert race → 500 (IntegrityError uncaught); slug collision → 409 instead of retry | **fixed (Phase 1)** — IntegrityError → 400 |
 | M9 | `admin/courses.py:99` | Audit log written **before** flush → `target_id="None"` for every course creation | open |
 | M10 | `email.py` | No SMTP timeout (hangs background thread); socket leak on failure (no try/finally); failures swallowed | open |
-| M11 | `download_manager.py` | Blocking `shutil.copy2`/stat/open in async paths; temp-file leak when file > cache threshold; `_stream_from_disk` fake-async | open → Task 3.3 |
-| M12 | `services/telegram.py` | `/dbinit` handler NameError (`Path` not imported); fire-and-forget backup task never referenced (GC risk); backup message ids never persisted | **fixed (Phase 1)** — Path import, task retention set, FloodWait retry cap (message-id persistence still open) |
-| M13 | `services/cache.py` | `_lock` declared never used; thundering-herd duplicate refetch; entire 500MB in-memory FileCache is dead code | open → Task 3.4 |
+| M11 | `download_manager.py` | Blocking `shutil.copy2`/stat/open in async paths; temp-file leak when file > cache threshold; `_stream_from_disk` fake-async | **fixed (Phase 3)** — to_thread for FS work, dead streaming paths deleted, `release()` contract wired into all 3 endpoints (BackgroundTask / inline) |
+| M12 | `services/telegram.py` | `/dbinit` handler NameError (`Path` not imported); fire-and-forget backup task never referenced (GC risk); backup message ids never persisted | **fixed (Phase 1 + 3)** — Path import, task retention set, FloodWait retry cap, dead download/stream methods + cache_service dependency removed (message-id persistence still open) |
+| M13 | `services/cache.py` | `_lock` declared never used; thundering-herd duplicate refetch; entire 500MB in-memory FileCache is dead code | **fixed (Phase 3)** — FileCache deleted, per-key single-flight, `_lock` removed; `admin_dashboard_full` cache key (zero consumers, ~40k wasted queries/day from the 15s refresh loop) deleted; note: `semaphore._value` private access kept in stats |
 | M14 | requirements.txt | `redis`, `python-magic`, `sentry-sdk` unused (grep-verified); dev deps ship in prod image; `alembic` missing | open → Task 4.2 |
 | M15 | Cross-router | Pagination envelope differs 6 ways; `pages` semantics differ when empty (0 vs 1); audit-log failure policy inconsistent (swallow vs fail); role vocabulary `student` vs `user` | open → Phase 3/4 |
 | M16 | `admin/resources.py` | Single delete: no audit, `deleted_at/deleted_by_id` never populated anywhere | open |
@@ -55,7 +55,7 @@ response. Statuses update as phases complete.
 ## Low / Nit (fix opportunistically)
 
 - `TokenResponse.expires_in` default 900 vs config 3600; `traceback.print_exc()` in upload path (**fixed Phase 1** — logger.exception)
-- `cache.py` declared `_lock` unused; `semaphore._value` private access
+- `semaphore._value` private access (kept — stats-only, documented in M13)
 - `schemas/rating.py` uuid.UUID vs str ids; `schemas/__init__.py` missing exports; `ModerationAction.action` should be Literal
 - ~~`Collection.emoji` mojibake default~~ — **verified non-issue**: source bytes are proper UTF-8 (`📁`); the "mojibake" was a PowerShell console decoding artifact
 - Root dev scripts (`debug_db.py`, `fix_admin.py`, `inspect_*.py`, `seed_data.py`) — dead Mongo code
@@ -64,6 +64,12 @@ response. Statuses update as phases complete.
 - `reports.py` route declared `"/"` (307 for body-carrying POSTs)
 - Admin `pages` computation `if total > 0 else 1` vs 0 elsewhere
 - ~~`library.py` inline schemas belong in `app/schemas/library.py`~~ — **fixed (Phase 2)**
+
+## Fixed in Phase 3 (modularity/memory)
+
+- Stats query functions extracted from `main.py` → `app/services/stats.py`; `main.py` slimmed to app wiring only (~150 lines removed)
+- `admin_dashboard_full` cache key deleted — registered in the 15s background refresh loop but consumed by **no route** (~7 queries × 5,760 refreshes/day wasted); its `try/except: pass` died with it
+- In-memory dict eviction: `AuthRateLimiter.failed_attempts/email_failures`, `RateLimitMiddleware.requests`, `password_reset._email_requests` pruned per-key on access but kept keys for clients that never returned (unbounded growth under scanner traffic) — shared time-gated `sweep_windowed()` with newest-N caps (50k/100k/10k)
 
 ## Verified non-issues (do NOT "fix")
 

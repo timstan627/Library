@@ -53,35 +53,36 @@ Full audit + upgrade of the FastAPI backend (SQLite/SQLAlchemy, Telegram blob st
 ## Task List
 
 ### Phase 0 — Safety net (tests first)
-- [ ] Task 0.1: pytest scaffolding — `backend/tests/` with conftest (temp SQLite DB, ASGI client, user/admin fixtures, factories) + `pytest.ini`/pyproject config.
-- [ ] Task 0.2: Baseline smoke tests encoding current contracts: auth (register/login/refresh/logout/me/MFA), resources (list/my/detail/upload-mock/delete/update), search+filters, ratings CRUD, library collections CRUD, admin (moderation/courses/departments/users/reports/resources/dashboard), health. Upload tests mock `telegram_service`.
-- [ ] Checkpoint 0: suite green against current code; failures = pre-existing bugs (record, don't mask).
+- [x] Task 0.1: pytest scaffolding — `backend/tests/` with conftest (temp SQLite DB, ASGI client, user/admin fixtures, factories) + `pytest.ini`/pyproject config.
+- [x] Task 0.2: Baseline smoke tests encoding current contracts: auth (register/login/refresh/logout/me/MFA), resources (list/my/detail/upload-mock/delete/update), search+filters, ratings CRUD, library collections CRUD, admin (moderation/courses/departments/users/reports/resources/dashboard), health. Upload tests mock `telegram_service`.
+- [x] Checkpoint 0: suite green against current code; failures = pre-existing bugs (recorded in findings.md).
 
 ### Phase 1 — Critical security & correctness
-- [ ] Task 1.1: Safe serialization for `/search/popular|recent` (+ any other ORM-leaking endpoints found by auditors) via response schemas.
-- [ ] Task 1.2: DB engine: per-connection event listener (foreign_keys, busy_timeout, WAL), pool config; robust init_db.
-- [ ] Task 1.3: Backup integrity — sqlite3 backup API (async wrapper) for `create_backup`, scheduled backup, `dbsend`.
-- [ ] Task 1.4: Ratings integrity — migration (dedupe + UNIQUE index), atomic aggregate updates, IntegrityError fallback, unique constraint in model.
-- [ ] Task 1.5: Atomic counters (views/downloads) via UPDATE statements.
-- [ ] Task 1.6: Register IntegrityError → 409; slug generation retry loop.
-- [ ] Task 1.7: `/dbinit` Path import fix + FloodWait retry cap; create_task reference retention.
-- [ ] Checkpoint 1: full suite green; live API re-verified (leak gone).
+- [x] Task 1.1: Safe serialization for `/search/popular|recent` (+ any other ORM-leaking endpoints found by auditors) via response schemas.
+- [x] Task 1.2: DB engine: per-connection event listener (foreign_keys, busy_timeout, WAL), pool config; robust init_db.
+- [x] Task 1.3: Backup integrity — sqlite3 backup API (async wrapper) for `create_backup`, scheduled backup, `dbsend`.
+- [x] Task 1.4: Ratings integrity — unique index + startup dedupe + atomic aggregate updates, IntegrityError fallback, unique constraint in model.
+- [x] Task 1.5: Atomic counters (views/downloads/storage) via UPDATE statements.
+- [x] Task 1.6: Register IntegrityError → 400. (Slug retry: pre-existing slug already embeds a random suffix; 409 path kept as safety net.)
+- [x] Task 1.7: `/dbinit` Path import fix + FloodWait retry cap; create_task reference retention.
+- [x] Checkpoint 1: full suite green (78 passed); commit `1bd95ad`.
 
 ### Phase 2 — API contract & consistency
-- [ ] Task 2.1: Department feature completion — upload stores `department_id` (resolve from Departments), `/search` + `/resources` apply `department` filter, `/search/filters` returns real departments (+ approved-only filter), `ResourceResponse` uses safe department string.
-- [ ] Task 2.2: Search fixes — no exception swallowing, escape LIKE, rating sort by average, visibility alignment with browse.
-- [ ] Task 2.3: Auth contract — refresh body schema, 401-vs-404 semantics, per-email lockout, register duplicate → 409, unify admin deps (remove alias duplication).
-- [ ] Task 2.4: Library fixes — ownership oracle single-query, batch verify (IN), limit clamps, uncategorized count excludes soft-deleted, move inline schemas to `app/schemas/library.py`.
-- [ ] Task 2.5: `ResourceUpdate` parity (visibility=password + password set/remove), `extra="forbid"` consistency.
-- [ ] Checkpoint 2: suite green + live smoke of browse/detail/library/admin pages via API responses.
+- [x] Task 2.1: Department feature completion — upload/update stores `department_id` (resolve by name/code, unknown → 400), `/search` + `/resources` apply `department` filter, `/search/filters` returns real active departments + approved-only options, `ResourceResponse` exposes `department_id`/`department_name`.
+- [x] Task 2.2: Search fixes — no exception swallowing, escape LIKE, rating sort by average.
+- [x] Task 2.3: Auth contract — typed RefreshRequest (422), deleted-user token → 401, per-email account-wide lockout, register IntegrityError → 400, admin deps unified as aliases.
+- [x] Task 2.4: Library fixes — ownership oracle single-query, batch verify (IN), limit clamp + validation, inline schemas moved to `app/schemas/library.py`.
+- [x] Task 2.5: `ResourceUpdate` parity (visibility=password + password set/remove semantics).
+- [x] Task 2.6 (pulled in): password-reset hardening (M7) — shared complexity validator, one-token-per-account, atomic single-use pop, is_active re-check, per-email throttle, audit log.
+- [x] Checkpoint 2: suite green (102 passed); commits for both halves of the phase.
 
 ### Phase 3 — Modularity & performance
-- [ ] Task 3.1: Extract `services/stats.py` (merge full/lite duplication, kill try/except-pass), main.py slims to app factory.
-- [ ] Task 3.2: Fix eager-loading: User.resources/sessions → lazy; audit remaining selectins.
-- [ ] Task 3.3: download_manager — async-safe I/O (to_thread), temp-file leak fix, remove dead stream/bytes paths.
-- [ ] Task 3.4: Remove dead code: telegram.download_file/stream_file, FileCache (or keep minimal if auditors justify), cache.py single-flight + lock hygiene.
-- [ ] Task 3.5: View tracker + rate limiter eviction hygiene; Collection.emoji default fix.
-- [ ] Checkpoint 3: suite green; manual spot checks (login latency, detail page).
+- [x] Task 3.1: Stats queries extracted to `services/stats.py`; `admin_dashboard_full` cache key deleted (zero consumers, ~40k wasted queries/day); try/except-pass died with it; main.py slimmed to app wiring.
+- [x] Task 3.2: Eager-loading fixed — `lazy="raise"` on all implicitly-unread relationships (User.sessions/resources/collections, Session.user, Resource.course/moderated_by/deleted_by, Rating.resource, Collection.user, CollectionItem.resource); selectin kept only where serialization properties / flush-time cascades need it.
+- [x] Task 3.3: download_manager — FS work via to_thread, dead stream/bytes paths removed, `release()` contract for uncached temp downloads wired into preview/download (BackgroundTask) and preview-text (inline after read); download error detail no longer echoes str(e).
+- [x] Task 3.4: Dead code removed — telegram.download_file/stream_file, download_manager stream paths, FileCache (500MB) + CacheService file API; StatsEngine per-key single-flight; telegram drops cache_service/os imports.
+- [x] Task 3.5: Eviction hygiene — shared time-gated `sweep_windowed()` on AuthRateLimiter + RateLimitMiddleware + password-reset email throttle (newest-N caps); `_view_tracker` inline eviction verified adequate; Collection.emoji verified non-issue (UTF-8 artifact).
+- [x] Checkpoint 3: 104 passed; live smoke green (/health + /api/v1/stats); commits `7ad88af` + Task 3.1.
 
 ### Phase 4 — Ops hardening
 - [ ] Task 4.1: `/health` with DB check; structured logging fixes (no print_exc); request-id header.

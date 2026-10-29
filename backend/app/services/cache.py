@@ -237,31 +237,27 @@ class CacheService:
     def invalidate_on_upload(self):
         """Call after a resource is uploaded."""
         self.stats_engine.invalidate(
-            "public_stats", "admin_dashboard_full",
-            "admin_dashboard_lite", "moderation_stats"
+            "public_stats", "admin_dashboard_lite", "moderation_stats"
         )
         self.stats_engine.invalidate_prefix("user_storage:")
 
     def invalidate_on_moderation(self):
         """Call after approve/reject."""
         self.stats_engine.invalidate(
-            "moderation_stats", "admin_dashboard_full",
-            "admin_dashboard_lite", "public_stats"
+            "moderation_stats", "admin_dashboard_lite", "public_stats"
         )
 
     def invalidate_on_delete(self):
         """Call after resource deletion."""
         self.stats_engine.invalidate(
-            "public_stats", "admin_dashboard_full",
-            "admin_dashboard_lite", "moderation_stats"
+            "public_stats", "admin_dashboard_lite", "moderation_stats"
         )
         self.stats_engine.invalidate_prefix("user_storage:")
 
     def invalidate_on_user_change(self):
         """Call after user register/ban/unban."""
         self.stats_engine.invalidate(
-            "public_stats", "admin_dashboard_full",
-            "admin_dashboard_lite"
+            "public_stats", "admin_dashboard_lite"
         )
 
     # --- Lifecycle ---

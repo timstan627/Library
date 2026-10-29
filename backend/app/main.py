@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app
 
 from app.core.config import settings
-from app.core.database import init_db, close_db, seed_default_admin, AsyncSessionLocal
+from app.core.database import init_db, close_db, seed_default_admin
 from app.core.middleware import RateLimitMiddleware, RequestTimingMiddleware, SecurityHeadersMiddleware
 from app.api.v1 import api_router
 
@@ -33,159 +33,6 @@ logging.getLogger("uvicorn.access").setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def _fetch_public_stats() -> dict:
-    """Query function for homepage public stats (SQLAlchemy)."""
-    from sqlalchemy import select, func
-    from app.models.user import User
-    from app.models.resource import Resource
-    from app.models.download import Download
-    from app.models.course import Course
-    
-    async with AsyncSessionLocal() as db:
-        total_resources = (await db.execute(
-            select(func.count()).select_from(Resource).where(Resource.is_deleted == False, Resource.visibility == "public")
-        )).scalar()
-        total_users = (await db.execute(
-            select(func.count()).select_from(User).where(User.is_active == True, User.is_banned == False)
-        )).scalar()
-        total_downloads = (await db.execute(
-            select(func.count()).select_from(Download)
-        )).scalar()
-        total_courses = (await db.execute(
-            select(func.count()).select_from(Course).where(Course.is_active == True)
-        )).scalar()
-    
-    return {
-        "resources": total_resources,
-        "users": total_users,
-        "downloads": total_downloads,
-        "courses": total_courses,
-    }
-
-
-async def _fetch_admin_dashboard_full() -> dict:
-    """Query function for admin dashboard (admin.py route)."""
-    from sqlalchemy import select, func
-    from app.models.user import User
-    from app.models.resource import Resource
-    from app.models.download import Download
-    from app.models.report import Report
-    from datetime import datetime, timezone, timedelta
-    
-    async with AsyncSessionLocal() as db:
-        total_users = (await db.execute(select(func.count()).select_from(User))).scalar()
-        total_resources = (await db.execute(
-            select(func.count()).select_from(Resource).where(Resource.is_deleted == False)
-        )).scalar()
-        total_downloads = (await db.execute(select(func.count()).select_from(Download))).scalar()
-        
-        total_storage = (await db.execute(
-            select(func.coalesce(func.sum(Resource.file_size), 0)).where(Resource.is_deleted == False)
-        )).scalar()
-        
-        pending_reports = 0
-        try:
-            pending_reports = (await db.execute(
-                select(func.count()).select_from(Report).where(Report.status == "pending")
-            )).scalar()
-        except Exception:
-            pass
-        
-        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-        new_users = (await db.execute(
-            select(func.count()).select_from(User).where(User.created_at >= week_ago)
-        )).scalar()
-        new_resources = (await db.execute(
-            select(func.count()).select_from(Resource).where(Resource.is_deleted == False, Resource.created_at >= week_ago)
-        )).scalar()
-    
-    return {
-        "total_users": total_users,
-        "total_resources": total_resources,
-        "total_downloads": total_downloads,
-        "total_storage_bytes": total_storage,
-        "total_storage_gb": round(total_storage / (1024 * 1024 * 1024), 2),
-        "total_storage_mb": round(total_storage / (1024 * 1024), 2),
-        "pending_reports": pending_reports,
-        "new_users_7d": new_users,
-        "new_resources_7d": new_resources,
-    }
-
-
-async def _fetch_admin_dashboard_lite() -> dict:
-    """Query function for admin dashboard (admin/dashboard.py route)."""
-    from sqlalchemy import select, func
-    from app.models.user import User
-    from app.models.resource import Resource
-    from datetime import datetime, timezone, timedelta
-    
-    async with AsyncSessionLocal() as db:
-        total_users = (await db.execute(select(func.count()).select_from(User))).scalar()
-        total_resources = (await db.execute(
-            select(func.count()).select_from(Resource).where(Resource.is_deleted == False)
-        )).scalar()
-        
-        # Downloads and storage from SQL aggregation
-        total_downloads = (await db.execute(
-            select(func.coalesce(func.sum(Resource.downloads), 0)).where(Resource.is_deleted == False)
-        )).scalar()
-        total_storage_bytes = (await db.execute(
-            select(func.coalesce(func.sum(Resource.file_size), 0)).where(Resource.is_deleted == False)
-        )).scalar()
-        
-        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
-        new_users_7d = (await db.execute(
-            select(func.count()).select_from(User).where(User.created_at >= seven_days_ago)
-        )).scalar()
-        new_resources_7d = (await db.execute(
-            select(func.count()).select_from(Resource).where(Resource.created_at >= seven_days_ago, Resource.is_deleted == False)
-        )).scalar()
-        
-        pending_moderation = (await db.execute(
-            select(func.count()).select_from(Resource).where(Resource.moderation_status == "pending", Resource.is_deleted == False)
-        )).scalar()
-        
-        from app.models.report import Report
-        pending_reports = (await db.execute(
-            select(func.count()).select_from(Report).where(Report.status == "pending")
-        )).scalar()
-    
-    return {
-        "total_users": total_users,
-        "total_resources": total_resources,
-        "total_downloads": total_downloads,
-        "total_storage_bytes": total_storage_bytes,
-        "pending_reports": pending_reports,
-        "pending_moderation": pending_moderation,
-        "new_users_7d": new_users_7d,
-        "new_resources_7d": new_resources_7d,
-    }
-
-
-async def _fetch_moderation_stats() -> dict:
-    """Query function for moderation stats."""
-    from sqlalchemy import select, func
-    from app.models.resource import Resource
-    
-    async with AsyncSessionLocal() as db:
-        pending = (await db.execute(
-            select(func.count()).select_from(Resource).where(Resource.moderation_status == "pending", Resource.is_deleted == False)
-        )).scalar()
-        approved = (await db.execute(
-            select(func.count()).select_from(Resource).where(Resource.moderation_status == "approved", Resource.is_deleted == False)
-        )).scalar()
-        rejected = (await db.execute(
-            select(func.count()).select_from(Resource).where(Resource.moderation_status == "rejected", Resource.is_deleted == False)
-        )).scalar()
-    
-    return {
-        "pending": pending,
-        "approved": approved,
-        "rejected": rejected,
-        "total": pending + approved + rejected,
-    }
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
@@ -202,10 +49,8 @@ async def lifespan(app: FastAPI):
     
     # Register stats queries and start background refresh
     from app.services.cache import cache_service
-    cache_service.register_stats("public_stats", _fetch_public_stats, ttl=60)
-    cache_service.register_stats("admin_dashboard_full", _fetch_admin_dashboard_full, ttl=30)
-    cache_service.register_stats("admin_dashboard_lite", _fetch_admin_dashboard_lite, ttl=30)
-    cache_service.register_stats("moderation_stats", _fetch_moderation_stats, ttl=30)
+    from app.services import stats
+    stats.register_all(cache_service)
     await cache_service.start()
     logger.info("StatsEngine started with background refresh")
     
@@ -335,7 +180,8 @@ async def root():
 @app.get("/api/v1/stats", tags=["Public"])
 async def get_public_stats():
     from app.services.cache import cache_service
+    from app.services.stats import fetch_public_stats
     data = await cache_service.get_stats("public_stats")
     if data:
         return data
-    return await _fetch_public_stats()
+    return await fetch_public_stats()
