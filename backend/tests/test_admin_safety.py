@@ -161,6 +161,29 @@ async def test_public_course_detail_404_for_inactive(
     assert resp.status_code == 404, f"expected 404 for inactive course, got {resp.status_code}"
 
 
+async def test_public_department_detail_404_for_inactive(
+    client: AsyncClient, admin_user
+):
+    headers = await auth_headers(client, admin_user)
+    dept = await client.post(
+        "/api/v1/admin/departments",
+        json={"name": "Inactive Pub Dept", "code": "IPD"},
+        headers=headers,
+    )
+    assert dept.status_code == 201, dept.text
+    dept_id = dept.json()["id"]
+
+    upd = await client.put(
+        f"/api/v1/admin/departments/{dept_id}",
+        json={"is_active": False},
+        headers=headers,
+    )
+    assert upd.status_code == 200, upd.text
+
+    resp = await client.get(f"/api/v1/departments/{dept_id}")
+    assert resp.status_code == 404, f"expected 404 for inactive department, got {resp.status_code}"
+
+
 # --------------------------------------------------------------------------
 # H4: admin user list must not run 2 queries per user
 # --------------------------------------------------------------------------

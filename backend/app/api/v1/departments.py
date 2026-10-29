@@ -40,10 +40,14 @@ async def get_department(
     db: AsyncSession = Depends(get_db),
 ):
     """Get a specific department by ID."""
-    result = await db.execute(select(Department).where(Department.id == id))
+    result = await db.execute(
+        select(Department).where(Department.id == id, Department.is_active == True)  # noqa: E712
+    )
     department = result.scalar_one_or_none()
-    
+
     if not department:
+        # Deactivated departments are hidden from the public surface (M17),
+        # matching the is_active filter applied by the list endpoint.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
     
     return DepartmentResponse(id=str(department.id), name=department.name, code=department.code,
