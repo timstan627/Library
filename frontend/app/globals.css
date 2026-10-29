@@ -198,6 +198,12 @@ a:hover {
     @apply bg-danger text-accent-ink hover:bg-danger-hover border border-transparent;
   }
 
+  /* Destructive intent in the quiet ghost silhouette: text-level red at rest,
+     the badge-danger whisper fill on hover. Never emits neutral ink. */
+  .btn-ghost-danger {
+    @apply bg-transparent text-danger-light hover:bg-danger/10 border border-transparent;
+  }
+
   .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -206,7 +212,7 @@ a:hover {
 
   .input {
     @apply w-full px-3 py-2 bg-background-tertiary border border-border-medium rounded-lg;
-    @apply text-text-primary placeholder:text-text-muted;
+    @apply text-text-primary placeholder:text-text-secondary;
     @apply focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/40 focus:ring-offset-0;
     transition-property: border-color, box-shadow;
     transition-duration: var(--dur-fast);

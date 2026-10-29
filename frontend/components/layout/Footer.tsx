@@ -24,7 +24,7 @@ export function Footer() {
 
                     {/* Quick Links */}
                     <div>
-                        <h4 className="text-text-primary font-medium mb-4">Quick Links</h4>
+                        <h3 className="text-text-primary font-medium mb-4">Quick Links</h3>
                         <ul className="space-y-2">
                             <li>
                                 <Link href="/browse" className="text-text-secondary text-sm hover:text-text-primary">
@@ -46,7 +46,7 @@ export function Footer() {
 
                     {/* Legal */}
                     <div>
-                        <h4 className="text-text-primary font-medium mb-4">Legal</h4>
+                        <h3 className="text-text-primary font-medium mb-4">Legal</h3>
                         <ul className="space-y-2">
                             <li>
                                 <Link href="/privacy" className="text-text-secondary text-sm hover:text-text-primary">

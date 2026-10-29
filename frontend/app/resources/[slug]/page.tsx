@@ -491,7 +491,7 @@ export default function ResourceDetailPage() {
                             <div className="flex items-center gap-2 mt-3">
                                 <button
                                     onClick={openEditModal}
-                                    className="btn btn-sm bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/20 transition-colors text-xs sm:text-sm"
+                                    className="btn btn-sm bg-accent-primary/10 text-accent-light hover:bg-accent-primary/20 transition-colors text-xs sm:text-sm"
                                     title="Edit resource"
                                 >
                                     <Edit3 className="w-3.5 h-3.5 mr-1" />
@@ -645,7 +645,7 @@ export default function ResourceDetailPage() {
                                 <p className="text-text-secondary">
                                     <Link
                                         href={`/auth/login?returnUrl=${encodeURIComponent(pathname)}`}
-                                        className="text-accent-light hover:text-accent-primary"
+                                        className="text-accent-light hover:text-accent-bright"
                                     >
                                         Login
                                     </Link>{' '}
@@ -918,7 +918,7 @@ export default function ResourceDetailPage() {
                                 /* Text content from API */
                             ) : textContent ? (
                                 <div className="w-full h-full flex flex-col">
-                                    <div className="flex items-center justify-between gap-3 px-4 py-2 bg-background-tertiary border-b border-border-subtle rounded-t-lg text-xs text-text-muted">
+                                    <div className="flex items-center justify-between gap-3 px-4 py-2 bg-background-tertiary border-b border-border-subtle rounded-t-lg text-xs text-text-secondary">
                                         <span className="truncate">{resource.file_name}</span>
                                         <span className="tabular-nums shrink-0">{textContent.line_count} lines</span>
                                     </div>
@@ -1140,7 +1140,7 @@ export default function ResourceDetailPage() {
                             <button
                                 onClick={handleDelete}
                                 disabled={deleting}
-                                className="btn bg-red-500 hover:bg-red-600 text-white flex-1 flex items-center justify-center gap-2"
+                                className="btn btn-danger flex-1 flex items-center justify-center gap-2"
                             >
                                 {deleting ? (
                                     <>

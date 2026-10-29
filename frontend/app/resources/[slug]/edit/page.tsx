@@ -155,7 +155,7 @@ export default function EditResourcePage() {
                     {isAdmin && (
                         <button
                             onClick={handleDelete}
-                            className="btn bg-red-600 hover:bg-red-700 text-white"
+                            className="btn btn-danger"
                         >
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete

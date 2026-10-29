@@ -145,7 +145,7 @@ export default function ProfilePage() {
                                 <Settings className="w-4 h-4 mr-1.5" />
                                 Settings
                             </Link>
-                            <button onClick={handleLogout} className="btn btn-ghost text-danger text-sm">
+                            <button onClick={handleLogout} className="btn btn-ghost-danger text-sm">
                                 <LogOut className="w-4 h-4 mr-1.5" />
                                 Logout
                             </button>

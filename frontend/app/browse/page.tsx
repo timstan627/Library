@@ -141,9 +141,10 @@ function BrowseContent() {
             <form onSubmit={handleSearch} className="mb-8">
                 <div className="flex items-stretch gap-3">
                     <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+                        <Search aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                         <input
                             type="text"
+                            aria-label="Search resources"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="Search by title, course code, or description..."
@@ -233,7 +234,7 @@ function BrowseContent() {
             ) : resources.length === 0 ? (
                 <div className="text-center py-16">
                     <FileText className="w-16 h-16 text-text-muted mx-auto mb-4" />
-                    <h3 className="text-xl font-medium text-text-primary mb-2">No resources found</h3>
+                    <h2 className="text-xl font-medium text-text-primary mb-2">No resources found</h2>
                     <p className="text-text-secondary mb-6">
                         Try adjusting your search or filters
                     </p>
@@ -254,10 +255,10 @@ function BrowseContent() {
                                     <FileText className="w-5 h-5 text-accent-primary" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <h3 className="font-medium text-text-primary truncate">
+                                    <h2 className="font-medium text-text-primary truncate">
                                         {resource.title}
-                                    </h3>
-                                    <div className="flex flex-wrap gap-x-2 text-sm text-text-secondary">
+                                    </h2>
+                                    <div className="flex flex-wrap gap-x-2 text-sm text-text-secondary tabular-nums">
                                         {resource.uploader_name && <span className="font-medium text-text-primary">{resource.uploader_name}</span>}
                                         <span>{resource.course_code}</span>
                                         <span>{formatFileSize(resource.file_size)}</span>
@@ -271,7 +272,7 @@ function BrowseContent() {
                                 </p>
                             )}
 
-                            <div className="flex items-center gap-4 mt-4 text-xs text-text-muted">
+                            <div className="flex items-center gap-4 mt-4 text-xs text-text-muted tabular-nums">
                                 <span className="flex items-center gap-1">
                                     <Download className="w-3.5 h-3.5" />
                                     {resource.downloads}
@@ -312,7 +313,7 @@ function BrowseContent() {
                     >
                         Previous
                     </button>
-                    <span className="flex items-center px-4 text-text-secondary">
+                    <span className="flex items-center px-4 text-text-secondary tabular-nums">
                         Page {page} of {Math.ceil(total / 20)}
                     </span>
                     <button
