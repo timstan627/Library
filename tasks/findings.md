@@ -9,10 +9,10 @@ response. Statuses update as phases complete.
 | # | Location | Finding | Status |
 |---|----------|---------|--------|
 | C1 | `api/v1/search.py` `/popular`, `/recent` | Return raw ORM `Resource` rows (verified live): leaks `uploader.password_hash`, `email`, `mfa_secret`, `telegram_file_id/channel_id`, `file_hash` | **fixed (Phase 1)** — `ResourceSummary` allowlist schema; leak guards green |
-| C2 | `alembic/env.py:13` | `from app.models.base import Base` — Base is not there → **all migrations crash on import** | open → Task 4.x |
-| C3 | `alembic/versions/001_initial.py` | Migration targets PostgreSQL (UUID/ARRAY/JSONB/TSVECTOR/`uuid_generate_v4`) while the app runs SQLite; alembic not even in requirements | open → Task 4.x |
-| C4 | `scripts/check_courses.py`, `clear_resources.py` | Hardcoded live MongoDB Atlas credentials in repo; `clear_resources.py` wipes a remote DB unconditionally | open → delete scripts + rotate creds |
-| C5 | `Dockerfile:15` | `COPY . .` with no `.dockerignore` → bakes `.env`, live SQLite DBs, `venv/` into image layers | open → Task 4.3 |
+| C2 | `alembic/env.py:13` | `from app.models.base import Base` — Base is not there → **all migrations crash on import** | **fixed (Phase 4)** — Base from app.core.database, URL from app DB_URL, all models registered, render_as_batch |
+| C3 | `alembic/versions/001_initial.py` | Migration targets PostgreSQL (UUID/ARRAY/JSONB/TSVECTOR/`uuid_generate_v4`) while the app runs SQLite; alembic not even in requirements | **fixed (Phase 4)** — 001 rewritten as metadata-driven create-all; alembic added to requirements; verified via upgrade head on a DB copy |
+| C4 | `scripts/check_courses.py`, `clear_resources.py` | Hardcoded live MongoDB Atlas credentials in repo; `clear_resources.py` wipes a remote DB unconditionally | **fixed (Phase 4)** — scripts deleted; **owner must still rotate the Atlas credential (f2l1/f2l1@cluster0)** — it remains in git history |
+| C5 | `Dockerfile:15` | `COPY . .` with no `.dockerignore` → bakes `.env`, live SQLite DBs, `venv/` into image layers | **fixed (Phase 4)** — backend + root `.dockerignore`; non-root user + HEALTHCHECK in backend image |
 | C6 | `models/rating.py` | No UNIQUE constraint on (user_id, resource_id) → concurrent double-rating double-counts aggregates | **fixed (Phase 1)** — unique index + startup dedupe + atomic aggregates (409 on race) |
 
 ## High
@@ -27,8 +27,8 @@ response. Statuses update as phases complete.
 | H6 | `core/database.py` | `PRAGMA foreign_keys=ON` set once on one pooled connection, not per-connection; no busy_timeout → FK effectively off + "database is locked" risk | **fixed (Phase 1)** — per-connection pragma listener |
 | H7 | `tasks/cleanup.py`, `tasks/analytics.py` | Nothing schedules them; sessions accumulate forever, soft-deleted resources never purge; `cleanup` hard-DELETEs resources that have child FK rows → IntegrityError swallowed | **fixed (Phase 1)** — daily scheduler in lifespan, child-first purge |
 | H8 | `models/user.py` | `User.resources`/`User.sessions` `lazy="selectin"` → every auth request eager-loads the user's entire resource list + all sessions | **fixed (Phase 3)** — `lazy="raise"` on all implicitly-unread relationships; serialization-dependent ones stay selectin |
-| H9 | `.github/workflows/ci.yml` | Fictional CI: Postgres+Redis services (unused), refs missing `Dockerfile.prod`/`docker-compose.prod.yml`, runs nonexistent pytest suite | open → Task 4.2 |
-| H10 | `scripts/*` + root scripts | 12 dead Mongo/Beanie scripts (unrunnable); `reset_password*.py`/`promote_admin.py` contain real user emails + a real password | open → delete + rotate |
+| H9 | `.github/workflows/ci.yml` | Fictional CI: Postgres+Redis services (unused), refs missing `Dockerfile.prod`/`docker-compose.prod.yml`, runs nonexistent pytest suite | **fixed (Phase 4)** — reality-based: SQLite tests via requirements-dev.txt, coverage artifact, frontend job kept, image-build validation job (no push), fake services/deploy removed |
+| H10 | `scripts/*` + root scripts | 12 dead Mongo/Beanie scripts (unrunnable); `reset_password*.py`/`promote_admin.py` contain real user emails + a real password | **fixed (Phase 4)** — all 13 scripts deleted; **owner must rotate the exposed password (Rajesh123%) and assume those accounts compromised** — history retains them |
 
 ## Medium
 

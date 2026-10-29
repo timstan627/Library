@@ -85,11 +85,12 @@ Full audit + upgrade of the FastAPI backend (SQLite/SQLAlchemy, Telegram blob st
 - [x] Checkpoint 3: 104 passed; live smoke green (/health + /api/v1/stats); commits `7ad88af` + Task 3.1.
 
 ### Phase 4 — Ops hardening
-- [ ] Task 4.1: `/health` with DB check; structured logging fixes (no print_exc); request-id header.
-- [ ] Task 4.2: `.env.example`; requirements prune (grep-verified); CI rewrite to match reality (SQLite tests, no fake services, correct Dockerfile refs, coverage gate).
-- [ ] Task 4.3: Script cleanup (relocate/`seed_data.py` keep; delete debug one-offs); Dockerfile review per auditor report.
-- [ ] Task 4.4: `docs/backend.md` (architecture, API conventions, ops runbook: backup/restore, rate limits, multi-worker caveat).
-- [ ] Checkpoint 4: CI config validated locally (docker build if feasible), docs committed.
+- [x] Task 4.1: `/health` exercises the DB via `check_db_health()` (503 on degraded; details server-logs-only); `X-Request-ID` middleware (safe echo/uuid4, in 500 log+body).
+- [x] Task 4.2: `requirements.txt` pruned (redis/python-magic/sentry-sdk/aiofiles/dotenv/httpx out — grep-verified; alembic in), `requirements-dev.txt` split, `.env.example` added, dead Settings fields removed; CI rewritten to reality (SQLite, no fake services, no missing-file refs, no secret-dependent deploy, image build validation).
+- [x] Task 4.3: 13 dead scripts deleted (Mongo relics + credential/email leaks — rotation flagged for owner); backend + root `.dockerignore`; backend Dockerfile non-root + HEALTHCHECK; root Dockerfile HEALTHCHECK + npm ci.
+- [x] Task 4.4: `docs/backend.md` (architecture, invariants, download release contract, stats engine, security model, migrations runbook, ops quick reference, residual gaps).
+- [x] Alembic repair (C2/C3): env.py + metadata-driven 001; verified `upgrade head` on a DB copy; live DB untouched (`stamp head` documented for adoption).
+- [x] Checkpoint 4: suite green; live smoke green; docs + tracking committed.
 
 ### Phase 5 — Final verification
 - [ ] Full test suite + type check; live restart of backend; smoke all pages; security re-scan of changed endpoints; commits per phase (already batched along the way).
