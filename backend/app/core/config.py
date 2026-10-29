@@ -27,9 +27,6 @@ class Settings(BaseSettings):
     # database_url is no longer used; SQLite path is hardcoded in database.py
     database_url: str = "sqlite+aiosqlite:///student_library.db"
     
-    # Cache is in-memory (app/services/cache.py) — no external services needed
-    redis_url: str = "redis://localhost:6379/0"
-    
     # Security — secrets must come from the environment (or .env, which is
     # intentionally excluded from this repository).  Empty values are replaced
     # with a process-local random secret by SecurityManager, which is safe for
@@ -72,8 +69,6 @@ class Settings(BaseSettings):
     # Features
     enable_mfa: bool = True
     enable_rate_limiting: bool = True
-    enable_sentry: bool = False
-    sentry_dsn: Optional[str] = None
     
     # Rate Limiting
     rate_limit_per_minute: int = 60

@@ -1,9 +1,12 @@
 """
 Security Middleware: headers, request timing, rate limiting.
 """
+import re
 import time
+import uuid
 from collections import defaultdict
 from typing import Dict, List
+from uuid import uuid4
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -229,6 +232,28 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self.requests_per_minute - len(self.requests[client_ip])
         )
         
+        return response
+
+
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Attach a correlation id to every request.
+
+    Echoes an incoming X-Request-ID when it matches the safe format
+    (1–64 of [0-9a-zA-Z_.-], so a client cannot inject garbage into
+    logs/headers), otherwise generates one. Exposed as X-Request-ID on the
+    response and readable by handlers/loggers via request.state.request_id.
+    """
+
+    def __init__(self, app, safe_pattern: str = r"^[0-9a-zA-Z_.-]{1,64}$"):
+        super().__init__(app)
+        self._safe = re.compile(safe_pattern)
+
+    async def dispatch(self, request: Request, call_next):
+        incoming = request.headers.get("x-request-id", "")
+        rid = incoming if self._safe.match(incoming) else uuid4().hex
+        request.state.request_id = rid
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = rid
         return response
 
 

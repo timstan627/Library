@@ -10,8 +10,13 @@ from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app
 
 from app.core.config import settings
-from app.core.database import init_db, close_db, seed_default_admin
-from app.core.middleware import RateLimitMiddleware, RequestTimingMiddleware, SecurityHeadersMiddleware
+from app.core.database import init_db, close_db, seed_default_admin, check_db_health
+from app.core.middleware import (
+    RateLimitMiddleware,
+    RequestTimingMiddleware,
+    SecurityHeadersMiddleware,
+    RequestIdMiddleware,
+)
 from app.api.v1 import api_router
 
 # Configure logging — clean, readable output
@@ -122,6 +127,9 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # Security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
 
+# Request correlation id (X-Request-ID on every response)
+app.add_middleware(RequestIdMiddleware)
+
 # Request timing middleware
 app.add_middleware(RequestTimingMiddleware)
 
@@ -145,19 +153,29 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 # Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.exception(f"Unhandled exception: {exc}")
+    request_id = getattr(request.state, "request_id", None) or "unknown"
+    logger.exception(f"Unhandled exception [request_id={request_id}]: {exc}")
     headers = _cors_headers_for(request)
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error", "type": type(exc).__name__},
+        content={"detail": "Internal server error", "type": type(exc).__name__, "request_id": request_id},
         headers=headers,
     )
 
 
-# Health check endpoint
+# Health check endpoint — exercises the database (503 when degraded/critical)
 @app.get("/health", tags=["Health"])
 async def health_check():
-    return {"status": "healthy", "app": settings.app_name}
+    full = await check_db_health()
+    if full["status"] != "healthy":
+        # Details (issue strings can embed paths) stay in server logs only
+        logger.error(f"Health check degraded: {full['issues']}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "app": settings.app_name,
+                     "database": {"status": full["status"]}},
+        )
+    return {"status": "healthy", "app": settings.app_name, "database": {"status": "healthy"}}
 
 
 # Prometheus metrics (debug only)
