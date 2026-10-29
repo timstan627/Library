@@ -1,18 +1,25 @@
 """
 Admin API - Resource Management (SQLAlchemy)
 """
+import json
+import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from datetime import datetime, timezone
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.user import User
 from app.models.resource import Resource
 from app.api.v1.deps import require_admin
+from app.models.audit_log import AuditLog
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+BULK_DELETE_MAX_IDS = 100
 
 
 @router.get("")
@@ -73,16 +80,35 @@ async def delete_resource(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a single resource by ID."""
+    """Delete a single resource by ID (soft delete with audit trail, M16)."""
     result = await db.execute(select(Resource).where(Resource.id == resource_id))
     resource = result.scalar_one_or_none()
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
-    
+
+    now = datetime.now(timezone.utc)
     resource.is_deleted = True
-    resource.updated_at = datetime.now(timezone.utc)
+    resource.deleted_at = now
+    resource.deleted_by_id = str(current_user.id)
+    resource.updated_at = now
     await db.flush()
-    
+
+    try:
+        audit = AuditLog(
+            action="delete_resource",
+            actor_id=str(current_user.id),
+            target_type="resource",
+            target_id=str(resource.id),
+            details_json=json.dumps({
+                "title": resource.title,
+                "course_code": resource.course_code,
+            }),
+        )
+        db.add(audit)
+        await db.flush()
+    except Exception:
+        logger.exception("Audit log error on resource delete")
+
     return {"message": "Resource deleted successfully", "id": resource_id}
 
 
@@ -92,22 +118,48 @@ async def bulk_delete_resources(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete multiple resources by IDs."""
-    deleted = 0
-    failed = 0
-    
-    for resource_id in resource_ids:
-        try:
-            result = await db.execute(select(Resource).where(Resource.id == resource_id))
-            resource = result.scalar_one_or_none()
-            if resource:
-                resource.is_deleted = True
-                resource.updated_at = datetime.now(timezone.utc)
-                deleted += 1
-            else:
-                failed += 1
-        except Exception:
-            failed += 1
-    
+    """Soft-delete multiple resources by ID (H5: bounded, deduped, one UPDATE, audited)."""
+    if len(resource_ids) > BULK_DELETE_MAX_IDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Bulk delete is limited to {BULK_DELETE_MAX_IDS} resources per request",
+        )
+
+    # Dedupe while preserving order so duplicates cannot inflate the counter.
+    unique_ids = list(dict.fromkeys(resource_ids))
+    if not unique_ids:
+        return {"message": "Deleted 0 resources", "deleted": 0, "failed": 0}
+
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        update(Resource)
+        .where(Resource.id.in_(unique_ids), Resource.is_deleted == False)  # noqa: E712
+        .values(
+            is_deleted=True,
+            deleted_at=now,
+            deleted_by_id=str(current_user.id),
+            updated_at=now,
+        )
+    )
+    deleted = result.rowcount or 0
+    failed = len(unique_ids) - deleted
     await db.flush()
+
+    try:
+        audit = AuditLog(
+            action="bulk_delete_resources",
+            actor_id=str(current_user.id),
+            target_type="resource",
+            target_id="bulk",
+            details_json=json.dumps({
+                "resource_ids": unique_ids,
+                "deleted": deleted,
+                "failed": failed,
+            }),
+        )
+        db.add(audit)
+        await db.flush()
+    except Exception:
+        logger.exception("Audit log error on bulk resource delete")
+
     return {"message": f"Deleted {deleted} resources", "deleted": deleted, "failed": failed}

@@ -5,14 +5,13 @@ import json
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select, func, and_, delete as sql_delete
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.user import User
 from app.models.department import Department
 from app.models.course import Course
-from app.models.resource import Resource
 from app.schemas.department import DepartmentCreate, DepartmentUpdate, DepartmentResponse, DepartmentListResponse
 from app.api.v1.deps import require_admin
 from app.models.audit_log import AuditLog
@@ -145,23 +144,36 @@ async def delete_department(id: str, current_user: User = Depends(require_admin)
     department = result.scalar_one_or_none()
     if not department:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
-    
-    # Cascade: delete courses and their resources
-    courses_result = await db.execute(select(Course).where(Course.department_id == id))
-    courses = courses_result.scalars().all()
-    for course in courses:
-        await db.execute(sql_delete(Resource).where(Resource.course_id == course.id))
-        await db.delete(course)
-    
+
+    # H2: never hard-cascade courses/resources. Count children first; any
+    # course (even empty) blocks deletion so nothing is silently destroyed.
+    course_count = (
+        await db.execute(
+            select(func.count()).select_from(Course).where(Course.department_id == id)
+        )
+    ).scalar()
+
+    if course_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Department '{department.code}' has {course_count} course(s); "
+                "move or delete its courses before deleting the department"
+            ),
+        )
+
     await db.delete(department)
-    
+
     try:
         audit = AuditLog(action="delete_department", actor_id=current_user.id, target_type="department",
-                        target_id=id, details_json=json.dumps({"name": department.name, "code": department.code}))
+                        target_id=id, details_json=json.dumps({
+                            "name": department.name, "code": department.code,
+                            "course_count": course_count,
+                        }))
         db.add(audit)
     except Exception as e:
         logger.error(f"Audit log error: {e}")
-    
+
     await db.flush()
 
 

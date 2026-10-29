@@ -56,9 +56,10 @@ async def list_active_courses(
         return results
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Courses endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        # H3: never leak internal error text to public callers.
+        logger.exception("Courses endpoint error")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/{id}")
@@ -67,10 +68,14 @@ async def get_course(
     db: AsyncSession = Depends(get_db),
 ):
     """Get a specific course by ID."""
-    result = await db.execute(select(Course).where(Course.id == id))
+    result = await db.execute(
+        select(Course).where(Course.id == id, Course.is_active == True)  # noqa: E712
+    )
     course = result.scalar_one_or_none()
-    
+
     if not course:
+        # Deactivated courses are hidden from the public surface (M17),
+        # matching the is_active filter applied by the list endpoint.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
     
     dept_name = None

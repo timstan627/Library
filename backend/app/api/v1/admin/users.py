@@ -46,18 +46,33 @@ async def list_users(
         .offset((page - 1) * page_size).limit(page_size)
     )
     users = result.scalars().all()
-    
-    # Batch count uploads per user
+
+    # H4: grouped aggregate queries instead of 2 sequential queries per user.
     user_ids = [u.id for u in users]
-    upload_counts = {}
-    approved_counts = {}
-    
+    upload_counts: dict = {}
+    approved_counts: dict = {}
+
     if user_ids:
-        for uid in user_ids:
-            uc = await db.execute(select(func.count()).select_from(Resource).where(Resource.uploader_id == uid, Resource.is_deleted == False))
-            upload_counts[uid] = uc.scalar()
-            ac = await db.execute(select(func.count()).select_from(Resource).where(Resource.uploader_id == uid, Resource.moderation_status == "approved", Resource.is_deleted == False))
-            approved_counts[uid] = ac.scalar()
+        upload_rows = await db.execute(
+            select(Resource.uploader_id, func.count())
+            .where(
+                Resource.uploader_id.in_(user_ids),
+                Resource.is_deleted == False,  # noqa: E712
+            )
+            .group_by(Resource.uploader_id)
+        )
+        upload_counts = {uid: count for uid, count in upload_rows.all()}
+
+        approved_rows = await db.execute(
+            select(Resource.uploader_id, func.count())
+            .where(
+                Resource.uploader_id.in_(user_ids),
+                Resource.is_deleted == False,  # noqa: E712
+                Resource.moderation_status == "approved",
+            )
+            .group_by(Resource.uploader_id)
+        )
+        approved_counts = {uid: count for uid, count in approved_rows.all()}
     
     results = []
     for user in users:

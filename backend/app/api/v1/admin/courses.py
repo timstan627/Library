@@ -5,7 +5,7 @@ import json
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select, func, and_, delete as sql_delete
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -94,16 +94,18 @@ async def create_course(
         is_active=data.is_active if hasattr(data, 'is_active') else True,
     )
     db.add(course)
-    
+
+    await db.flush()
+    await db.refresh(course)
+
+    # Audit after flush so target_id is the real course id (M9).
     try:
         audit = AuditLog(action="create_course", actor_id=current_user.id, target_type="course",
                         target_id=str(course.id), details_json=json.dumps({"name": course.name, "code": course.code}))
         db.add(audit)
+        await db.flush()
     except Exception as e:
         logger.error(f"Audit log error: {e}")
-    
-    await db.flush()
-    await db.refresh(course)
     
     return CourseResponse(
         id=str(course.id), name=course.name, code=course.code,
@@ -178,16 +180,34 @@ async def delete_course(
     course = result.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
-    
-    # Cascade delete resources
-    await db.execute(sql_delete(Resource).where(Resource.course_id == id))
+
+    # H2: never hard-cascade resources. Resources keep an FK reference to the
+    # course row, so any child row (soft-deleted included) blocks deletion.
+    resource_count = (
+        await db.execute(
+            select(func.count()).select_from(Resource).where(Resource.course_id == id)
+        )
+    ).scalar()
+
+    if resource_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Course '{course.code}' has {resource_count} resource(s); "
+                "deactivate the course or reassign its resources before deleting"
+            ),
+        )
+
     await db.delete(course)
-    
+
     try:
         audit = AuditLog(action="delete_course", actor_id=current_user.id, target_type="course",
-                        target_id=id, details_json=json.dumps({"name": course.name, "code": course.code}))
+                        target_id=id, details_json=json.dumps({
+                            "name": course.name, "code": course.code,
+                            "resource_count": resource_count,
+                        }))
         db.add(audit)
     except Exception as e:
         logger.error(f"Audit log error: {e}")
-    
+
     await db.flush()
