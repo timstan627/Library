@@ -97,7 +97,7 @@ export default function UserPromotionPage() {
 
     return (
         <div className="container-custom py-8">
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-text-primary">Trusted Contributors</h1>
                     <p className="text-text-secondary">Manage users who can bypass moderation</p>
@@ -149,6 +149,7 @@ export default function UserPromotionPage() {
             <div className="card shadow-md overflow-hidden border border-border-subtle">
                 <div className="overflow-x-auto">
                     <table className="w-full">
+                        {(loading || (activeTab === 'trusted' ? users : allUsers).length > 0) && (
                         <thead className="bg-background-secondary border-b border-border-subtle">
                             <tr>
                                 <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">User</th>
@@ -157,6 +158,7 @@ export default function UserPromotionPage() {
                                 <th className="px-6 py-4 text-right text-xs font-medium text-text-muted">Actions</th>
                             </tr>
                         </thead>
+                        )}
                         <tbody className="divide-y divide-border-subtle">
                             {loading ? (
                                 [...Array(3)].map((_, i) => (
@@ -234,7 +236,7 @@ export default function UserPromotionPage() {
                         <h3 className="text-lg font-bold text-text-primary mb-1">What is a Trusted Contributor?</h3>
                         <p className="text-sm text-text-secondary leading-relaxed max-w-2xl">
                             Trusted contributors are users who have established a history of providing high-quality study materials.
-                            <strong> All their uploads will bypass the moderation queue and be published immediately.</strong>
+                            <strong> All their uploads will bypass the moderation queue and be published immediately.</strong>{' '}
                             This status is typically granted to students who maintain a high approval-to-upload ratio.
                         </p>
                     </div>

@@ -241,19 +241,19 @@ export default function ProfilePage() {
                                 <Link
                                     key={resource.id}
                                     href={`/resources/${resource.slug}`}
-                                    className="flex items-center justify-between p-4 bg-background-tertiary rounded-md hover:bg-background-secondary transition-colors"
+                                    className="flex items-center justify-between gap-4 p-4 bg-background-tertiary rounded-md hover:bg-background-secondary transition-colors"
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <FileText className="w-5 h-5 text-text-muted" />
-                                        <div>
-                                            <p className="text-text-primary font-medium">{resource.title}</p>
-                                            <p className="text-text-secondary text-sm flex items-center gap-2">
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <FileText className="w-5 h-5 text-text-muted shrink-0" />
+                                        <div className="min-w-0">
+                                            <p className="text-text-primary font-medium truncate">{resource.title}</p>
+                                            <p className="text-text-secondary text-sm flex flex-wrap items-center gap-x-2">
                                                 <span><span className="text-text-muted">Course:</span> {resource.course_code}</span>
                                                 <span>{formatFileSize(resource.file_size)}</span>
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="text-right">
+                                    <div className="text-right shrink-0">
                                         <p className="text-text-primary text-sm tabular-nums">
                                             {resource.downloads} downloads
                                         </p>

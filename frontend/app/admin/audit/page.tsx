@@ -89,6 +89,7 @@ export default function AuditLogsPage() {
             <div className="card shadow-md overflow-hidden border border-border-subtle">
                 <div className="overflow-x-auto">
                     <table className="w-full">
+                        {(loading || logs.length > 0) && (
                         <thead className="bg-background-secondary border-b border-border-subtle">
                             <tr>
                                 <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Timestamp</th>
@@ -98,6 +99,7 @@ export default function AuditLogsPage() {
                                 <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Details</th>
                             </tr>
                         </thead>
+                        )}
                         <tbody className="divide-y divide-border-subtle text-xs">
                             {loading ? (
                                 [...Array(10)].map((_, i) => (

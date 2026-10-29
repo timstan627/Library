@@ -189,6 +189,7 @@ function ResourcesContent() {
             <div className="card shadow-md overflow-hidden border border-border-subtle">
                 <div className="overflow-x-auto">
                     <table className="w-full">
+                        {(loading || filteredResources.length > 0) && (
                         <thead className="bg-background-secondary border-b border-border-subtle">
                             <tr>
                                 <th className="px-4 py-4 text-left">
@@ -206,6 +207,7 @@ function ResourcesContent() {
                                 <th className="px-4 py-4 text-right text-xs font-medium text-text-muted">Actions</th>
                             </tr>
                         </thead>
+                        )}
                         <tbody className="divide-y divide-border-subtle">
                             {loading ? (
                                 [...Array(5)].map((_, i) => (

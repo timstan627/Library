@@ -465,7 +465,7 @@ export default function ResourceDetailPage() {
                 <span>/</span>
                 <Link href="/browse" className="hover:text-text-primary">Browse</Link>
                 <span>/</span>
-                <span className="text-text-primary">{resource.course_code}</span>
+                <span className="text-text-primary break-words min-w-0">{resource.course_code}</span>
             </div>
 
             {/* Header Card — always shows first, above the grid */}
@@ -477,12 +477,12 @@ export default function ResourceDetailPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                         {/* Title */}
-                        <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-text-primary leading-tight mb-1">
+                        <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-text-primary leading-tight mb-1 break-words">
                             {resource.title}
                         </h1>
                         {/* Course badge + metadata */}
                         <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-text-secondary mt-1">
-                            <span className="badge badge-primary text-xs">{resource.course_code}</span>
+                            <span className="badge badge-primary text-xs break-words">{resource.course_code}</span>
                             {resource.department && <span>{resource.department}</span>}
                             {resource.semester && <span>{/^sem/i.test(resource.semester) ? resource.semester : `Semester ${resource.semester}`}</span>}
                         </div>
@@ -545,12 +545,12 @@ export default function ResourceDetailPage() {
 
             <div className="grid lg:grid-cols-3 gap-8 items-start">
                 {/* Left Column - Description, Tags, Reviews (order-2 on mobile so download block shows first) */}
-                <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
+                <div className="lg:col-span-2 space-y-6 order-2 lg:order-1 min-w-0">
                     {/* Description */}
                     {resource.description && (
                         <div className="card p-6">
                             <h2 className="text-lg font-semibold text-text-primary mb-3">Description</h2>
-                            <p className="text-text-secondary whitespace-pre-wrap">{resource.description}</p>
+                            <p className="text-text-secondary whitespace-pre-wrap break-words">{resource.description}</p>
                         </div>
                     )}
 
@@ -563,7 +563,7 @@ export default function ResourceDetailPage() {
                                     <Link
                                         key={tag}
                                         href={`/browse?tags=${tag}`}
-                                        className="badge hover:bg-background-tertiary"
+                                        className="badge hover:bg-background-tertiary break-words"
                                     >
                                         <Tag className="w-3 h-3 mr-1" />
                                         {tag}
@@ -585,7 +585,7 @@ export default function ResourceDetailPage() {
                                 {/* Star Rating Section */}
                                 <div className="bg-background-tertiary p-4 rounded-lg">
                                     <h3 className="font-semibold text-text-primary mb-2">Rate this Resource</h3>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <div className="flex gap-1">
                                             {[1, 2, 3, 4, 5].map((star) => (
                                                 <button
@@ -664,7 +664,7 @@ export default function ResourceDetailPage() {
                                                 <div className="w-8 h-8 bg-background-tertiary rounded-full flex items-center justify-center">
                                                     <User className="w-4 h-4 text-text-muted" />
                                                 </div>
-                                                <span className="text-text-primary font-medium">
+                                                <span className="text-text-primary font-medium break-words">
                                                     {rating.user_name || 'Anonymous'}
                                                 </span>
                                             </div>
@@ -688,7 +688,7 @@ export default function ResourceDetailPage() {
                                             )}
                                         </div>
                                         {rating.review && (
-                                            <p className="text-text-secondary text-sm">{rating.review}</p>
+                                            <p className="text-text-secondary text-sm break-words">{rating.review}</p>
                                         )}
                                         <p className="text-text-muted text-xs mt-2">
                                             {formatDate(rating.created_at)}
@@ -703,7 +703,7 @@ export default function ResourceDetailPage() {
                 </div>
 
                 {/* Right Sidebar - Download + File Info (shows FIRST on mobile, sticky on desktop only) */}
-                <div className="space-y-6 lg:sticky lg:top-20 z-10 order-1 lg:order-2">
+                <div className="space-y-6 lg:sticky lg:top-20 z-10 order-1 lg:order-2 min-w-0">
                     {/* Action Error Banner */}
                     {actionError && (
                         <div className="p-3 bg-danger/10 border border-danger/20 rounded-lg text-danger-light text-sm animate-fade-in flex items-start gap-2" role="alert">

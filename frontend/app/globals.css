@@ -66,11 +66,9 @@
 /* Global styles */
 html {
   color-scheme: dark;
-  overflow-x: clip;
 }
 
 body {
-  overflow-x: clip;
   background-color: rgb(var(--bg-primary));
   color: rgb(var(--text-primary));
   font-family: var(--font-body), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

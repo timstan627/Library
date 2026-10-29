@@ -169,6 +169,7 @@ function DepartmentsContent() {
             <div className="card shadow-md overflow-hidden border border-border-subtle">
                 <div className="overflow-x-auto">
                     <table className="w-full">
+                        {(loading || filteredDepts.length > 0) && (
                         <thead className="bg-background-secondary border-b border-border-subtle">
                             <tr>
                                 <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Department</th>
@@ -177,6 +178,7 @@ function DepartmentsContent() {
                                 <th className="px-6 py-4 text-right text-xs font-medium text-text-muted">Actions</th>
                             </tr>
                         </thead>
+                        )}
                         <tbody className="divide-y divide-border-subtle">
                             {loading ? (
                                 [...Array(3)].map((_, i) => (

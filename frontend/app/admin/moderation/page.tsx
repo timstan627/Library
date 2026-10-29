@@ -149,7 +149,7 @@ export default function ModerationPage() {
 
     return (
         <div className="container-custom py-8">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <div>
                     <h1 className="text-3xl font-bold text-text-primary">Moderation Queue</h1>
                     <p className="text-text-secondary">Review and approve student uploads</p>
@@ -197,6 +197,7 @@ export default function ModerationPage() {
                 <div className="card shadow-md overflow-hidden border border-border-subtle">
                     <div className="overflow-x-auto">
                         <table className="w-full">
+                            {(loading || (resources && resources.length > 0)) && (
                             <thead className="bg-background-secondary border-b border-border-subtle">
                                 <tr>
                                     <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Resource</th>
@@ -207,6 +208,7 @@ export default function ModerationPage() {
                                     <th className="px-6 py-4 text-right text-xs font-medium text-text-muted">Actions</th>
                                 </tr>
                             </thead>
+                            )}
                             <tbody className="divide-y divide-border-subtle">
                                 {loading ? (
                                     [...Array(5)].map((_, i) => (
@@ -324,6 +326,7 @@ export default function ModerationPage() {
                 <div className="card shadow-md overflow-hidden border border-border-subtle">
                     <div className="overflow-x-auto">
                         <table className="w-full">
+                            {(loading || history.length > 0) && (
                             <thead className="bg-background-secondary border-b border-border-subtle">
                                 <tr>
                                     <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Resource</th>
@@ -334,6 +337,7 @@ export default function ModerationPage() {
                                     <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Rejection Reason</th>
                                 </tr>
                             </thead>
+                            )}
                             <tbody className="divide-y divide-border-subtle">
                                 {loading ? (
                                     [...Array(5)].map((_, i) => (
