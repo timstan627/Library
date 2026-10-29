@@ -291,10 +291,19 @@ def fake_download_file(monkeypatch, resources_ref=resources_module, tmp_path: Pa
     target = tmp_path or Path(_TMPDIR) / "fake_download.pdf"
     target.write_bytes(b"%PDF-1.4 fake content")
 
+    released: list[Path] = []
+
     async def _get_file(message_id: int, channel_id: int, file_id: str | None = None):
         return target
 
-    monkeypatch.setattr(resources_ref, "download_manager", type("D", (), {"get_file": staticmethod(_get_file)})())
+    async def _release(file_path: Path) -> None:
+        released.append(Path(file_path))
+
+    monkeypatch.setattr(
+        resources_ref,
+        "download_manager",
+        type("D", (), {"get_file": staticmethod(_get_file), "release": staticmethod(_release)})(),
+    )
     return target
 
 

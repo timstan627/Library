@@ -81,11 +81,11 @@ class Resource(Base, TimestampMixin):
     deleted_by_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
     
     # Relationships
-    uploader = relationship("User", back_populates="resources", foreign_keys=[uploader_id], lazy="selectin")
-    department = relationship("Department", lazy="selectin")
-    course = relationship("Course", lazy="selectin")
-    moderated_by = relationship("User", foreign_keys=[moderated_by_id], lazy="selectin")
-    deleted_by = relationship("User", foreign_keys=[deleted_by_id], lazy="selectin")
+    uploader = relationship("User", back_populates="resources", foreign_keys=[uploader_id], lazy="selectin")  # uploader_name property (responses)
+    department = relationship("Department", lazy="selectin")  # department_name property (responses)
+    course = relationship("Course", lazy="raise")  # never read; course_code column is used instead
+    moderated_by = relationship("User", foreign_keys=[moderated_by_id], lazy="raise")  # only moderated_by_id is read
+    deleted_by = relationship("User", foreign_keys=[deleted_by_id], lazy="raise")  # only deleted_by_id is read
     
     @property
     def tags(self) -> List[str]:

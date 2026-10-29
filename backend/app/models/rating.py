@@ -28,8 +28,8 @@ class Rating(Base, TimestampMixin):
     review: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Relationships
-    user = relationship("User", lazy="selectin")
-    resource = relationship("Resource", lazy="selectin")
+    user = relationship("User", lazy="selectin")  # user_name property (responses)
+    resource = relationship("Resource", lazy="raise")  # never read implicitly
     
     @property
     def user_name(self) -> Optional[str]:

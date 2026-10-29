@@ -3,12 +3,36 @@ Security Middleware: headers, request timing, rate limiting.
 """
 import time
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, List
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
+
+
+def sweep_windowed(d: Dict[str, List[float]], window: float, now: float, max_keys: int) -> None:
+    """Opportunistic global eviction for timestamp-bucket dicts.
+
+    Per-key pruning (done on each access) leaves empty buckets behind for
+    clients that never return — over weeks that grows unbounded as scanners
+    mint new source IPs. Called time-gated (at most ~once/minute per store),
+    this drops:
+    1. Buckets that are empty or fully outside the window (they would prune
+       to empty on the next touch anyway), then
+    2. If still over `max_keys`, everything but the newest `max_keys`
+       buckets — a hard memory cap even under identity-flooding attacks.
+    """
+    if len(d) < max_keys:
+        return
+    expired = [k for k, ts in d.items() if not ts or now - ts[-1] > window]
+    for k in expired:
+        del d[k]
+    if len(d) > max_keys:
+        # All remaining buckets are non-empty (guard for ts[-1])
+        keep = sorted(d.items(), key=lambda kv: kv[1][-1], reverse=True)[:max_keys]
+        d.clear()
+        d.update(keep)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -65,6 +89,16 @@ class AuthRateLimiter:
         self.failed_attempts: Dict[str, list] = defaultdict(list)
         # Key: email -> list of failed attempt timestamps (any IP)
         self.email_failures: Dict[str, list] = defaultdict(list)
+        # Global eviction (memory hygiene): sweep at most once a minute
+        self._max_keys = 50_000
+        self._last_sweep = 0.0
+
+    def _maybe_sweep(self, now: float) -> None:
+        if now - self._last_sweep < 60:
+            return
+        self._last_sweep = now
+        sweep_windowed(self.failed_attempts, self.lockout_seconds, now, self._max_keys)
+        sweep_windowed(self.email_failures, self.lockout_seconds, now, self._max_keys)
 
     @staticmethod
     def _remaining(attempts: list, lockout_seconds: int) -> int:
@@ -76,6 +110,8 @@ class AuthRateLimiter:
         key = f"{ip}:{email.lower()}"
         email_key = email.lower()
         now = time.time()
+
+        self._maybe_sweep(now)
 
         # Keep only attempts inside the lockout window
         self.failed_attempts[key] = [
@@ -148,6 +184,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.requests_per_minute = requests_per_minute
         self.requests: Dict[str, list] = defaultdict(list)
+        # Global eviction (memory hygiene): sweep at most once a minute
+        self._max_keys = 100_000
+        self._last_sweep = 0.0
     
     async def dispatch(self, request: Request, call_next):
         # Skip rate limiting for health checks
@@ -159,6 +198,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         # Clean old requests
         current_time = time.time()
+        if current_time - self._last_sweep >= 60:
+            self._last_sweep = current_time
+            sweep_windowed(self.requests, 60, current_time, self._max_keys)
         self.requests[client_ip] = [
             req_time for req_time in self.requests[client_ip]
             if current_time - req_time < 60

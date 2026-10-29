@@ -41,6 +41,7 @@ password_reset_tokens: dict[str, tuple[str, datetime]] = {}
 _EMAIL_REQUEST_WINDOW = 3600  # 1 hour
 _EMAIL_REQUEST_LIMIT = 3
 _email_requests: dict[str, list] = defaultdict(list)
+_last_email_sweep = [0.0]  # time-gate for the opportunistic bucket sweep
 
 # Hard cap for the token store (defense in depth; the sweep plus
 # one-token-per-user normally keep it far below this)
@@ -63,6 +64,13 @@ def _issue_throttled(email: str) -> None:
     now = time.time()
     attempts = [t for t in _email_requests[email] if now - t < _EMAIL_REQUEST_WINDOW]
     _email_requests[email] = attempts
+    # Memory hygiene: drop stale per-email buckets (clients that never
+    # return would otherwise leave empty lists forever). Time-gated.
+    if len(_email_requests) >= 10_000 and now - _last_email_sweep[0] >= 60:
+        _last_email_sweep[0] = now
+        stale = [k for k, ts in _email_requests.items() if not ts or now - ts[-1] > _EMAIL_REQUEST_WINDOW]
+        for k in stale:
+            del _email_requests[k]
     if len(attempts) >= _EMAIL_REQUEST_LIMIT:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

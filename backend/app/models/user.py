@@ -49,10 +49,13 @@ class User(Base, TimestampMixin):
     # Activity
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
-    # Relationships
-    sessions = relationship("Session", back_populates="user", lazy="selectin")
-    resources = relationship("Resource", back_populates="uploader", foreign_keys="Resource.uploader_id", lazy="selectin")
-    collections = relationship("Collection", back_populates="user", cascade="all, delete-orphan", lazy="noload")
+    # Relationships — lazy="raise": these must never be implicitly loaded
+    # (an auth request eager-loading a user's entire resource list and every
+    # session was a per-request tax). Any future use needs an explicit
+    # selectinload/join at the query site.
+    sessions = relationship("Session", back_populates="user", lazy="raise")
+    resources = relationship("Resource", back_populates="uploader", foreign_keys="Resource.uploader_id", lazy="raise")
+    collections = relationship("Collection", back_populates="user", cascade="all, delete-orphan", lazy="raise")
     
     @property
     def is_admin(self) -> bool:
@@ -90,7 +93,7 @@ class Session(Base, TimestampMixin):
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # Relationships
-    user = relationship("User", back_populates="sessions", lazy="selectin")
+    user = relationship("User", back_populates="sessions", lazy="raise")
 
 
 class APIKey(Base, TimestampMixin):

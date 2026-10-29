@@ -4,11 +4,10 @@ Telegram Storage Service - File upload/download via Telegram channels
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional, AsyncIterator, Dict, Any
+from typing import Optional, Dict, Any
 from io import BytesIO
 
 import uuid
-import os
 import tempfile
 from pyrogram import Client, filters
 from pyrogram.types import Message
@@ -16,7 +15,6 @@ from pyrogram.handlers import MessageHandler
 from pyrogram.errors import FloodWait, BadRequest
 
 from app.core.config import settings
-from app.services.cache import cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -613,99 +611,6 @@ class TelegramStorageService:
             
         except Exception as e:
             logger.error(f"Backup upload failed: {e}")
-    
-    async def download_file(
-        self,
-        message_id: int,
-        channel_id: Optional[int] = None,
-        file_id: Optional[str] = None,  # For caching
-    ) -> bytes:
-        """Download a file from Telegram channel with caching."""
-        if not await self.connect():
-            raise Exception("Telegram client not connected - check credentials and network")
-        
-        channel_id = channel_id or self.primary_channel
-        
-        # Check cache first
-        if file_id:
-            cached = await cache_service.get_file(file_id, message_id)
-            if cached:
-                logger.info(f"Cache HIT for file {file_id}")
-                return cached
-        
-        try:
-            message = await self.client.get_messages(
-                chat_id=channel_id,
-                message_ids=message_id,
-            )
-            
-            if not message or not message.document:
-                raise Exception("Message or document not found")
-            
-            # Download to temp file then read
-            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-                tmp_path = tmp_file.name
-            
-            try:
-                await self.client.download_media(
-                    message=message,
-                    file_name=tmp_path,
-                )
-                
-                # Read the downloaded file
-                with open(tmp_path, 'rb') as f:
-                    file_bytes = f.read()
-            finally:
-                # Clean up temp file
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-            
-            # Cache the result
-            if file_id and file_bytes:
-                await cache_service.set_file(
-                    file_id,
-                    message_id,
-                    file_bytes,
-                    ttl=3600,  # 1 hour
-                )
-                logger.info(f"Cached file {file_id} ({len(file_bytes)} bytes)")
-            
-            # Rate limiting: Wait after download
-            await asyncio.sleep(1)  # 1 second cooldown
-            
-            return file_bytes
-            
-        except Exception as e:
-            logger.error(f"Download failed: {e}")
-            raise Exception(f"Failed to download from Telegram: {str(e)}")
-    
-    async def stream_file(
-        self,
-        message_id: int,
-        channel_id: Optional[int] = None,
-        chunk_size: int = 1024 * 1024,  # 1MB chunks
-    ) -> AsyncIterator[bytes]:
-        """Stream a file in chunks from Telegram channel."""
-        if not await self.connect():
-            raise Exception("Telegram client not connected")
-        
-        channel_id = channel_id or self.primary_channel
-        
-        try:
-            message = await self.client.get_messages(
-                chat_id=channel_id,
-                message_ids=message_id,
-            )
-            
-            if not message or not message.document:
-                raise Exception("Message or document not found")
-            
-            async for chunk in self.client.stream_media(message, limit=chunk_size):
-                yield chunk
-                
-        except Exception as e:
-            logger.error(f"Stream failed: {e}")
-            raise
     
     async def get_file_info(
         self,

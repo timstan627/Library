@@ -3,6 +3,7 @@ Resources API Routes - Upload, Download, Management (SQLAlchemy)
 """
 import re
 import time
+import asyncio
 import hashlib
 import mimetypes
 from urllib.parse import quote
@@ -10,6 +11,8 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Query, Request, Response
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
+from starlette.responses import FileResponse
 from sqlalchemy import select, func, and_, or_, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -409,14 +412,16 @@ async def preview_resource(
         logger.error(f"Preview file resolution failed: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to load file for preview")
     
-    # Stream from resolved disk path
-    from starlette.responses import FileResponse
+    # Stream from resolved disk path. If the file was too large to cache,
+    # get_file handed us a temp file — release it (delete) only after the
+    # response has finished streaming, via the background task.
     return FileResponse(
         path=str(file_path),
         media_type=resource.mime_type or "application/octet-stream",
         headers={
             "Content-Disposition": _content_disposition(resource.file_name, inline=True),
         },
+        background=BackgroundTask(download_manager.release, file_path),
     )
 
 
@@ -462,7 +467,9 @@ async def download_resource(
         logger.error(f"Download file resolution failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to download file: {str(e)}"
+            # Generic detail — internal error text (proxy failures, paths,
+            # credentials) must not reach the client.
+            detail="Failed to download file from storage",
         )
     
     # Log download
@@ -479,14 +486,15 @@ async def download_resource(
     )
     await db.flush()
     
-    # Serve file from disk (efficient, low memory)
-    from starlette.responses import FileResponse
+    # Serve file from disk (efficient, low memory). Temp downloads that
+    # didn't fit the cache are released after the response completes.
     return FileResponse(
         path=str(file_path),
         media_type=resource.mime_type,
         headers={
             "Content-Disposition": _content_disposition(resource.file_name, inline=False),
         },
+        background=BackgroundTask(download_manager.release, file_path),
     )
 
 
@@ -539,29 +547,36 @@ async def preview_text_resource(
         logger.error(f"Text preview file resolution failed: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to load file")
     
-    # Read text content (limited to max_size bytes)
+    # Read text content (limited to max_size bytes). The read runs in a
+    # worker thread — a blocking 100–500KB read has no business stalling
+    # the event loop. The temp file (if uncached) is released as soon as
+    # the content is in memory; nothing streams from the path afterwards.
     try:
-        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-            content = f.read(max_size + 1)  # Read 1 extra byte to detect truncation
-        
-        truncated = len(content) > max_size
-        if truncated:
-            content = content[:max_size]
-        
-        # Count lines
-        line_count = content.count('\n') + 1
-        
-        return {
-            "content": content,
-            "truncated": truncated,
-            "file_name": resource.file_name,
-            "mime_type": resource.mime_type,
-            "line_count": line_count,
-            "total_size": resource.file_size,
-        }
+        def _read_text() -> str:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                return f.read(max_size + 1)  # 1 extra byte to detect truncation
+
+        raw = await asyncio.to_thread(_read_text)
     except Exception as e:
         logger.error(f"Failed to read text file: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to read file content")
+    finally:
+        await download_manager.release(file_path)
+
+    truncated = len(raw) > max_size
+    content = raw[:max_size] if truncated else raw
+
+    # Count lines
+    line_count = content.count('\n') + 1
+
+    return {
+        "content": content,
+        "truncated": truncated,
+        "file_name": resource.file_name,
+        "mime_type": resource.mime_type,
+        "line_count": line_count,
+        "total_size": resource.file_size,
+    }
 
 
 @router.get("/{resource_id}", response_model=ResourceResponse)

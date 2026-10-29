@@ -1,13 +1,15 @@
 """
-Hybrid Download Manager — Disk Cache + Streaming + Concurrency Limit
+Hybrid Download Manager — Disk Cache + Concurrency Limit
 
-Replaces the naive "download entire file to RAM" approach with:
 1. LRU disk cache (configurable max size, default 1GB)
 2. asyncio.Semaphore to limit concurrent Telegram downloads
-3. Stream-through: simultaneously cache to disk + stream to user
+3. Blocking filesystem work runs in worker threads (asyncio.to_thread)
 4. Automatic cleanup of old cached files (LRU eviction)
+5. Uncacheable (>25% of cache max) downloads return a temp path that the
+   caller must release via `download_manager.release()` once the response
+   is done
 
-Memory usage: ~1MB per active download (chunk buffer) instead of N × file_size
+Memory usage: ~0 (files stream from disk, never fully in RAM)
 """
 import os
 import asyncio
@@ -15,8 +17,9 @@ import json
 import time
 import shutil
 import logging
+import tempfile
 from pathlib import Path
-from typing import Optional, AsyncIterator
+from typing import Optional
 from collections import OrderedDict
 
 from app.core.config import settings
@@ -122,12 +125,12 @@ class DiskFileCache:
 
     async def put(self, message_id: int, channel_id: int, file_path: Path) -> bool:
         """
-        Add a file to the disk cache by moving/copying it from a temp location.
+        Add a file to the disk cache by copying it from a temp location.
         Returns True if cached successfully.
         """
         key = self._cache_key(message_id, channel_id)
         cache_path = self._cache_path(key)
-        file_size = file_path.stat().st_size
+        file_size = (await asyncio.to_thread(file_path.stat)).st_size
 
         # Don't cache files larger than 25% of max cache size
         if file_size > self.max_size_bytes * 0.25:
@@ -141,16 +144,16 @@ class DiskFileCache:
                 try:
                     old_path = Path(oldest_entry.path)
                     if old_path.exists():
-                        old_path.unlink()
+                        await asyncio.to_thread(old_path.unlink)
                 except Exception:
                     pass
                 self._current_size -= oldest_entry.size
                 del self._index[oldest_key]
                 logger.debug(f"Cache evicted: {oldest_key}")
 
-            # Copy file to cache
+            # Copy file to cache (blocking I/O → worker thread)
             try:
-                shutil.copy2(str(file_path), str(cache_path))
+                await asyncio.to_thread(shutil.copy2, str(file_path), str(cache_path))
                 entry = DiskCacheEntry(str(cache_path), file_size, message_id, channel_id)
                 self._index[key] = entry
                 self._current_size += file_size
@@ -224,15 +227,15 @@ class DownloadManager:
         self,
         max_concurrent_downloads: int = 5,
         cache_max_size_mb: int = 1024,
-        chunk_size: int = 1024 * 1024,  # 1MB chunks
     ):
         self.semaphore = asyncio.Semaphore(max_concurrent_downloads)
         self.disk_cache = DiskFileCache(max_size_mb=cache_max_size_mb)
-        self.chunk_size = chunk_size
         self._active_downloads = 0
         self._total_downloads = 0
-        self._total_bytes_served = 0
         self._lock = asyncio.Lock()
+        # Temp paths handed out to callers because the file didn't fit the
+        # cache; the endpoint releases each after its response completes.
+        self._unmanaged_paths: set[Path] = set()
 
     async def get_file(
         self,
@@ -269,7 +272,6 @@ class DownloadManager:
 
             try:
                 from app.services.telegram import telegram_service
-                import tempfile
 
                 if not await telegram_service.connect():
                     raise Exception("Telegram client not connected — cannot download file")
@@ -322,7 +324,7 @@ class DownloadManager:
                         file_name=str(tmp_path),
                     )
 
-                    if not tmp_path.exists() or tmp_path.stat().st_size == 0:
+                    if not tmp_path.exists() or (await asyncio.to_thread(tmp_path.stat)).st_size == 0:
                         raise Exception("Downloaded file is empty")
 
                     # Step 3: Cache the downloaded file
@@ -338,8 +340,10 @@ class DownloadManager:
                             pass
                         return cached_path
                     else:
-                        # File was too large to cache, return temp path directly
-                        # (caller needs to handle cleanup)
+                        # File was too large to cache: hand the temp path to
+                        # the caller, which must release it via
+                        # release() once the response is sent.
+                        self._unmanaged_paths.add(tmp_path)
                         return tmp_path
 
                 except Exception:
@@ -358,64 +362,29 @@ class DownloadManager:
                 # Rate limiting cooldown
                 await asyncio.sleep(0.5)
 
-    async def stream_file(
-        self,
-        message_id: int,
-        channel_id: int,
-    ) -> AsyncIterator[bytes]:
+    async def release(self, file_path: Path) -> None:
+        """Delete a temp file this manager handed out that was NOT cached.
+
+        Called by endpoints via a BackgroundTask after the response finishes
+        streaming — before this, deleting would corrupt the response.
+        Cached files (inside the disk-cache dir) are intentionally kept.
         """
-        Stream a file in chunks. Uses disk cache if available,
-        otherwise downloads first then streams from disk.
-        Memory: ~1MB per active stream (one chunk buffer).
-        """
-        # Get the file (from cache or download)
-        file_path = await self.get_file(message_id, channel_id)
-
-        # Stream from disk in chunks
-        async for chunk in self._stream_from_disk(file_path):
-            self._total_bytes_served += len(chunk)
-            yield chunk
-
-    async def _stream_from_disk(self, file_path: Path) -> AsyncIterator[bytes]:
-        """Stream a file from disk in chunks (async generator)."""
-        loop = asyncio.get_event_loop()
-
-        def _read_chunks():
-            """Generator that reads file in chunks."""
-            with open(file_path, 'rb') as f:
-                while True:
-                    chunk = f.read(self.chunk_size)
-                    if not chunk:
-                        break
-                    yield chunk
-
-        for chunk in _read_chunks():
-            yield chunk
-            # Yield control to event loop between chunks
-            await asyncio.sleep(0)
-
-    async def get_file_bytes(
-        self,
-        message_id: int,
-        channel_id: int,
-    ) -> bytes:
-        """
-        Get file as bytes (for backward compatibility).
-        Reads from disk cache or downloads first.
-        """
-        file_path = await self.get_file(message_id, channel_id)
-        with open(file_path, 'rb') as f:
-            return f.read()
+        if file_path not in self._unmanaged_paths:
+            return  # cached file (or already released) — keep it
+        self._unmanaged_paths.discard(file_path)
+        try:
+            await asyncio.to_thread(file_path.unlink, missing_ok=True)
+        except Exception:
+            logger.debug(f"Failed to release temp download {file_path}", exc_info=True)
 
     def stats(self) -> dict:
         """Get download manager statistics."""
-        cache_stats = self.disk_cache.stats()
         return {
             "active_downloads": self._active_downloads,
             "total_downloads": self._total_downloads,
-            "total_bytes_served_mb": round(self._total_bytes_served / (1024 * 1024), 2),
             "semaphore_slots_available": self.semaphore._value,
-            "disk_cache": cache_stats,
+            "unmanaged_temp_files": len(self._unmanaged_paths),
+            "disk_cache": self.disk_cache.stats(),
         }
 
 
@@ -423,5 +392,4 @@ class DownloadManager:
 download_manager = DownloadManager(
     max_concurrent_downloads=5,
     cache_max_size_mb=1024,  # 1GB disk cache
-    chunk_size=1024 * 1024,  # 1MB chunks
 )

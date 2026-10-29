@@ -152,6 +152,36 @@ def test_lockout_clear_resets_both_windows():
     limiter.check_and_record("10.0.0.1", "clear@x.example")  # no raise
 
 
+def test_sweep_windowed_drops_stale_and_caps():
+    """Global eviction: stale buckets go, newest survive past the cap."""
+    from app.core.middleware import sweep_windowed
+
+    now = 1_000_000.0
+    d = {
+        "fresh-1": [now - 10.0],
+        "stale": [now - 10_000.0],   # fully outside the window
+        "empty": [],                  # touched-then-pruned bucket
+    }
+    for i in range(5):
+        d[f"bulk-{i}"] = [now - 20.0 - i]
+
+    sweep_windowed(d, window=60.0, now=now, max_keys=4)
+
+    assert "stale" not in d and "empty" not in d  # 1) expired/empty dropped
+    assert len(d) == 4                            # 2) hard cap enforced
+    assert "fresh-1" in d                          # newest buckets survive
+    # The four kept buckets are the newest ones (fresh-1 + bulk-0..2)
+    assert set(d) == {"fresh-1", "bulk-0", "bulk-1", "bulk-2"}
+
+
+def test_sweep_windowed_noop_below_cap():
+    from app.core.middleware import sweep_windowed
+
+    d = {"a": [1.0], "b": [2.0]}
+    sweep_windowed(d, window=60.0, now=1_000_000.0, max_keys=100)
+    assert d == {"a": [1.0], "b": [2.0]}  # untouched — cheap no-op path
+
+
 @pytest.mark.asyncio
 async def test_login_lockout_account_wide_rotating_ips(client: AsyncClient):
     """End-to-end: rotating XFF IPs cannot evade the per-account lockout.

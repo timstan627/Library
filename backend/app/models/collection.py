@@ -30,7 +30,11 @@ class Collection(Base):
     )
 
     # Relationships
-    user = relationship("User", back_populates="collections", lazy="selectin")
+    # user: never read implicitly (user_id is used); raise forces explicit
+    # loading if that ever changes.
+    # items: MUST stay loadable — delete_collection relies on the flush-time
+    # cascade loading items, and item_count/total_size read them.
+    user = relationship("User", back_populates="collections", lazy="raise")
     items = relationship("CollectionItem", back_populates="collection", cascade="all, delete-orphan", lazy="selectin")
 
     @property
@@ -62,4 +66,6 @@ class CollectionItem(Base):
 
     # Relationships
     collection = relationship("Collection", back_populates="items")
-    resource = relationship("Resource", lazy="selectin")
+    # Only accessed after an explicit selectinload (library detail) or via
+    # total_size in handlers that eager-load it; raise keeps it that way.
+    resource = relationship("Resource", lazy="raise")
