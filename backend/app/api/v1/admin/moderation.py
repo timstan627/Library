@@ -2,6 +2,7 @@
 Admin API - Content Moderation (SQLAlchemy)
 """
 import json
+import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from datetime import datetime, timezone
@@ -16,6 +17,8 @@ from app.api.v1.deps import require_moderator
 from app.models.audit_log import AuditLog
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 @router.get("/pending")
@@ -134,13 +137,16 @@ async def moderate_resource(
     resource.moderated_at = now
     resource.rejection_reason = rejection_reason
     
-    # Audit log
-    audit = AuditLog(
-        action=audit_action, actor_id=current_user.id, target_type="resource", target_id=resource_id,
-        details_json=json.dumps({"title": resource.title, "action": action.action,
-                                "rejection_reason": action.rejection_reason if action.action == "reject" else None})
-    )
-    db.add(audit)
+    # Audit failure must never fail the user action (unified policy).
+    try:
+        audit = AuditLog(
+            action=audit_action, actor_id=current_user.id, target_type="resource", target_id=resource_id,
+            details_json=json.dumps({"title": resource.title, "action": action.action,
+                                    "rejection_reason": rejection_reason if action.action == "reject" else None})
+        )
+        db.add(audit)
+    except Exception:
+        logger.exception("Audit log error on moderation action")
     await db.flush()
     
     # Invalidate cached stats

@@ -140,11 +140,15 @@ async def promote_user(
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"User is already {'trusted' if old_status else 'not trusted'}")
     
-    audit = AuditLog(
-        action=action, actor_id=current_user.id, target_type="user", target_id=user_id,
-        details_json=json.dumps({"email": user.email, "old_status": old_status, "new_status": promotion.is_trusted, "reason": promotion.reason})
-    )
-    db.add(audit)
+    # Audit failure must never fail the user action (unified policy).
+    try:
+        audit = AuditLog(
+            action=action, actor_id=current_user.id, target_type="user", target_id=user_id,
+            details_json=json.dumps({"email": user.email, "old_status": old_status, "new_status": promotion.is_trusted, "reason": promotion.reason})
+        )
+        db.add(audit)
+    except Exception:
+        logger.exception("Audit log error on user promotion")
     await db.flush()
     
     return UserPromotionResponse(

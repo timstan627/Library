@@ -43,4 +43,9 @@ is closed.
 
 - [x] ECC installed & verified (312 skills / 103 commands; catalog live in harness)
 - [x] Servers restored after harness restart (backend 8000 healthy, frontend 3000 OK)
-- [ ] Iter 1 …
+- [x] Iter 1 (L1+L2): H2, H3, H4, H5, M9, M16, M17 fixed — commits `cce7296` + `e72ac12`; 118 tests green; live smoke pass
+- [x] Iter 2 (L4): M5 (soft-delete filter + atomic pending write), M6 (409 on resolved), M10 (SMTP timeout + context manager), M12-residual (backup ids persisted) — `test_reliability_iter2.py`, 125 tests green; M18 ("branranch") retracted as tool-display false positive
+- [x] Iter 3 (L1): M15 pagination unification — single envelope everywhere, `pages=ceil` (0 when empty), /history + /trusted enveloped; commit + live smoke pass; 134 tests green
+- [x] Iter 4 (L3): security pass over admin surface + dependency audit (M14) — authz/CORS/role-vocab verified clean; audit-failure policy unified (3 wraps + 3 tests); M14 ledger row updated to fixed; 137 tests green
+- [ ] Iter 5 (L6+L7): docs/CI/Docker + frontend contract verification
+- [ ] Loop exit: findings all closed or owner-deferred; final suite green; final smoke

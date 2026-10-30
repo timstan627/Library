@@ -128,9 +128,13 @@ async def update_department(
     for key, value in update_data.items():
         setattr(department, key, value)
     
-    audit = AuditLog(action="update_department", actor_id=current_user.id, target_type="department",
-                    target_id=str(department.id), details_json=json.dumps(update_data))
-    db.add(audit)
+    # Audit failure must never fail the user action (unified policy).
+    try:
+        audit = AuditLog(action="update_department", actor_id=current_user.id, target_type="department",
+                        target_id=str(department.id), details_json=json.dumps(update_data))
+        db.add(audit)
+    except Exception:
+        logger.exception("Audit log error on department update")
     await db.flush()
     
     return DepartmentResponse(id=str(department.id), name=department.name, code=department.code,
