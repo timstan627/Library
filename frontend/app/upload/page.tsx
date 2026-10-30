@@ -288,7 +288,7 @@ export default function UploadPage() {
                         </div>
                         <h2 className="text-2xl font-bold text-text-primary mb-2">Upload Successful!</h2>
                         <p className="text-text-secondary mb-2">
-                            Your resource "{uploadedResource.title}" has been uploaded.
+                            Your resource &quot;{uploadedResource.title}&quot; has been uploaded.
                         </p>
                         {uploadedResource.moderation_status === 'pending' ? (
                             <p className="text-sm text-warning-light mb-6 flex items-center justify-center gap-1.5">

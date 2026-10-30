@@ -265,7 +265,7 @@ export default function ProfilePage() {
                     ) : (
                         <div className="text-center py-12">
                             <FileText className="w-16 h-16 text-text-muted mx-auto mb-4" />
-                            <p className="text-text-secondary mb-6">You haven't uploaded any resources yet</p>
+                            <p className="text-text-secondary mb-6">You haven&apos;t uploaded any resources yet</p>
                             <Link href="/upload" className="btn btn-primary inline-block">
                                 Upload Your First Resource
                             </Link>

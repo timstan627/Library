@@ -184,7 +184,7 @@ export default function HomePage() {
                                 Ready to Get Started?
                             </h2>
                             <p className="text-text-secondary mb-8 max-w-xl mx-auto">
-                                Join students sharing knowledge with their peers. It's free and takes less than a minute.
+                                Join students sharing knowledge with their peers. It&apos;s free and takes less than a minute.
                             </p>
                             <div className="flex flex-wrap justify-center gap-4">
                                 <Link href="/auth/register" className="btn btn-primary px-8 py-3">

@@ -24,7 +24,7 @@ function ForbiddenContent() {
                 </h1>
 
                 <p className="text-text-secondary mb-8">
-                    You don't have permission to access this page.
+                    You don&apos;t have permission to access this page.
                     {!isAuthenticated && ' Please log in with an authorized account.'}
                     {isAuthenticated && ' Your account does not have the required role.'}
                 </p>

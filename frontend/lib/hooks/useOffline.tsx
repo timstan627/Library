@@ -85,12 +85,12 @@ function OfflineBanner() {
             {isOnline ? (
                 <span className="inline-flex items-center gap-2">
                     <Wifi className="w-4 h-4" />
-                    You're back online!
+                    You&apos;re back online!
                 </span>
             ) : (
                 <span className="inline-flex items-center gap-2">
                     <WifiOff className="w-4 h-4" />
-                    You're offline. Some features may not work.
+                    You&apos;re offline. Some features may not work.
                 </span>
             )}
         </div>

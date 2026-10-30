@@ -67,7 +67,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                         </h1>
 
                         <p className="text-text-secondary mb-6">
-                            We're sorry, but something unexpected happened. Please try again or return to the homepage.
+                            We&apos;re sorry, but something unexpected happened. Please try again or return to the homepage.
                         </p>
 
                         {process.env.NODE_ENV !== 'production' && this.state.error && (

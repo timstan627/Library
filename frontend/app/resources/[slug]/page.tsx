@@ -12,6 +12,9 @@ import { apiHelpers, api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { SkeletonResourceDetail } from '@/components/ui/Skeleton'
 import { ProgressBar } from '@/components/ui/ProgressBar'
+import {
+    DocxPreview, XlsxPreview, PptxPreview, ZipPreview, MarkdownPreview,
+} from '@/components/preview/FilePreview'
 
 interface Resource {
     id: string
@@ -139,6 +142,11 @@ export default function ResourceDetailPage() {
             mime.includes('ms-powerpoint')
     }
 
+    // Helper: check if MIME type is a zip archive
+    const isZipFile = (mime: string) => {
+        return mime === 'application/zip' || mime === 'application/x-zip-compressed' || mime.includes('zip')
+    }
+
     // Helper: check if MIME type is text-based
     const isTextFile = (mime: string) => {
         return mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml'
@@ -160,12 +168,6 @@ export default function ResourceDetailPage() {
 
         const mime = resource.mime_type || ''
 
-        // Office files: show modal immediately with info card (no download needed)
-        if (isOfficeFile(mime)) {
-            setShowPreviewModal(true)
-            return
-        }
-
         setPreviewing(true)
         try {
             // Text files: use the text preview API (returns JSON, no blob)
@@ -178,7 +180,7 @@ export default function ResourceDetailPage() {
                 return
             }
 
-            // Images, PDF, video, audio: use blob preview
+            // Images, PDF, video, audio, Office docs, zip: use blob preview
             const response = await api.get(`/resources/${resource.id}/preview`, {
                 params: { password: password || undefined },
                 responseType: 'blob',
@@ -767,7 +769,7 @@ export default function ResourceDetailPage() {
                             </div>
                         )}
 
-                        {/* Preview Button — supports images, PDF, text, office docs, video, audio */}
+                        {/* Preview Button — supports images, PDF, text, markdown, office docs, zip, video, audio */}
                         {resource.mime_type && (
                             resource.mime_type.startsWith('image/') ||
                             resource.mime_type.startsWith('text/') ||
@@ -775,6 +777,8 @@ export default function ResourceDetailPage() {
                             resource.mime_type.startsWith('audio/') ||
                             resource.mime_type === 'application/pdf' ||
                             resource.mime_type === 'application/json' ||
+                            resource.mime_type === 'application/zip' ||
+                            resource.mime_type === 'application/x-zip-compressed' ||
                             resource.mime_type.includes('spreadsheet') ||
                             resource.mime_type.includes('presentation') ||
                             resource.mime_type.includes('wordprocessing') ||
@@ -915,6 +919,24 @@ export default function ResourceDetailPage() {
                                     <p className="text-lg font-medium text-text-primary mb-4">{resource.file_name}</p>
                                     <audio src={previewUrl} controls className="w-full" />
                                 </div>
+                                /* Markdown — rendered, not raw text */
+                            ) : textContent && resource.file_extension?.toLowerCase() === 'md' ? (
+                                <div className="w-full h-full flex flex-col">
+                                    <div className="flex items-center justify-between gap-3 px-4 py-2 bg-background-tertiary border-b border-border-subtle rounded-t-lg text-xs text-text-secondary">
+                                        <span className="truncate">{resource.file_name}</span>
+                                        <span className="tabular-nums shrink-0">{textContent.line_count} lines</span>
+                                    </div>
+                                    {textContent.truncated && (
+                                        <p className="px-4 py-1.5 bg-warning/10 text-warning-light text-xs">
+                                            Showing first 100KB of {formatFileSize(resource.file_size)}
+                                        </p>
+                                    )}
+                                    <div className="flex-1 overflow-auto p-2 sm:p-4">
+                                        <div className="flex justify-center">
+                                            <MarkdownPreview content={textContent.content} />
+                                        </div>
+                                    </div>
+                                </div>
                                 /* Text content from API */
                             ) : textContent ? (
                                 <div className="w-full h-full flex flex-col">
@@ -931,8 +953,16 @@ export default function ResourceDetailPage() {
                                         {textContent.content}
                                     </pre>
                                 </div>
-                                /* Office files (DOCX, PPTX, XLSX) */
-                            ) : isOfficeFile(resource.mime_type) ? (
+                                /* Office files (DOCX, PPTX, XLSX) + ZIP archives — real renderers */
+                            ) : resource.file_extension?.toLowerCase() === 'docx' && previewUrl ? (
+                                <DocxPreview blobUrl={previewUrl} />
+                            ) : resource.file_extension?.toLowerCase() === 'xlsx' && previewUrl ? (
+                                <XlsxPreview blobUrl={previewUrl} />
+                            ) : resource.file_extension?.toLowerCase() === 'pptx' && previewUrl ? (
+                                <PptxPreview blobUrl={previewUrl} />
+                            ) : isZipFile(resource.mime_type) && previewUrl ? (
+                                <ZipPreview blobUrl={previewUrl} />
+                            ) : isOfficeFile(resource.mime_type) || isZipFile(resource.mime_type) ? (
                                 <div className="text-center p-8 sm:p-12 bg-background-secondary border border-border-subtle rounded-xl max-w-md">
                                     <div className="flex justify-center mb-6">
                                         {resource.mime_type.includes('presentation')
@@ -949,7 +979,7 @@ export default function ResourceDetailPage() {
                                         <span>{resource.file_extension.toUpperCase()}</span>
                                     </p>
                                     <p className="text-sm text-text-secondary mb-6 prose-measure mx-auto">
-                                        Office documents cannot be previewed inline. Download the file to view it in your preferred application.
+                                        Inline preview could not be loaded. Download the file to view it in your preferred application.
                                     </p>
                                     <button
                                         onClick={() => { setShowPreviewModal(false); handleDownload(); }}

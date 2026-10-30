@@ -26,7 +26,7 @@ export default function DMCAPage() {
                 <section>
                     <h2 className="text-xl font-semibold text-text-primary mb-3">DMCA Notice Requirements</h2>
                     <ul className="list-disc pl-5 mt-2 space-y-1">
-                        <li>An electronic or physical signature of the person authorized to act on behalf of the owner of the copyright's interest.</li>
+                        <li>An electronic or physical signature of the person authorized to act on behalf of the owner of the copyright&apos;s interest.</li>
                         <li>A description of the copyrighted work that you claim has been infringed, including the URL (i.e., web page address) of the location where the copyrighted work exists or a copy of the copyrighted work.</li>
                         <li>Identification of the URL or other specific location on the Service where the material that you claim is infringing is located.</li>
                         <li>Your address, telephone number, and email address.</li>

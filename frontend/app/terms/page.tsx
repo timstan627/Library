@@ -42,7 +42,7 @@ export default function TermsPage() {
                 <section>
                     <h2 className="text-xl font-semibold text-text-primary mb-3">5. Disclaimer</h2>
                     <p>
-                        The service is provided "as is" without warranties of any kind. We are not responsible for the accuracy of user-uploaded content.
+                        The service is provided &quot;as is&quot; without warranties of any kind. We are not responsible for the accuracy of user-uploaded content.
                     </p>
                 </section>
             </div>

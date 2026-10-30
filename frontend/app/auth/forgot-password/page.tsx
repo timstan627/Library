@@ -56,7 +56,7 @@ export default function ForgotPasswordPage() {
                         <h2 className="text-2xl font-bold text-text-primary mb-2">Check Your Email</h2>
                         <p className="text-text-secondary mb-6">
                             If an account exists for <span className="font-medium text-text-primary">{email}</span>,
-                            you'll receive a password reset link shortly.
+                            you&apos;ll receive a password reset link shortly.
                         </p>
                         <Link href="/auth/login" className="btn btn-primary w-full py-3 inline-flex justify-center">
                             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -83,7 +83,7 @@ export default function ForgotPasswordPage() {
                         </div>
                         <h1 className="text-2xl font-bold text-text-primary">Forgot Password?</h1>
                         <p className="text-text-secondary mt-2">
-                            Enter your email and we'll send you a reset link.
+                            Enter your email and we&apos;ll send you a reset link.
                         </p>
                     </div>
 
