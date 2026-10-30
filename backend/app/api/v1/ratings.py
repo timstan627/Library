@@ -194,6 +194,7 @@ async def get_resource_ratings(
         "results": results,
         "total": total,
         "page": page,
+        "page_size": size,
         "pages": pages,
         "average_rating": resource.average_rating,
         "rating_count": resource.rating_count,

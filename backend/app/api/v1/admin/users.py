@@ -86,7 +86,7 @@ async def list_users(
             "created_at": user.created_at.isoformat() if user.created_at else None,
         })
     
-    return {"results": results, "total": total, "page": page, "pages": (total + page_size - 1) // page_size}
+    return {"results": results, "total": total, "page": page, "page_size": page_size, "pages": (total + page_size - 1) // page_size}
 
 
 @router.get("/{user_id}/promotion", response_model=UserPromotionResponse)
@@ -154,26 +154,37 @@ async def promote_user(
     )
 
 
-@router.get("/trusted", response_model=List[UserPromotionResponse])
+@router.get("/trusted")
 async def list_trusted_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all trusted contributors."""
+    """List all trusted contributors (M15: standard pagination envelope)."""
+    count_result = await db.execute(
+        select(func.count()).select_from(User).where(User.is_trusted == True)  # noqa: E712
+    )
+    total = count_result.scalar()
+
     result = await db.execute(
-        select(User).where(User.is_trusted == True)
+        select(User).where(User.is_trusted == True)  # noqa: E712
         .order_by(User.promoted_at.desc())
         .offset((page - 1) * page_size).limit(page_size)
     )
     users = result.scalars().all()
     
-    return [
-        UserPromotionResponse(
-            user_id=str(user.id), email=user.email,
-            is_trusted=user.is_trusted, promoted_at=user.promoted_at,
-            promoted_by=user.promoted_by,
-        )
-        for user in users
-    ]
+    return {
+        "results": [
+            UserPromotionResponse(
+                user_id=str(user.id), email=user.email,
+                is_trusted=user.is_trusted, promoted_at=user.promoted_at,
+                promoted_by=user.promoted_by,
+            ).model_dump(mode="json")
+            for user in users
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": (total + page_size - 1) // page_size,
+    }

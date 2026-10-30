@@ -46,3 +46,4 @@ class DepartmentListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+    pages: int

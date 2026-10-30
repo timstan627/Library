@@ -56,7 +56,13 @@ async def get_pending_resources(
             "created_at": resource.created_at.isoformat() if resource.created_at else None,
         })
     
-    return {"results": results, "total": total}
+    return {
+        "results": results,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": (total + page_size - 1) // page_size,
+    }
 
 
 @router.post("/{resource_id}/moderate")
@@ -161,7 +167,7 @@ async def moderate_resource(
     )
 
 
-@router.get("/history", response_model=List[ResourceModerationStatus])
+@router.get("/history")
 async def get_moderation_history(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
@@ -206,7 +212,19 @@ async def get_moderation_history(
             rejection_reason=resource.rejection_reason,
         ))
     
-    return results
+    # M15: standard pagination envelope (was an unpageable bare list).
+    history_total = (
+        await db.execute(
+            select(func.count()).select_from(Resource).where(and_(*filters))
+        )
+    ).scalar()
+    return {
+        "results": [r.model_dump(mode="json") for r in results],
+        "total": history_total,
+        "page": page,
+        "page_size": page_size,
+        "pages": (history_total + page_size - 1) // page_size,
+    }
 
 
 @router.get("/stats")
@@ -278,5 +296,6 @@ async def get_audit_logs(
         "results": results,
         "total": total,
         "page": page,
-        "pages": (total + page_size - 1) // page_size if total > 0 else 0,
+        "page_size": page_size,
+        "pages": (total + page_size - 1) // page_size,
     }

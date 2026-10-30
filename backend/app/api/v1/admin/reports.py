@@ -73,7 +73,7 @@ async def list_reports(
         ],
         "total": total,
         "page": page,
-        "pages": (total + page_size - 1) // page_size if total > 0 else 1,
+        "pages": (total + page_size - 1) // page_size,
     }
 
 

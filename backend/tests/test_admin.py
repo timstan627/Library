@@ -108,8 +108,10 @@ async def test_moderation_stats_and_history(client: AsyncClient, admin_user):
 
     history = await client.get("/api/v1/admin/moderation/history", headers=headers)
     assert history.status_code == 200
-    assert isinstance(history.json(), list)
-    assert len(history.json()) >= 1
+    body = history.json()
+    assert isinstance(body, dict)
+    assert isinstance(body["results"], list)
+    assert len(body["results"]) >= 1
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +147,7 @@ async def test_promote_to_trusted(client: AsyncClient, admin_user):
 
     trusted = await client.get("/api/v1/admin/users/trusted", headers=headers)
     assert trusted.status_code == 200
-    assert target.id in [u["user_id"] for u in trusted.json()]
+    assert target.id in [u["user_id"] for u in trusted.json()["results"]]
 
 
 # ---------------------------------------------------------------------------

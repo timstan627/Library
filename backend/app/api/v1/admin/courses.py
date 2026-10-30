@@ -68,7 +68,8 @@ async def list_courses(
             created_at=course.created_at, updated_at=course.updated_at,
         ))
     
-    return CourseListResponse(results=results, total=total, page=page, page_size=page_size)
+    return CourseListResponse(results=results, total=total, page=page, page_size=page_size,
+                              pages=(total + page_size - 1) // page_size)
 
 
 @router.post("", response_model=CourseResponse, status_code=status.HTTP_201_CREATED)
