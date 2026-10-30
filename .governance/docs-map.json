@@ -1,0 +1,7 @@
+{
+    "constitution": "AGENTS.md",
+    "map": "docs/ARCHITECTURE.md",
+    "status": "docs/STATUS.md",
+    "history": "docs/DECISIONS.md",
+    "contract": "frontend/lib/api.ts"
+}
