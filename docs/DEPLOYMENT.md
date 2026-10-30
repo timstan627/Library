@@ -18,12 +18,14 @@ Two supported paths:
 All values come from `backend/app/core/config.py` (field names uppercased).
 
 **Security (always set in production — the app refuses to boot a production
-deployment with an empty JWT secret):**
+deployment with an empty JWT secret):** generate **three separate** values —
+one per key (never reuse one value for all three, and never reuse a value
+across environments):
 
 ```env
-SECRET_KEY=<openssl rand -hex 32>
-JWT_SECRET_KEY=<openssl rand -hex 32>
-HMAC_SECRET_KEY=<openssl rand -hex 32>
+SECRET_KEY=<openssl rand -hex 32>          # 1st run
+JWT_SECRET_KEY=<openssl rand -hex 32>      # 2nd run
+HMAC_SECRET_KEY=<openssl rand -hex 32>     # 3rd run
 ENVIRONMENT=production
 ```
 
