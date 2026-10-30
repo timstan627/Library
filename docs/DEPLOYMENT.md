@@ -165,7 +165,39 @@ Migrations: **none to run by hand.** Startup runs `Base.metadata.create_all`
 for fresh DBs plus idempotent `_ensure_schema_upgrades()` patches on existing
 ones; the Alembic head produces an identical schema.
 
-### 7. Custom domain (optional)
+### 7. Owner bot commands — backup & restore
+
+Once the `TELEGRAM_*` variables are set, the bot answers **only**
+`TELEGRAM_OWNER_ID` in a private chat (open the bot and press **Start** first —
+bots cannot message users first):
+
+| Command | What it does |
+|---|---|
+| `/backup` | Snapshot the DB (via the SQLite backup API) and upload it to the backup channel now |
+| `/dbstatus` | Database health, size, tables |
+| `/dbsend` | Send the current raw `.db` file to you |
+| `/dbinit` | **Replace the live DB with a `.db` file** — reply to that file in the chat, review, then `/dbinit confirm` |
+
+The nightly scheduler (midnight IST, `tasks/scheduled_backup.py`) does the same
+as `/backup` automatically: local snapshot next to the DB + upload to the
+backup channel. On a volume deployment both copies survive restarts, and the
+boot-time auto-recovery restores from the **local** snapshot when the main DB
+file is missing or corrupt.
+
+**Migrating an existing local database to Koyeb** (paid instance + volume):
+
+1. Deploy and confirm the service turns healthy.
+2. From your PC's Telegram account, send the local `backend/student_library.db`
+   file to the bot in a private chat.
+3. Reply to that file with `/dbinit` → review the warning → `/dbinit confirm`.
+
+The bot validates the file (`PRAGMA quick_check` + table count), backs up the
+current DB first, swaps the file on the volume, and reconnects — users,
+resources, ratings, and history appear without re-uploading anything. On the
+free instance a restore "works" but lands on the ephemeral disk, so it is
+wiped on the next restart/idle wake.
+
+### 8. Custom domain (optional)
 
 Service → Domains → add your domain, then CNAME / ALIAS your DNS record to
 the target Koyeb shows. TLS is automatic. Update `APP_URL` afterwards.
