@@ -257,6 +257,7 @@ export function PptxPreview({ blobUrl }: { blobUrl: string }) {
         if (!container) return
         const abort = new AbortController()
         let disposed = false
+        let cleanupFallback: (() => void) | undefined
         setStatus('loading')
         setErrorMessage('')
         setSlideErrors(0)
@@ -287,10 +288,14 @@ export function PptxPreview({ blobUrl }: { blobUrl: string }) {
                 ])
                 if (disposed || !container) return
 
-                // open() parses, builds the model, and renders. Failures
-                // (corrupt zip, unsupported structure) reject and land in
-                // the catch below — the modal shows an error card and the
-                // download stays available.
+                // open() resolves after the render chain is queued, not after
+                // the first paint — flipping status there shows the spinner
+                // alongside a half-rendered list. The renderer emits
+                // `rendercomplete` when the initial render settles, so wait
+                // for it (pre-wired via the option so an event fired during
+                // open() can't be missed), with a fallback timer so a missed
+                // event can never leave the spinner up forever.
+                let settled = false
                 const viewer = await PptxViewer.open(bytes, container, {
                     renderMode: 'list',
                     zipLimits: RECOMMENDED_ZIP_LIMITS,
@@ -313,12 +318,24 @@ export function PptxPreview({ blobUrl }: { blobUrl: string }) {
                     // Per-node error isolation: a failed shape renders as a
                     // placeholder instead of killing the slide.
                     onSlideError: () => setSlideErrors(n => n + 1),
+                    onRenderComplete: () => { settled = true },
                 })
 
                 if (disposed) { viewer.destroy(); return }
                 viewerRef.current = viewer
                 setSlideCount(viewer.slideCount)
-                setStatus('done')
+
+                const finish = () => { if (!disposed) setStatus('done') }
+                if (settled) {
+                    finish()
+                } else {
+                    const fallback = setTimeout(finish, 2500)
+                    viewer.on('rendercomplete', () => {
+                        clearTimeout(fallback)
+                        finish()
+                    })
+                    cleanupFallback = () => clearTimeout(fallback)
+                }
             } catch (e: any) {
                 if (disposed || abort.signal.aborted) return
                 setErrorMessage(`Could not render presentation: ${e?.message || e}`)
@@ -329,6 +346,7 @@ export function PptxPreview({ blobUrl }: { blobUrl: string }) {
         return () => {
             disposed = true
             abort.abort()
+            cleanupFallback?.()
             window.removeEventListener('unhandledrejection', onUnhandledRejection)
             // Revokes blob URLs, disconnects observers, clears DOM.
             viewerRef.current?.destroy()

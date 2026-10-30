@@ -74,6 +74,42 @@ export default function ResourceDetailPage() {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
     const [textContent, setTextContent] = useState<{ content: string; truncated: boolean; line_count: number } | null>(null)
     const [showPreviewModal, setShowPreviewModal] = useState(false)
+    const closePreviewRef = useRef<HTMLButtonElement>(null)
+
+    // iOS Safari cannot render PDFs inside iframes — remember the device so
+    // the preview can offer a fallback card instead of a blank frame.
+    const [iosDevice] = useState(() => {
+        if (typeof navigator === 'undefined') return false
+        return /iP(hone|od|ad)/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    })
+
+    // Revoke the previous preview blob whenever it is replaced or on unmount,
+    // so large file buffers don't stay pinned for the page lifetime.
+    useEffect(() => {
+        return () => {
+            if (previewUrl) window.URL.revokeObjectURL(previewUrl)
+        }
+    }, [previewUrl])
+
+    // Preview modal: Escape closes it, focus moves to the close button,
+    // background scroll is locked, and focus returns to the trigger on close.
+    useEffect(() => {
+        if (!showPreviewModal) return
+        const opener = document.activeElement as HTMLElement | null
+        closePreviewRef.current?.focus()
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setShowPreviewModal(false)
+        }
+        document.addEventListener('keydown', onKeyDown)
+        const prevOverflow = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+        return () => {
+            document.removeEventListener('keydown', onKeyDown)
+            document.body.style.overflow = prevOverflow
+            opener?.focus?.()
+        }
+    }, [showPreviewModal])
 
     // Rating form
     const [userRating, setUserRating] = useState(0)
@@ -865,7 +901,12 @@ export default function ResourceDetailPage() {
             {/* Preview Modal */}
             {showPreviewModal && resource && (
                 <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-2 sm:p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-gray-900 w-full h-full max-w-6xl rounded-lg flex flex-col overflow-hidden shadow-2xl">
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={`Preview of ${resource.title}`}
+                        className="bg-white dark:bg-gray-900 w-full h-full max-w-6xl rounded-lg flex flex-col overflow-hidden shadow-2xl"
+                    >
                         {/* Modal Header */}
                         <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950">
                             <h3 className="font-semibold text-sm sm:text-lg truncate flex-1 pr-4">{resource.title}</h3>
@@ -878,11 +919,15 @@ export default function ResourceDetailPage() {
                                         title="Download"
                                     >
                                         <Download className="w-4 h-4" />
+                                        <span className="sr-only">Download</span>
                                     </a>
                                 )}
                                 <button
+                                    ref={closePreviewRef}
                                     onClick={() => setShowPreviewModal(false)}
                                     className="btn btn-sm btn-ghost hover:bg-red-500/10 hover:text-red-500"
+                                    title="Close preview"
+                                    aria-label="Close preview"
                                 >
                                     <X className="w-5 h-5" />
                                 </button>
@@ -892,34 +937,54 @@ export default function ResourceDetailPage() {
                         {/* Modal Content */}
                         <div className="flex-1 bg-gray-100 dark:bg-gray-950 overflow-auto flex items-center justify-center p-2 sm:p-4">
                             {/* PDF */}
-                            {resource.mime_type === 'application/pdf' && previewUrl ? (
+                            {resource.mime_type === 'application/pdf' && previewUrl && iosDevice ? (
+                                <div className="text-center p-8 bg-background-secondary border border-border-subtle rounded-lg max-w-md">
+                                    <FileText className="w-16 h-16 text-text-muted mx-auto mb-4" aria-hidden="true" />
+                                    <p className="text-lg font-medium text-text-primary mb-2">{resource.file_name}</p>
+                                    <p className="text-sm text-text-secondary mb-6">
+                                        Inline PDF preview is not supported on this device. Open it in a new tab or download it to view.
+                                    </p>
+                                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                        <a
+                                            href={previewUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="btn btn-primary px-5 py-2.5"
+                                        >
+                                            <Eye className="w-4 h-4 mr-2" /> Open in new tab
+                                        </a>
+                                        <button
+                                            onClick={() => { setShowPreviewModal(false); handleDownload(); }}
+                                            className="btn btn-outline px-5 py-2.5"
+                                        >
+                                            <Download className="w-4 h-4 mr-2" /> Download to View
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : resource.mime_type === 'application/pdf' && previewUrl ? (
                                 <iframe
                                     src={previewUrl}
                                     className="w-full h-full min-h-[500px] border-0 rounded bg-white"
-                                    title="PDF Preview"
+                                    title={`PDF preview of ${resource.file_name}`}
                                 />
-                                /* Images */
                             ) : resource.mime_type.startsWith('image/') && previewUrl ? (
                                 <img
                                     src={previewUrl}
-                                    alt="Preview"
+                                    alt={resource.file_name}
                                     className="max-w-full max-h-full object-contain rounded shadow-lg"
                                 />
-                                /* Video */
                             ) : resource.mime_type.startsWith('video/') && previewUrl ? (
                                 <video
                                     src={previewUrl}
                                     controls
                                     className="max-w-full max-h-full rounded shadow-lg"
                                 />
-                                /* Audio */
                             ) : resource.mime_type.startsWith('audio/') && previewUrl ? (
                                 <div className="w-full max-w-lg p-8 bg-background-secondary border border-border-subtle rounded-lg text-center">
                                     <Music className="w-16 h-16 text-accent-primary mx-auto mb-4" aria-hidden="true" />
                                     <p className="text-lg font-medium text-text-primary mb-4">{resource.file_name}</p>
                                     <audio src={previewUrl} controls className="w-full" />
                                 </div>
-                                /* Markdown — rendered, not raw text */
                             ) : textContent && resource.file_extension?.toLowerCase() === 'md' ? (
                                 <div className="w-full h-full flex flex-col">
                                     <div className="flex items-center justify-between gap-3 px-4 py-2 bg-background-tertiary border-b border-border-subtle rounded-t-lg text-xs text-text-secondary">
@@ -953,8 +1018,8 @@ export default function ResourceDetailPage() {
                                         {textContent.content}
                                     </pre>
                                 </div>
-                                /* Office files (DOCX, PPTX, XLSX) + ZIP archives — real renderers */
                             ) : resource.file_extension?.toLowerCase() === 'docx' && previewUrl ? (
+                                /* Office files (DOCX, PPTX, XLSX) + ZIP archives — real renderers */
                                 <DocxPreview blobUrl={previewUrl} />
                             ) : resource.file_extension?.toLowerCase() === 'xlsx' && previewUrl ? (
                                 <XlsxPreview blobUrl={previewUrl} />
@@ -989,8 +1054,8 @@ export default function ResourceDetailPage() {
                                         Download to View
                                     </button>
                                 </div>
-                                /* Fallback: unknown type */
                             ) : (
+                                /* Fallback: unknown type */
                                 <div className="text-center p-8 bg-background-secondary border border-border-subtle rounded-lg">
                                     <FileText className="w-16 h-16 text-text-muted mx-auto mb-4" aria-hidden="true" />
                                     <p className="text-lg font-medium text-text-primary mb-2">{resource.file_name}</p>
