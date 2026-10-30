@@ -1,5 +1,10 @@
 # 20-Workstream Security & Bug Audit
 
+> **Status: campaign complete (2026-10-28).** These reports are historical
+> records — current project state lives in `docs/STATUS.md`; durable decisions
+> in `docs/DECISIONS.md`. Do not edit these files to "update" them; append
+> corrections to `docs/DECISIONS.md` instead.
+
 Phase 1 is read-only. Each workstream writes one report to `audit/NN-*.md` with verified findings, severity, file:line, reproduction, impact, and a minimal proposed patch. No application code, database, or external service may be modified in Phase 1.
 
 Phase 2 applies the consolidated fixes in controlled batches, with tests and a frontend typecheck/build.

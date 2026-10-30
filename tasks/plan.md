@@ -1,5 +1,8 @@
 # Implementation Plan: Backend Production-Grade Upgrade
 
+> **Archived** — plan executed to completion; ledger in `tasks/findings.md`,
+> decisions in `docs/DECISIONS.md`.
+
 ## Overview
 
 Full audit + upgrade of the FastAPI backend (SQLite/SQLAlchemy, Telegram blob storage, ~7.2k lines / 56 files) to production grade: correctness, security, data integrity, API contract consistency, modularity, performance, observability, tests, and CI. Every endpoint and service file is read line-by-line; findings are verified against source before fixing. Frontend contract (cataloged from `frontend/lib/api.ts` + page usage) must not break.

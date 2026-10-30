@@ -1,5 +1,8 @@
 # ECC Loop Plan — apply ECC skills & agents across the codebase
 
+> **Archived** — loop completed (`a91aaca`, all lanes closed). Outcomes:
+> `docs/DECISIONS.md`; current state: `docs/STATUS.md`.
+
 ECC 2.2.3 installed (official clone @ 25278e7 → `~/.config/opencode/`, user-owned
 `opencode.json` preserved). This session acts as the loop operator: each iteration
 loads the relevant ECC skill(s), dispatches ECC agent personas via subagents, fixes,

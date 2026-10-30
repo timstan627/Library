@@ -129,16 +129,23 @@ The right sidebar stays visible as you scroll:
 
 1. **File Size & Type** — e.g., "2.5 MB — PDF file"
 2. **Download Button** — Click to download with progress bar
-3. **Preview Button** — (for PDFs and images) Opens an in-browser preview modal
+3. **Preview Button** — (for PDF, DOCX, PPTX, XLSX, TXT, MD, JPG, and PNG files; ZIP shows a file listing) Opens an in-browser preview modal
 4. **Share Button** — Copies the resource URL to clipboard
 5. **Report Button** — Report inappropriate content
 6. **File Information** — Filename, MIME type, size, upload date, visibility
 
 ### Preview Modal
-For **PDF files** and **images**, clicking "Preview File" opens a full-screen modal with:
-- Inline PDF viewer
-- Image viewer with the image centered
-- Download and close buttons in the header
+
+Clicking **Preview File** opens a modal that renders the file right in your browser — no download needed:
+
+- **PDF & images (JPG/PNG)** — inline viewer, centered
+- **DOCX** — formatted document text
+- **PPTX** — slides listed in order, scrollable
+- **XLSX** — spreadsheet tables with sheet tabs
+- **TXT & MD** — plain text / rendered markdown
+- **ZIP** — list of the archive's files and sizes
+
+Header buttons: **Download**, **Fullscreen study mode** (edge-to-edge, distraction-free — ideal for slides and notes; press `Esc` to leave fullscreen, `Esc` again to close), and **Close**.
 
 ---
 

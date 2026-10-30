@@ -1,5 +1,9 @@
 # Backend Audit Findings (merged, verified)
 
+> **Archived ledger** — the upgrade campaign is complete (all findings fixed or
+> owner-deferred). Current state and open owner actions: `docs/STATUS.md`.
+> Decisions: `docs/DECISIONS.md`.
+
 Merged from two line-by-line audits (routers + support files) plus the primary
 audit of core files. Every finding below was verified against source or a live
 response. Statuses update as phases complete.

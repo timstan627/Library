@@ -2,7 +2,6 @@
 
 > Enterprise-grade student resource sharing platform with unlimited cloud storage via Telegram, built with **Next.js 14** and **FastAPI**.
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-green.svg)]()
 [![Next.js](https://img.shields.io/badge/next.js-14-black.svg)]()
 [![FastAPI](https://img.shields.io/badge/fastapi-0.109-teal.svg)]()
@@ -14,7 +13,7 @@
 ### For Students
 - **Upload & Share** — Share notes, assignments, exam papers, and study materials
 - **Browse & Search** — Full-text search with filters by department, course, semester, and tags
-- **Download & Preview** — Download files or preview PDFs/images inline in the browser
+- **Download & Preview** — Download files, or preview inline in the browser (PDF, DOCX, PPTX, XLSX, TXT, MD, JPG, PNG; ZIP shows a file listing) with a distraction-free fullscreen study mode
 - **Rate & Review** — Rate resources with 1–5 stars and leave comments
 - **Profile Dashboard** — Track uploads, downloads, and storage usage
 - **Password Protection** — Optionally protect sensitive files with a password
@@ -150,16 +149,45 @@ Students-main/
 │   ├── lib/                    # API client, auth context, utilities
 │   └── package.json
 │
-├── docs/                       # Documentation
+├── docs/                       # Governed documentation
+│   ├── ARCHITECTURE.md         # Map: structure, ownership, "where is X" jump table
+│   ├── STATUS.md               # Current health, open owner actions, delete-zone
+│   ├── DECISIONS.md            # Append-only decision & history log
+│   ├── backend.md              # Backend architecture & ops runbook
+│   ├── API.md                  # API reference
 │   ├── OWNER_GUIDE.md          # Admin/Owner comprehensive guide
 │   ├── USER_GUIDE.md           # Student user guide
-│   ├── API.md                  # API reference
 │   └── DEPLOYMENT.md           # Production deployment guide
 │
+├── audit/                      # Completed audit campaign reports (historical)
+├── tasks/                      # Completed upgrade campaign ledgers (historical)
+│
+├── AGENTS.md                   # Project constitution (rules for agents/contributors)
+├── PRODUCT.md                  # Product intent & principles
+├── DESIGN.md                   # Design system tokens & rationale
+├── CONTRIBUTING.md             # Contribution workflow
+├── TELEGRAM_AND_DATABASE_GUIDE.md  # Storage & database internals
 ├── Dockerfile                  # Single-container Docker build
 ├── nginx.conf                  # Nginx reverse proxy config
 └── README.md                   # This file
 ```
+
+---
+
+## 📚 Documentation
+
+| Start here | File |
+|---|---|
+| **What is this project?** | `PRODUCT.md` + this README |
+| **Contributing / agent rules** | `AGENTS.md` (constitution), `CONTRIBUTING.md` (workflow) |
+| **Where does X live?** | `docs/ARCHITECTURE.md` |
+| **Current status & blockers** | `docs/STATUS.md` |
+| **Why was Y decided?** | `docs/DECISIONS.md`, `audit/`, `tasks/` |
+| **Run / operate it** | below (Quick Start), `docs/DEPLOYMENT.md`, `docs/OWNER_GUIDE.md` |
+| **Backend internals** | `docs/backend.md`, `TELEGRAM_AND_DATABASE_GUIDE.md` |
+| **API** | `docs/API.md` + Swagger at `/docs` |
+| **Using the site** | `docs/USER_GUIDE.md` |
+| **Design system** | `DESIGN.md` |
 
 ---
 
@@ -232,7 +260,9 @@ npm run lint
 
 ## 📄 License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+No LICENSE file is currently present in the repository — the license is
+**to be finalized by the owner** (this README previously claimed MIT without
+the file; tracked in `docs/STATUS.md` owner actions).
 
 ---
 

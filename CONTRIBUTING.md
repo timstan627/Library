@@ -10,11 +10,25 @@ Thank you for your interest in contributing to the Student Resource Library!
    git clone https://github.com/your-username/student-library.git
    cd student-library
    ```
-3. **Set up development environment**
+3. **Backend setup**
    ```bash
-   cp .env.example .env
-   docker-compose up -d
+   cd backend
+   python -m venv venv
+   # Windows: venv\Scripts\activate   |   Linux/Mac: source venv/bin/activate
+   pip install -r requirements.txt -r requirements-dev.txt
+   # Create backend/.env — every variable is documented in docs/OWNER_GUIDE.md
+   python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
    ```
+4. **Frontend setup**
+   ```bash
+   cd frontend
+   npm install
+   npm run dev        # http://localhost:3000
+   ```
+
+No Docker or external database is required for development (SQLite +
+in-memory caches; file storage needs Telegram credentials — see
+`docs/OWNER_GUIDE.md`).
 
 ## Development Workflow
 
@@ -39,11 +53,11 @@ docs: update API documentation
 
 ### Pull Requests
 
-1. Create feature branch from `develop`
+1. Create feature branch from `main`
 2. Make your changes
 3. Write/update tests
 4. Update documentation
-5. Submit PR to `develop`
+5. Submit PR to `main`
 
 ## Code Style
 
@@ -67,7 +81,7 @@ isort .
 ```bash
 cd frontend
 npm run lint
-npm run lint:fix
+npm run type-check
 ```
 
 ## Testing
@@ -76,15 +90,22 @@ npm run lint:fix
 
 ```bash
 cd backend
-pytest
+venv\Scripts\python.exe -m pytest tests/ -q --no-header -p no:cacheprovider
 ```
+
+(Isolated temp SQLite DB; Telegram is faked. On PowerShell the process may
+exit 1 even when green — read the "N passed" line.)
 
 ### Frontend
 
 ```bash
 cd frontend
-npm test
+npm run type-check
+npm run lint
 ```
+
+There is no frontend unit-test runner yet; UI changes are verified with
+`npm run build` in CI and (for preview/UX work) headless-browser checks.
 
 ## Questions?
 
