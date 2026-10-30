@@ -3,10 +3,10 @@
 /**
  * Client-side file preview renderers.
  *
- * Every heavy library (mammoth, SheetJS, pptx-preview, fflate, marked) is
- * dynamically imported inside its component so it lands in a separate
- * lazy-loaded chunk — the resource page bundle stays unchanged until a
- * renderer is actually used.
+ * Every heavy library (mammoth, SheetJS, @aiden0z/pptx-renderer, fflate,
+ * marked) is dynamically imported inside its component so it lands in a
+ * separate lazy-loaded chunk — the resource page bundle stays unchanged
+ * until a renderer is actually used.
  *
  * Renderers receive a blob: URL of the file bytes (already fetched with the
  * user's auth token by the resource page via /resources/{id}/preview).
@@ -14,6 +14,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WorkBook } from 'xlsx'
+// Type-only: erased at runtime, so the library stays behind the dynamic
+// import inside PptxPreview.
+import type { PptxViewer } from '@aiden0z/pptx-renderer'
 
 /* ─────────────────────────── shared shell ─────────────────────────── */
 
@@ -237,64 +240,123 @@ export function XlsxPreview({ blobUrl }: { blobUrl: string }) {
 
 export function PptxPreview({ blobUrl }: { blobUrl: string }) {
     const containerRef = useRef<HTMLDivElement>(null)
-    const runTokenRef = useRef(0)
+    const viewerRef = useRef<PptxViewer | null>(null)
     const [nonce, setNonce] = useState(0)
     const [status, setStatus] = useState<'loading' | 'error' | 'done'>('loading')
     const [errorMessage, setErrorMessage] = useState('')
+    const [slideCount, setSlideCount] = useState(0)
+    const [slideErrors, setSlideErrors] = useState(0)
+    // Mirror of `status` for the unhandledrejection guard below (kept in
+    // sync via effect so the listener doesn't need re-subscribing).
+    const statusRef = useRef<'loading' | 'error' | 'done'>('loading')
+
+    useEffect(() => { statusRef.current = status }, [status])
 
     useEffect(() => {
-        const token = ++runTokenRef.current
-        let disposed = false
-        let observer: ResizeObserver | null = null
         const container = containerRef.current
+        if (!container) return
+        const abort = new AbortController()
+        let disposed = false
         setStatus('loading')
+        setErrorMessage('')
+        setSlideErrors(0)
+        setSlideCount(0)
+
+        // Belt-and-braces: the previous renderer crashed via a detached
+        // promise chain, escaping every try/catch. This renderer resolves
+        // everything through catchable promises and isolates per-node
+        // errors, but a crash in an internal detached chain would still
+        // surface as an unhandled rejection (full-screen error overlay in
+        // dev). While this preview is mounted, suppress rejections that
+        // plausibly belong to the renderer; anything else passes through.
+        const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+            const reason = event.reason
+            const stack = reason instanceof Error ? reason.stack || '' : String(reason ?? '')
+            if (statusRef.current !== 'done' || /pptx/i.test(stack)) {
+                event.preventDefault()
+                console.warn('[PptxPreview] suppressed renderer rejection:', reason)
+            }
+        }
+        window.addEventListener('unhandledrejection', onUnhandledRejection)
+
         ;(async () => {
             try {
-                const { init } = await import('pptx-preview')
-                const bytes = await fetchBytes(blobUrl)
-                if (disposed || token !== runTokenRef.current || !container) return
+                const [{ PptxViewer, RECOMMENDED_ZIP_LIMITS }, bytes] = await Promise.all([
+                    import('@aiden0z/pptx-renderer'),
+                    fetchBytes(blobUrl),
+                ])
+                if (disposed || !container) return
 
-                // pptx-preview scales slides to the width it was initialized
-                // with — re-init when the container width changes meaningfully.
-                let lastWidth = 0
-                const render = () => {
-                    if (disposed || token !== runTokenRef.current || !container) return
-                    const width = Math.max(320, Math.min(container.clientWidth || 960, 1100))
-                    if (lastWidth !== 0 && Math.abs(width - lastWidth) < 40) return
-                    lastWidth = width
-                    container.innerHTML = ''
-                    init(container, {
-                        width,
-                        height: Math.round(width * 0.5625),
-                    }).preview(bytes)
-                    if (token === runTokenRef.current) setStatus('done')
-                }
+                // open() parses, builds the model, and renders. Failures
+                // (corrupt zip, unsupported structure) reject and land in
+                // the catch below — the modal shows an error card and the
+                // download stays available.
+                const viewer = await PptxViewer.open(bytes, container, {
+                    renderMode: 'list',
+                    zipLimits: RECOMMENDED_ZIP_LIMITS,
+                    // Decks reach tens of MB: defer slide-node parsing and
+                    // media decoding until a slide actually scrolls into
+                    // view, and keep off-screen slides out of the DOM.
+                    lazySlides: true,
+                    lazyMedia: true,
+                    signal: abort.signal,
+                    listOptions: {
+                        windowed: true,
+                        initialSlides: 4,
+                        batchSize: 8,
+                        overscanViewport: 1.5,
+                    },
+                    // Decks are user-uploaded: block external image/media
+                    // relationships so previewing never contacts third-party
+                    // servers. Embedded media is unaffected.
+                    externalMedia: 'block',
+                    // Per-node error isolation: a failed shape renders as a
+                    // placeholder instead of killing the slide.
+                    onSlideError: () => setSlideErrors(n => n + 1),
+                })
 
-                render()
-                observer = new ResizeObserver(() => render())
-                observer.observe(container)
+                if (disposed) { viewer.destroy(); return }
+                viewerRef.current = viewer
+                setSlideCount(viewer.slideCount)
+                setStatus('done')
             } catch (e: any) {
-                if (!disposed && token === runTokenRef.current) {
-                    setErrorMessage(`Could not render presentation: ${e?.message || e}`)
-                    setStatus('error')
-                }
+                if (disposed || abort.signal.aborted) return
+                setErrorMessage(`Could not render presentation: ${e?.message || e}`)
+                setStatus('error')
             }
         })()
+
         return () => {
             disposed = true
-            observer?.disconnect()
-            // The library attaches its own elements to the container.
+            abort.abort()
+            window.removeEventListener('unhandledrejection', onUnhandledRejection)
+            // Revokes blob URLs, disconnects observers, clears DOM.
+            viewerRef.current?.destroy()
+            viewerRef.current = null
             if (container) container.innerHTML = ''
         }
     }, [blobUrl, nonce])
 
     return (
-        <div className="w-full">
+        <div className="w-full h-full flex flex-col">
             {status === 'loading' && <LoadingNote label="Rendering slides…" />}
             {status === 'error' && (
                 <ErrorNote message={errorMessage} retry={() => setNonce(n => n + 1)} />
             )}
-            <div ref={containerRef} className={status === 'done' ? 'w-full' : 'hidden'} />
+            {status === 'done' && (slideCount > 0 || slideErrors > 0) && (
+                <div className="shrink-0 flex items-center gap-3 px-3 py-1.5 text-xs text-text-secondary">
+                    {slideCount > 0 && <span className="tabular-nums">{slideCount} slides</span>}
+                    {slideErrors > 0 && (
+                        <span className="text-warning-light">
+                            {slideErrors} slide{slideErrors === 1 ? '' : 's'} had unsupported elements
+                        </span>
+                    )}
+                </div>
+            )}
+            <div
+                ref={containerRef}
+                className={`flex-1 min-h-0 w-full ${status === 'error' ? 'hidden' : ''}`}
+            />
         </div>
     )
 }

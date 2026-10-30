@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@aiden0z/pptx-renderer": "^1.4.0",
     "@hookform/resolvers": "^3.3.4",
     "@tanstack/react-query": "^5.17.0",
     "axios": "^1.6.5",
@@ -24,7 +25,6 @@
     "marked": "^18.1.2",
     "next": "^14.1.0",
     "nextjs-toploader": "^3.9.17",
-    "pptx-preview": "^1.0.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.49.3",
