@@ -47,5 +47,5 @@ is closed.
 - [x] Iter 2 (L4): M5 (soft-delete filter + atomic pending write), M6 (409 on resolved), M10 (SMTP timeout + context manager), M12-residual (backup ids persisted) — `test_reliability_iter2.py`, 125 tests green; M18 ("branranch") retracted as tool-display false positive
 - [x] Iter 3 (L1): M15 pagination unification — single envelope everywhere, `pages=ceil` (0 when empty), /history + /trusted enveloped; commit + live smoke pass; 134 tests green
 - [x] Iter 4 (L3): security pass over admin surface + dependency audit (M14) — authz/CORS/role-vocab verified clean; audit-failure policy unified (3 wraps + 3 tests); M14 ledger row updated to fixed; 137 tests green
-- [ ] Iter 5 (L6+L7): docs/CI/Docker + frontend contract verification
+- [x] Iter 5 (L6+L7): docs refresh (backend.md invariants 6–7 + residual gaps pruned; API.md pagination-envelope section), CI/Docker review (already reality-based: dev deps excluded from image, image-build gate in CI, non-root + healthcheck — no changes needed), frontend contract verified (zero frontend diff across iters 1–4)
 - [ ] Loop exit: findings all closed or owner-deferred; final suite green; final smoke

@@ -47,6 +47,14 @@ backend/
    instances (concurrent requests would lose increments). Likewise never mix
    `db.execute(update(...))` with `instance.attr += 1` in one request — the
    RETURNING sync double-counts; use `db.refresh(...)` after the UPDATE.
+6. **One pagination envelope.** Every paginated admin endpoint returns
+   `{results, total, page, page_size, pages}` with `pages = ceil(total /
+   page_size)` — i.e. `0` when the list is empty. New admin list endpoints
+   must follow it (tests: `tests/test_pagination_contract.py`).
+7. **Audit never gates.** Audit-log writes are observability, not part of the
+   transaction: every admin mutation wraps its `AuditLog` write in
+   try/except + `logger.exception`. An audit failure must never fail the
+   user action (tests: `tests/test_security_hardening.py`).
 
 ## Request flow (download path)
 
@@ -165,11 +173,8 @@ in the system temp dir.
 
 ## Known residual gaps (tracked in tasks/findings.md)
 
-- Admin course/department delete cascades hard-delete resource rows (H2) —
-  Telegram files orphaned; needs a soft-delete + file-cleanup design.
-- Backup message ids not persisted (M12 residual).
 - `semaphore._value` private access in download stats (cosmetic).
 - Upload buffers the whole file in RAM (acceptable at the 50 MB cap; stream
   to disk is the eventual fix).
-- The leaked MongoDB Atlas credential must be rotated by the owner — deleting
-  the scripts does not scrub git history.
+- The leaked MongoDB Atlas credential and exposed password must be rotated
+  by the owner — deleting the scripts does not scrub git history.

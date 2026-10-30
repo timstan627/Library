@@ -226,6 +226,28 @@ Get platform statistics.
 
 ---
 
+### Pagination (admin endpoints)
+
+Every paginated admin endpoint (`/admin/moderation/pending`, `/admin/moderation/history`,
+`/admin/moderation/audit-logs`, `/admin/users`, `/admin/users/trusted`,
+`/admin/reports`, `/admin/departments`, `/admin/courses`) returns the same envelope:
+
+```json
+{
+  "results": [],
+  "total": 47,
+  "page": 1,
+  "page_size": 20,
+  "pages": 3
+}
+```
+
+`pages = ceil(total / page_size)` — therefore `pages` is `0` when the list is
+empty. Resource ratings (`GET /ratings/resources/{id}`) return the same keys
+plus `average_rating` / `rating_count` (its page-size query param is `size`).
+
+---
+
 ## Error Responses
 
 All errors follow this format:
