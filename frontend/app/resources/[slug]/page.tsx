@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
     Download, Star, Eye, FileText, Calendar, User, Tag, Share2, Flag,
     ArrowLeft, Lock, CheckCircle, Clock, X, Edit3, Save, Loader2, Trash2,
-    AlertTriangle, Music, Presentation, TrendingUp
+    AlertTriangle, Music, Presentation, TrendingUp, Maximize2, Minimize2
 } from 'lucide-react'
 import { apiHelpers, api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
@@ -76,6 +76,11 @@ export default function ResourceDetailPage() {
     const [showPreviewModal, setShowPreviewModal] = useState(false)
     const closePreviewRef = useRef<HTMLButtonElement>(null)
 
+    // Distraction-free study mode: the modal already covers the page, this
+    // additionally drops the outer gutters and max-width so the document
+    // fills the viewport edge to edge.
+    const [previewFullscreen, setPreviewFullscreen] = useState(false)
+
     // iOS Safari cannot render PDFs inside iframes — remember the device so
     // the preview can offer a fallback card instead of a blank frame.
     const [iosDevice] = useState(() => {
@@ -92,14 +97,18 @@ export default function ResourceDetailPage() {
         }
     }, [previewUrl])
 
-    // Preview modal: Escape closes it, focus moves to the close button,
-    // background scroll is locked, and focus returns to the trigger on close.
+    // Preview modal: Escape exits fullscreen first (then closes), focus moves
+    // to the close button, background scroll is locked, and focus returns to
+    // the trigger on close.
     useEffect(() => {
         if (!showPreviewModal) return
         const opener = document.activeElement as HTMLElement | null
         closePreviewRef.current?.focus()
         const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setShowPreviewModal(false)
+            if (e.key !== 'Escape') return
+            e.preventDefault()
+            if (previewFullscreen) setPreviewFullscreen(false)
+            else setShowPreviewModal(false)
         }
         document.addEventListener('keydown', onKeyDown)
         const prevOverflow = document.body.style.overflow
@@ -108,8 +117,9 @@ export default function ResourceDetailPage() {
             document.removeEventListener('keydown', onKeyDown)
             document.body.style.overflow = prevOverflow
             opener?.focus?.()
+            setPreviewFullscreen(false)
         }
-    }, [showPreviewModal])
+    }, [showPreviewModal, previewFullscreen])
 
     // Rating form
     const [userRating, setUserRating] = useState(0)
@@ -900,12 +910,12 @@ export default function ResourceDetailPage() {
 
             {/* Preview Modal */}
             {showPreviewModal && resource && (
-                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-2 sm:p-4 animate-fade-in">
+                <div className={`fixed inset-0 bg-black/80 z-50 flex items-center justify-center animate-fade-in ${previewFullscreen ? 'p-0' : 'p-2 sm:p-4'}`}>
                     <div
                         role="dialog"
                         aria-modal="true"
                         aria-label={`Preview of ${resource.title}`}
-                        className="bg-white dark:bg-gray-900 w-full h-full max-w-6xl rounded-lg flex flex-col overflow-hidden shadow-2xl"
+                        className={`bg-white dark:bg-gray-900 w-full h-full flex flex-col overflow-hidden shadow-2xl ${previewFullscreen ? 'max-w-none rounded-none' : 'max-w-6xl rounded-lg'}`}
                     >
                         {/* Modal Header */}
                         <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950">
@@ -922,6 +932,15 @@ export default function ResourceDetailPage() {
                                         <span className="sr-only">Download</span>
                                     </a>
                                 )}
+                                <button
+                                    onClick={() => setPreviewFullscreen(fs => !fs)}
+                                    className="btn btn-sm btn-ghost"
+                                    title={previewFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen (distraction-free)'}
+                                    aria-label={previewFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                                    aria-pressed={previewFullscreen}
+                                >
+                                    {previewFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                                </button>
                                 <button
                                     ref={closePreviewRef}
                                     onClick={() => setShowPreviewModal(false)}

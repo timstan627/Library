@@ -299,6 +299,13 @@ export function PptxPreview({ blobUrl }: { blobUrl: string }) {
                 const viewer = await PptxViewer.open(bytes, container, {
                     renderMode: 'list',
                     zipLimits: RECOMMENDED_ZIP_LIMITS,
+                    // The container itself is the scroller (overflow-y-auto
+                    // below): slide wrappers are normal-flow children, and
+                    // windowed mounting observes intersections against this
+                    // element. Without it the renderer roots its observers at
+                    // the browser viewport and the modal can cut off the last
+                    // slide's scroll extent.
+                    scrollContainer: container,
                     // Decks reach tens of MB: defer slide-node parsing and
                     // media decoding until a slide actually scrolls into
                     // view, and keep off-screen slides out of the DOM.
@@ -373,7 +380,8 @@ export function PptxPreview({ blobUrl }: { blobUrl: string }) {
             )}
             <div
                 ref={containerRef}
-                className={`flex-1 min-h-0 w-full ${status === 'error' ? 'hidden' : ''}`}
+                data-pptx-scroll
+                className={`flex-1 min-h-0 w-full overflow-y-auto overscroll-contain ${status === 'error' ? 'hidden' : ''}`}
             />
         </div>
     )
