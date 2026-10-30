@@ -100,6 +100,16 @@ export default function ResourceDetailPage() {
     // Preview modal: Escape exits fullscreen first (then closes), focus moves
     // to the close button, background scroll is locked, and focus returns to
     // the trigger on close.
+    //
+    // The Escape handler reads fullscreen state through a ref instead of
+    // listing previewFullscreen in the deps: with it listed, every toggle
+    // re-ran this effect and its cleanup reset fullscreen to false —
+    // instantly undoing the toggle.
+    const fullscreenRef = useRef(false)
+    useEffect(() => {
+        fullscreenRef.current = previewFullscreen
+    }, [previewFullscreen])
+
     useEffect(() => {
         if (!showPreviewModal) return
         const opener = document.activeElement as HTMLElement | null
@@ -107,7 +117,7 @@ export default function ResourceDetailPage() {
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key !== 'Escape') return
             e.preventDefault()
-            if (previewFullscreen) setPreviewFullscreen(false)
+            if (fullscreenRef.current) setPreviewFullscreen(false)
             else setShowPreviewModal(false)
         }
         document.addEventListener('keydown', onKeyDown)
@@ -119,7 +129,7 @@ export default function ResourceDetailPage() {
             opener?.focus?.()
             setPreviewFullscreen(false)
         }
-    }, [showPreviewModal, previewFullscreen])
+    }, [showPreviewModal])
 
     // Rating form
     const [userRating, setUserRating] = useState(0)
