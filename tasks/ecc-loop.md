@@ -48,4 +48,4 @@ is closed.
 - [x] Iter 3 (L1): M15 pagination unification — single envelope everywhere, `pages=ceil` (0 when empty), /history + /trusted enveloped; commit + live smoke pass; 134 tests green
 - [x] Iter 4 (L3): security pass over admin surface + dependency audit (M14) — authz/CORS/role-vocab verified clean; audit-failure policy unified (3 wraps + 3 tests); M14 ledger row updated to fixed; 137 tests green
 - [x] Iter 5 (L6+L7): docs refresh (backend.md invariants 6–7 + residual gaps pruned; API.md pagination-envelope section), CI/Docker review (already reality-based: dev deps excluded from image, image-build gate in CI, non-root + healthcheck — no changes needed), frontend contract verified (zero frontend diff across iters 1–4)
-- [ ] Loop exit: findings all closed or owner-deferred; final suite green; final smoke
+- [x] Loop exit (Iter 6): **COMPLETE** — 33/33 findings closed or owner-deferred (C4 Atlas credential + H10 password rotation are the only outstanding items, both owner actions on git-history secrets); final suite 137 passed; final smoke green (health 200, public stats, both listeners up); backend running iter-4 code, docs current
