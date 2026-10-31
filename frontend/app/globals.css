@@ -297,6 +297,16 @@ a:hover {
     animation: fadeUp var(--dur-slow) var(--ease-out-expo) both;
   }
 
+  /* Page-level wrapper entrance (app/template.tsx). Opacity-only on purpose:
+     anything animating transform on this wrapper — including an retained
+     identity transform from fill-mode: both — turns it into the containing
+     block for every position:fixed descendant, so modal overlays size
+     against the page box instead of the viewport (broken fullscreen/scroll
+     geometry everywhere). Never add a transform to this animation. */
+  .animate-page-enter {
+    animation: fadeIn var(--dur-slow) var(--ease-out-expo) both;
+  }
+
   .animate-scale-in {
     animation: scaleIn var(--dur-fast) var(--ease-out-expo) both;
   }
@@ -324,7 +334,12 @@ a:hover {
 
   to {
     opacity: 1;
-    transform: translateY(0);
+    /* End at `none`, never an identity transform (even translateY(0) is
+       computed as a matrix and retained by fill-mode: both). A retained
+       transform makes the element the containing block for every
+       position:fixed descendant, which collapses modal overlays sized
+       against the page box instead of the viewport. */
+    transform: none;
   }
 }
 
