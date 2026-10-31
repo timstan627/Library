@@ -918,9 +918,11 @@ export default function ResourceDetailPage() {
                 </div>
             </div>
 
-            {/* Preview Modal */}
+            {/* Preview Modal — z-[60]: strictly above the sticky header (z-50); at
+    equal z the modal's button row shares the top-bar band on mobile and
+    gets visually buried in the translucent blurred site bar */}
             {showPreviewModal && resource && (
-                <div className={`fixed inset-0 bg-black/80 z-50 flex items-center justify-center animate-fade-in ${previewFullscreen ? 'p-0' : 'p-2 sm:p-4'}`}>
+                <div className={`fixed inset-0 bg-black/80 z-[60] flex items-center justify-center animate-fade-in ${previewFullscreen ? 'p-0' : 'p-2 sm:p-4'}`}>
                     <div
                         role="dialog"
                         aria-modal="true"
@@ -1104,7 +1106,7 @@ export default function ResourceDetailPage() {
 
             {/* Edit Modal */}
             {showEditModal && resource && (
-                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 animate-fade-in">
+                <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-background-secondary w-full max-w-lg rounded-xl shadow-2xl border border-border-subtle overflow-hidden">
                         {/* Modal Header */}
                         <div className="flex items-center justify-between p-5 border-b border-border-subtle">
@@ -1244,7 +1246,7 @@ export default function ResourceDetailPage() {
 
             {/* Delete Confirmation Modal */}
             {showDeleteConfirm && (
-                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 animate-fade-in">
+                <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-background-secondary w-full max-w-sm rounded-xl shadow-2xl border border-border-subtle p-6 text-center">
                         <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Trash2 className="w-6 h-6 text-red-500" />
