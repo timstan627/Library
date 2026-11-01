@@ -355,13 +355,6 @@ All requests are timed via middleware. Check backend logs for performance data:
 
 These operations require admin role and explicit confirmation:
 
-#### Clear All Data
-```bash
-curl -X DELETE "http://localhost:8000/api/v1/admin/clear-all?confirm=CONFIRM_DELETE_ALL" \
-  -H "Authorization: Bearer <admin_token>"
-```
-> ⚠️ **This permanently deletes ALL resources from database and Telegram. Cannot be undone.**
-
 #### Bulk Delete Resources
 ```bash
 curl -X POST "http://localhost:8000/api/v1/admin/resources/bulk-delete" \
@@ -487,19 +480,15 @@ rm backend/student_library.db
 
 | Category | Method | Endpoint | Auth |
 |----------|--------|----------|------|
-| Dashboard | `GET` | `/api/v1/admin/dashboard` | Moderator+ |
-| DB Stats | `GET` | `/api/v1/admin/db-stats` | Admin |
-| List Resources | `GET` | `/api/v1/admin/resources` | Moderator+ |
+| Dashboard | `GET` | `/api/v1/admin/dashboard` | Admin |
+| List Resources | `GET` | `/api/v1/admin/resources` | Admin |
 | Delete Resource | `DELETE` | `/api/v1/admin/resources/{id}` | Admin |
-| Perm Delete | `DELETE` | `/api/v1/admin/resources/{id}/permanent` | Admin |
 | Bulk Delete | `POST` | `/api/v1/admin/resources/bulk-delete` | Admin |
-| Clear All | `DELETE` | `/api/v1/admin/clear-all` | Admin |
 | List Users | `GET` | `/api/v1/admin/users` | Admin |
-| Update Role | `PUT` | `/api/v1/admin/users/{id}/role` | Admin |
-| Ban User | `POST` | `/api/v1/admin/users/{id}/ban` | Admin |
-| Unban User | `POST` | `/api/v1/admin/users/{id}/unban` | Admin |
-| List Reports | `GET` | `/api/v1/admin/reports` | Moderator+ |
-| Update Report | `PUT` | `/api/v1/admin/reports/{id}` | Moderator+ |
+| Trusted List | `GET` | `/api/v1/admin/users/trusted` | Admin |
+| Promote Trusted | `POST` | `/api/v1/admin/users/{id}/promote` | Admin |
+| List Reports | `GET` | `/api/v1/admin/reports` | Admin |
+| Resolve Report | `PUT` | `/api/v1/admin/reports/{id}` | Admin |
 | Departments | `CRUD` | `/api/v1/admin/departments` | Admin |
 | Courses | `CRUD` | `/api/v1/admin/courses` | Admin |
 | Moderation | `CRUD` | `/api/v1/admin/moderation` | Moderator+ |
