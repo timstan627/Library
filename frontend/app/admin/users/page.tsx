@@ -50,7 +50,9 @@ export default function UserPromotionPage() {
         setLoading(true)
         try {
             const response = await apiHelpers.getTrustedUsers()
-            setUsers(response.data)
+            // Envelope {results: [UserPromotionResponse]}; the id key is user_id.
+            const rows: any[] = Array.isArray(response.data) ? response.data : response.data.results ?? []
+            setUsers(rows.map((u: any) => ({ ...u, id: u.id ?? u.user_id })))
             setFetchError(null)
         } catch (error) {
             console.error('Failed to fetch trusted users:', error)

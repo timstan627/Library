@@ -177,7 +177,7 @@ export default function UploadPage() {
             if (tags.trim()) {
                 formData.append('tags', tags.split(',').map(t => t.trim()).filter(Boolean).join(','))
             }
-            if (visibility === 'private' && password) {
+            if (visibility === 'password' && password) {
                 formData.append('password', password)
             }
 

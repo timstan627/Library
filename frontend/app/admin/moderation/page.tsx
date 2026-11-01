@@ -91,9 +91,10 @@ export default function ModerationPage() {
     const fetchHistory = async () => {
         setLoading(true)
         try {
-            // Returns a bare list; page_size 200 (backend max) covers realistic history sizes.
+            // Backend sends the standard {results, total, page, ...} envelope;
+            // page_size 200 (backend max) covers realistic history sizes.
             const response = await apiHelpers.getModerationHistory(1, 200)
-            setHistory(response.data)
+            setHistory(response.data.results ?? [])
             setTotalPages(1)
             setFetchError(null)
         } catch (error) {

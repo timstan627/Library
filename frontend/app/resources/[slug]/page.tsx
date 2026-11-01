@@ -33,7 +33,7 @@ interface Resource {
     slug: string
     description?: string
     course_code: string
-    department?: string
+    department_name?: string
     semester?: string
     branch?: string
     file_name: string
@@ -434,7 +434,7 @@ export default function ResourceDetailPage() {
             title: resource.title || '',
             description: resource.description || '',
             course_code: resource.course_code || '',
-            department: resource.department || '',
+            department: resource.department_name || '',
             semester: resource.semester || '',
             tags: resource.tags?.join(', ') || '',
             visibility: resource.visibility || 'public',
@@ -456,8 +456,8 @@ export default function ResourceDetailPage() {
                 updateData.description = editForm.description.trim() || null
             if (editForm.course_code.trim() !== resource.course_code)
                 updateData.course_code = editForm.course_code.trim()
-            if (editForm.department !== (resource.department || ''))
-                updateData.department = editForm.department.trim() || null
+            if (editForm.department !== (resource.department_name || ''))
+                updateData.department = editForm.department.trim() || ''
             if (editForm.semester !== (resource.semester || ''))
                 updateData.semester = editForm.semester.trim() || null
             if (editForm.visibility !== resource.visibility)
@@ -552,7 +552,7 @@ export default function ResourceDetailPage() {
                         {/* Course badge + metadata */}
                         <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-text-secondary mt-1">
                             {resource.course_code && <span className="badge badge-primary text-xs break-words">{resource.course_code}</span>}
-                            {resource.department && <span>{resource.department}</span>}
+                            {resource.department_name && <span>{resource.department_name}</span>}
                             {resource.semester && <span>{/^sem/i.test(resource.semester) ? resource.semester : `Semester ${resource.semester}`}</span>}
                         </div>
                         {/* Edit/Delete buttons — below title, always visible as a row */}

@@ -106,21 +106,9 @@ function ResourcesContent() {
         }
     }
 
-    const handleDeleteAll = async () => {
-        if (!confirm('Are you sure you want to delete ALL resources? This cannot be undone!')) return
-        setDeleting(true)
-        try {
-            await api.delete('/admin/clear-all-data', { params: { confirm: 'CONFIRM_DELETE_ALL' } })
-            setResources([])
-            setSelectedIds(new Set())
-            alert('All resources deleted')
-        } catch (error) {
-            console.error('Clear all failed:', error)
-            alert('Clear all failed')
-        } finally {
-            setDeleting(false)
-        }
-    }
+    // NOTE: the old "Delete All" call was removed. The backend endpoint
+    // (DELETE /admin/clear-all-data) was dropped in the security pass
+    // (commit 01d7045); a destructive wipe-everything route is not coming back.
 
     const filteredResources = resources.filter(r =>
         r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -144,14 +132,6 @@ function ResourcesContent() {
                     <button onClick={fetchResources} className="btn btn-secondary" disabled={loading}>
                         <RefreshCcw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                         Refresh
-                    </button>
-                    <button
-                        onClick={handleDeleteAll}
-                        className="btn bg-red-600 hover:bg-red-700 text-white"
-                        disabled={deleting}
-                    >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete All
                     </button>
                 </div>
             </div>
