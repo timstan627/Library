@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -15,6 +16,16 @@ import { ProgressBar } from '@/components/ui/ProgressBar'
 import {
     DocxPreview, XlsxPreview, PptxPreview, ZipPreview, MarkdownPreview,
 } from '@/components/preview/FilePreview'
+
+// Modals render through a portal to document.body: keeps the overlays outside
+// every page-level stacking context (page-enter animation, transforms on any
+// future page wrapper), so `fixed` + z-[60] always resolves against the
+// viewport and paints above the sticky header (z-50) — never capped or
+// re-ranked by an ancestor.
+function BodyPortal({ children }: { children: React.ReactNode }) {
+    if (typeof document === 'undefined') return null
+    return createPortal(children, document.body)
+}
 
 interface Resource {
     id: string
@@ -922,6 +933,7 @@ export default function ResourceDetailPage() {
     equal z the modal's button row shares the top-bar band on mobile and
     gets visually buried in the translucent blurred site bar */}
             {showPreviewModal && resource && (
+                <BodyPortal>
                 <div className={`fixed inset-0 bg-black/80 z-[60] flex items-center justify-center animate-fade-in ${previewFullscreen ? 'p-0' : 'p-2 sm:p-4'}`}>
                     <div
                         role="dialog"
@@ -1102,10 +1114,12 @@ export default function ResourceDetailPage() {
                         </div>
                     </div>
                 </div>
+                </BodyPortal>
             )}
 
             {/* Edit Modal */}
             {showEditModal && resource && (
+                <BodyPortal>
                 <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-background-secondary w-full max-w-lg rounded-xl shadow-2xl border border-border-subtle overflow-hidden">
                         {/* Modal Header */}
@@ -1242,10 +1256,12 @@ export default function ResourceDetailPage() {
                         </div>
                     </div>
                 </div>
+                </BodyPortal>
             )}
 
             {/* Delete Confirmation Modal */}
             {showDeleteConfirm && (
+                <BodyPortal>
                 <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-background-secondary w-full max-w-sm rounded-xl shadow-2xl border border-border-subtle p-6 text-center">
                         <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -1283,6 +1299,7 @@ export default function ResourceDetailPage() {
                         </div>
                     </div>
                 </div>
+                </BodyPortal>
             )}
         </div>
     )
