@@ -454,7 +454,7 @@ export default function ResourceDetailPage() {
                 updateData.title = editForm.title.trim()
             if (editForm.description !== (resource.description || ''))
                 updateData.description = editForm.description.trim() || null
-            if (editForm.course_code.trim() && editForm.course_code !== resource.course_code)
+            if (editForm.course_code.trim() !== resource.course_code)
                 updateData.course_code = editForm.course_code.trim()
             if (editForm.department !== (resource.department || ''))
                 updateData.department = editForm.department.trim() || null
@@ -534,7 +534,7 @@ export default function ResourceDetailPage() {
                 <span>/</span>
                 <Link href="/browse" className="hover:text-text-primary">Browse</Link>
                 <span>/</span>
-                <span className="text-text-primary break-words min-w-0">{resource.course_code}</span>
+                <span className="text-text-primary break-words min-w-0">{resource.course_code || resource.title}</span>
             </div>
 
             {/* Header Card — always shows first, above the grid */}
@@ -551,7 +551,7 @@ export default function ResourceDetailPage() {
                         </h1>
                         {/* Course badge + metadata */}
                         <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-text-secondary mt-1">
-                            <span className="badge badge-primary text-xs break-words">{resource.course_code}</span>
+                            {resource.course_code && <span className="badge badge-primary text-xs break-words">{resource.course_code}</span>}
                             {resource.department && <span>{resource.department}</span>}
                             {resource.semester && <span>{/^sem/i.test(resource.semester) ? resource.semester : `Semester ${resource.semester}`}</span>}
                         </div>
@@ -1238,7 +1238,7 @@ export default function ResourceDetailPage() {
                             </button>
                             <button
                                 onClick={handleEditSave}
-                                disabled={editSaving || !editForm.title.trim() || !editForm.course_code.trim()}
+                                disabled={editSaving || !editForm.title.trim()}
                                 className="btn btn-primary flex items-center gap-2"
                             >
                                 {editSaving ? (

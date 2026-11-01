@@ -12,7 +12,7 @@ class ResourceCreate(BaseModel):
     """Schema for creating a resource."""
     title: str = Field(..., min_length=3, max_length=255)
     description: Optional[str] = Field(None, max_length=2000)
-    course_code: str = Field(..., min_length=2, max_length=20)
+    course_code: str = Field("", max_length=20)
     department: Optional[str] = Field(None, max_length=100)
     semester: Optional[str] = Field(None, max_length=20)
     branch: Optional[str] = Field(None, max_length=100)
@@ -23,10 +23,14 @@ class ResourceCreate(BaseModel):
     @field_validator("course_code")
     @classmethod
     def validate_course_code(cls, v: str) -> str:
-        # Allow formats like: CS101, ECE2001, MATH1234
-        if not re.match(r"^[A-Za-z]{2,6}\d{2,4}[A-Za-z]?$", v.strip()):
+        v = v.strip()
+        # Course is optional metadata: empty clears it. Any provided value
+        # must still look like: CS101, ECE2001, MATH1234
+        if not v:
+            return ""
+        if not re.match(r"^[A-Za-z]{2,6}\d{2,4}[A-Za-z]?$", v):
             raise ValueError("Invalid course code format (e.g., CS101, ECE2001)")
-        return v.upper().strip()
+        return v.upper()
     
     @field_validator("tags")
     @classmethod
@@ -42,7 +46,7 @@ class ResourceUpdate(BaseModel):
     """Schema for updating a resource."""
     title: Optional[str] = Field(None, min_length=3, max_length=255)
     description: Optional[str] = Field(None, max_length=2000)
-    course_code: Optional[str] = Field(None, min_length=2, max_length=20)
+    course_code: Optional[str] = Field(None, max_length=20)
     # Department by name or code; resolved to department_id server-side.
     department: Optional[str] = Field(None, max_length=100)
     semester: Optional[str] = Field(None, max_length=20)
@@ -58,9 +62,14 @@ class ResourceUpdate(BaseModel):
     def validate_course_code(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        if not re.match(r"^[A-Za-z]{2,6}\d{2,4}[A-Za-z]?$", v.strip()):
+        v = v.strip()
+        # Explicit empty string clears the course code; Omitted field (None)
+        # leaves it unchanged. Any provided value must still look like a code.
+        if not v:
+            return ""
+        if not re.match(r"^[A-Za-z]{2,6}\d{2,4}[A-Za-z]?$", v):
             raise ValueError("Invalid course code format (e.g., CS101, ECE2001)")
-        return v.upper().strip()
+        return v.upper()
 
 
 class ResourceResponse(BaseModel):

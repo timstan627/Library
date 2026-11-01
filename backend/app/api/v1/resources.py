@@ -182,7 +182,7 @@ async def get_my_resources(
 async def upload_resource(
     file: UploadFile = File(...),
     title: str = Form(...),
-    course_code: str = Form(...),
+    course_code: str = Form(""),
     description: Optional[str] = Form(None),
     department: Optional[str] = Form(None),
     semester: Optional[str] = Form(None),
@@ -270,7 +270,7 @@ async def upload_resource(
         telegram_result = await telegram_service.upload_file(
             file_bytes=file_bytes,
             filename=file.filename,
-            caption=f"{title} | {course_code}",
+            caption=f"{title} | {course_code}" if course_code.strip() else title,
         )
     except Exception as e:
         raise HTTPException(

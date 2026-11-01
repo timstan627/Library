@@ -107,7 +107,7 @@ export function SearchAutocomplete() {
                             <FileText className="w-4 h-4 text-text-muted shrink-0" />
                             <div className="min-w-0">
                                 <p className="text-text-primary text-sm truncate">{result.title}</p>
-                                <p className="text-text-muted text-xs">{result.course_code}</p>
+                                {result.course_code && <p className="text-text-muted text-xs">{result.course_code}</p>}
                             </div>
                         </Link>
                     ))}

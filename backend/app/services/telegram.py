@@ -144,8 +144,8 @@ class TelegramStorageService:
                     size_mb = res.file_size / (1024 * 1024)
                     response += (
                         f"📄 **{res.title}**\n"
-                        f"CODE: `{res.course_code}`\n"
-                        f"SIZE: `{size_mb:.1f} MB`\n"
+                        + (f"CODE: `{res.course_code}`\n" if res.course_code else "")
+                        + f"SIZE: `{size_mb:.1f} MB`\n"
                         f"⬇️ /get_{res.telegram_message_id}\n\n"
                     )
                 

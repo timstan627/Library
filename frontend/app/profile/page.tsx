@@ -248,7 +248,7 @@ export default function ProfilePage() {
                                         <div className="min-w-0">
                                             <p className="text-text-primary font-medium truncate">{resource.title}</p>
                                             <p className="text-text-secondary text-sm flex flex-wrap items-center gap-x-2">
-                                                <span><span className="text-text-muted">Course:</span> {resource.course_code}</span>
+                                                {resource.course_code && <span><span className="text-text-muted">Course:</span> {resource.course_code}</span>}
                                                 <span>{formatFileSize(resource.file_size)}</span>
                                             </p>
                                         </div>

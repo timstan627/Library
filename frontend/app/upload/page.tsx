@@ -143,10 +143,6 @@ export default function UploadPage() {
             setError('Please select a department')
             return
         }
-        if (!selectedCourse) {
-            setError('Please select a course')
-            return
-        }
         if (visibility === 'password' && !password) {
             setError('Password is required for password-protected resources')
             return
@@ -387,7 +383,7 @@ export default function UploadPage() {
                         {/* Course */}
                         <div>
                             <label htmlFor="course" className="label">
-                                Course <span className="text-red-500">*</span>
+                                Course (optional)
                             </label>
                             <select
                                 id="course"
@@ -395,7 +391,6 @@ export default function UploadPage() {
                                 onChange={(e) => setSelectedCourse(e.target.value)}
                                 className="input"
                                 disabled={isSubmitting || loadingData || loadingCourses}
-                                required
                             >
                                 <option value="">{loadingCourses ? 'Loading courses...' : 'Select a Course'}</option>
                                 {courses.map((course: Course) => (

@@ -246,7 +246,7 @@ export default function EditResourcePage() {
 
                         {/* Non-editable Info */}
                         <div className="pt-4 border-t border-border-subtle space-y-2 text-sm text-text-muted">
-                            <p><strong>Course:</strong> {resource.course_code}</p>
+                            {resource.course_code && <p><strong>Course:</strong> {resource.course_code}</p>}
                             <p><strong>Status:</strong> <span className={
                                 resource.moderation_status === 'approved' ? 'text-green-500' :
                                     resource.moderation_status === 'pending' ? 'text-yellow-500' : 'text-red-500'

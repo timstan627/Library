@@ -50,7 +50,7 @@ export function ResourceCard({
                     <h3 className="font-medium text-text-primary truncate">{title}</h3>
                     <div className="flex flex-wrap gap-x-3 text-sm text-text-secondary">
                         {uploader_name && <span className="font-medium text-text-primary">{uploader_name}</span>}
-                        <span>{course_code}</span>
+                        {course_code && <span>{course_code}</span>}
                         <span>{formatFileSize(file_size)}</span>
                         <span>{file_extension.toUpperCase()}</span>
                     </div>
