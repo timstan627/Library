@@ -21,6 +21,29 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _role_label(user: User) -> str:
+    """Admin-page role label; students render as 'user' (matches /admin/users listing)."""
+    return "admin" if user.is_admin else ("moderator" if user.is_moderator else "user")
+
+
+async def _contribution_counts(db: AsyncSession, user_id: str) -> tuple:
+    """(upload_count, approved_count) across a user's non-deleted resources."""
+    upload_rows = await db.execute(
+        select(func.count()).select_from(Resource).where(
+            Resource.uploader_id == user_id,
+            Resource.is_deleted == False,  # noqa: E712
+        )
+    )
+    approved_rows = await db.execute(
+        select(func.count()).select_from(Resource).where(
+            Resource.uploader_id == user_id,
+            Resource.is_deleted == False,  # noqa: E712
+            Resource.moderation_status == "approved",
+        )
+    )
+    return int(upload_rows.scalar_one() or 0), int(approved_rows.scalar_one() or 0)
+
+
 @router.get("")
 async def list_users(
     q: Optional[str] = Query(None, max_length=200),
@@ -101,10 +124,13 @@ async def get_user_promotion_status(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
+    uploads, approved = await _contribution_counts(db, str(user.id))
     return UserPromotionResponse(
         user_id=str(user.id), email=user.email,
         is_trusted=user.is_trusted, promoted_at=user.promoted_at,
         promoted_by=user.promoted_by,
+        display_name=user.display_name, role=_role_label(user),
+        upload_count=uploads, approved_count=approved,
     )
 
 
@@ -151,10 +177,13 @@ async def promote_user(
         logger.exception("Audit log error on user promotion")
     await db.flush()
     
+    uploads, approved = await _contribution_counts(db, str(user.id))
     return UserPromotionResponse(
         user_id=str(user.id), email=user.email,
         is_trusted=user.is_trusted, promoted_at=user.promoted_at,
         promoted_by=user.promoted_by,
+        display_name=user.display_name, role=_role_label(user),
+        upload_count=uploads, approved_count=approved,
     )
 
 
@@ -178,12 +207,40 @@ async def list_trusted_users(
     )
     users = result.scalars().all()
     
+    user_ids = [str(u.id) for u in users]
+    upload_counts: dict = {}
+    approved_counts: dict = {}
+    if user_ids:
+        upload_rows = await db.execute(
+            select(Resource.uploader_id, func.count())
+            .where(
+                Resource.uploader_id.in_(user_ids),
+                Resource.is_deleted == False,  # noqa: E712
+            )
+            .group_by(Resource.uploader_id)
+        )
+        upload_counts = {uid: count for uid, count in upload_rows.all()}
+
+        approved_rows = await db.execute(
+            select(Resource.uploader_id, func.count())
+            .where(
+                Resource.uploader_id.in_(user_ids),
+                Resource.is_deleted == False,  # noqa: E712
+                Resource.moderation_status == "approved",
+            )
+            .group_by(Resource.uploader_id)
+        )
+        approved_counts = {uid: count for uid, count in approved_rows.all()}
+
     return {
         "results": [
             UserPromotionResponse(
                 user_id=str(user.id), email=user.email,
                 is_trusted=user.is_trusted, promoted_at=user.promoted_at,
                 promoted_by=user.promoted_by,
+                display_name=user.display_name, role=_role_label(user),
+                upload_count=upload_counts.get(str(user.id), 0),
+                approved_count=approved_counts.get(str(user.id), 0),
             ).model_dump(mode="json")
             for user in users
         ],

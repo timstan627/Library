@@ -143,11 +143,21 @@ async def test_promote_to_trusted(client: AsyncClient, admin_user):
         headers=headers,
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["is_trusted"] is True
+    promo = resp.json()
+    assert promo["is_trusted"] is True
+    # Enriched display fields the admin users page consumes (FE/BE sync fix).
+    assert promo["display_name"] == target.display_name
+    assert promo["role"] == "user"
+    assert promo["upload_count"] == 0
+    assert promo["approved_count"] == 0
 
     trusted = await client.get("/api/v1/admin/users/trusted", headers=headers)
     assert trusted.status_code == 200
-    assert target.id in [u["user_id"] for u in trusted.json()["results"]]
+    row = next(u for u in trusted.json()["results"] if u["user_id"] == target.id)
+    assert row["display_name"] == target.display_name
+    assert row["role"] == "user"
+    assert row["upload_count"] == 0
+    assert row["approved_count"] == 0
 
 
 # ---------------------------------------------------------------------------

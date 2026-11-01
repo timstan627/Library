@@ -41,6 +41,12 @@ class UserPromotionResponse(BaseModel):
     is_trusted: bool
     promoted_at: Optional[datetime]
     promoted_by: Optional[str]
+    # Additive display fields consumed by the admin users page. Defaults keep
+    # the shape valid wherever a display lookup is not performed.
+    display_name: Optional[str] = None
+    role: Optional[str] = None  # 'admin' | 'moderator' | 'user' (listing convention)
+    upload_count: int = 0
+    approved_count: int = 0
     
     class Config:
         from_attributes = True
