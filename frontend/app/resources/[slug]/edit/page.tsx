@@ -184,7 +184,7 @@ export default function EditResourcePage() {
                     <div className="card p-6 space-y-6">
                         {/* Title */}
                         <div>
-                            <label htmlFor="title" className="label">Title</label>
+                            <label htmlFor="title" className="label">Title *</label>
                             <input
                                 id="title"
                                 type="text"

@@ -360,7 +360,7 @@ export default function UploadPage() {
                         {/* Department */}
                         <div>
                             <label htmlFor="department" className="label">
-                                Department <span className="text-red-500">*</span>
+                                Department (optional)
                             </label>
                             {fetchError && (
                                 <FetchError message={fetchError} className="mb-2" />
@@ -371,7 +371,6 @@ export default function UploadPage() {
                                 onChange={(e) => setSelectedDepartment(e.target.value)}
                                 className="input"
                                 disabled={isSubmitting || loadingData}
-                                required
                             >
                                 <option value="">Select a Department</option>
                                 {departments.map(dept => (

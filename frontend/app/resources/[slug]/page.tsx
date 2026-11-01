@@ -1168,7 +1168,7 @@ export default function ResourceDetailPage() {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="label">Course Code *</label>
+                                    <label className="label">Course Code (optional)</label>
                                     <input
                                         type="text"
                                         value={editForm.course_code}
