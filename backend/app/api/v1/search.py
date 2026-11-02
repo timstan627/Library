@@ -41,8 +41,9 @@ async def search_resources(
     branch: Optional[str] = None,
     tags: Optional[str] = None,
     min_rating: Optional[float] = Query(None, ge=0, le=5),
+    min_ratings: Optional[int] = Query(None, ge=0),
     file_type: Optional[str] = None,
-    sort_by: str = Query("relevance", pattern="^(relevance|downloads|rating|recent)$"),
+    sort_by: str = Query("relevance", pattern="^(relevance|downloads|rating|recent|views|top_rated)$"),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -87,11 +88,16 @@ async def search_resources(
         for tag in tag_list:
             filters.append(Resource.tags_str.ilike(f"%{_escape_like(tag)}%", escape="\\"))
     
-    # Rating filter
+    # Rating filters
     if min_rating and min_rating > 0:
         filters.append(Resource.rating_count > 0)
         # rating_sum / rating_count >= min_rating  ⇔  sum >= min * count
         filters.append(Resource.rating_sum >= min_rating * Resource.rating_count)
+    if min_ratings and min_ratings > 0:
+        # Per-item appearance floor for rating-based rows/items: an item
+        # needs this many individual ratings to enter the list at all
+        # (prevents a single 5-star rating from topping a "Top Rated" list).
+        filters.append(Resource.rating_count >= min_ratings)
     
     combined = and_(*filters)
     
@@ -99,23 +105,50 @@ async def search_resources(
     count_result = await db.execute(select(func.count()).select_from(Resource).where(combined))
     total = count_result.scalar()
     
-    # Sort
+    # Sort — every branch produces an ORDER BY clause list; `.order_by(*…)` applies it.
     if sort_by == "downloads":
-        order = Resource.downloads.desc()
+        order = [Resource.downloads.desc(), Resource.created_at.desc()]
     elif sort_by == "rating":
         # Average rating, not raw sum (a 2×5-star must beat a 2×3+2-star)
-        order = (
-            func.cast(Resource.rating_sum, Float) / func.max(Resource.rating_count, 1)
-        ).desc()
+        order = [
+            (func.cast(Resource.rating_sum, Float) / func.max(Resource.rating_count, 1)).desc(),
+            Resource.created_at.desc(),
+        ]
+    elif sort_by == "top_rated":
+        # IMDb-family Bayesian average: WR = (sum + m·C) / (count + m).
+        # Shrinks low-vote items toward the global mean C, so one lonely
+        # 5-star can't top the list. m=5 pseudocount for a catalog this size
+        # (IMDb's m scales with its own traffic — re-tune as ratings grow).
+        stats = await db.execute(
+            select(func.sum(Resource.rating_sum), func.sum(Resource.rating_count)).where(
+                Resource.is_deleted == False,  # noqa: E712
+                Resource.moderation_status == "approved",
+            )
+        )
+        total_sum, total_count = stats.one()
+        global_mean = (total_sum / total_count) if (total_count or 0) > 0 else 0.0
+        m = 5.0
+        order = [
+            (
+                (func.cast(Resource.rating_sum, Float) + m * global_mean)
+                / (Resource.rating_count + m)
+            ).desc(),
+            Resource.rating_count.desc(),  # stronger evidence wins exact ties
+            Resource.created_at.desc(),
+        ]
+    elif sort_by == "views":
+        # "Most read": cumulative visitor-deduped views, most-recent tiebreak.
+        # (Time decay would make this a "Trending" row — that's a different label.)
+        order = [Resource.views.desc(), Resource.created_at.desc()]
     elif sort_by == "recent":
-        order = Resource.created_at.desc()
+        order = [Resource.created_at.desc()]
     else:  # relevance
-        order = Resource.downloads.desc()
+        order = [Resource.downloads.desc()]
     
     result = await db.execute(
         select(Resource)
         .where(combined)
-        .order_by(order)
+        .order_by(*order)
         .offset((page - 1) * size)
         .limit(size)
     )

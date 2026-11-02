@@ -186,3 +186,61 @@ async def test_recent_no_orm_leak(client: AsyncClient):
     item = resp.json()["results"][0]
     leaked = FORBIDDEN_KEYS & set(item.keys())
     assert not leaked, f"recent leaks internal fields: {leaked}"
+
+
+# ---------------------------------------------------------------------------
+# Catalog rows (Netflix-style homepage): views sort, top_rated Bayesian sort,
+# and the `min_ratings` per-item floor. All additive on /search.
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_search_sort_by_views_orders_by_read_count(client: AsyncClient, admin_user):
+    low = await make_resource(admin_user, title="Read Few")
+    high_old = await make_resource(admin_user, title="Read Many Old")
+    high_new = await make_resource(admin_user, title="Read Many New")
+    async with async_session() as session:
+        for res, count in ((low, 2), (high_old, 10), (high_new, 10)):
+            await session.execute(update(Resource).where(Resource.id == res.id).values(views=count))
+        await session.commit()
+    resp = await client.get("/api/v1/search", params={"sort_by": "views"})
+    titles = [r["title"] for r in resp.json()["results"]]
+    # Equal views → newer resource wins (recent tiebreak); low last.
+    assert titles == ["Read Many New", "Read Many Old", "Read Few"]
+
+
+@pytest.mark.asyncio
+async def test_search_min_ratings_floor_excludes_few_rated(client: AsyncClient, admin_user):
+    thin = await make_resource(admin_user, title="Thinly Rated")
+    solid = await make_resource(admin_user, title="Solidly Rated")
+    async with async_session() as session:
+        await session.execute(update(Resource).where(Resource.id == thin.id).values(rating_sum=10, rating_count=2))
+        await session.execute(update(Resource).where(Resource.id == solid.id).values(rating_sum=18, rating_count=4))
+        await session.commit()
+    resp = await client.get("/api/v1/search", params={"sort_by": "top_rated", "min_ratings": 3})
+    titles = [r["title"] for r in resp.json()["results"]]
+    assert titles == ["Solidly Rated"]
+
+
+@pytest.mark.asyncio
+async def test_search_top_rated_bayesian_beats_single_five_star(client: AsyncClient, admin_user):
+    # Legacy sort_by=rating (plain average) would order these B, A, D —
+    # a single 5-star on top. Bayesian top_rated must not.
+    # A: 4 ratings, avg 4.5 · B: 1 rating, 5.0 · D: 2 ratings, avg 3.0
+    # Site mean C = 29/7 ≈ 4.14, m = 5
+    #   → WR_A ≈ 4.30 > WR_B ≈ 4.29 > WR_D ≈ 3.82
+    a = await make_resource(admin_user, title="Bayes Four")
+    b = await make_resource(admin_user, title="Bayes Single")
+    d = await make_resource(admin_user, title="Bayes Two")
+    async with async_session() as session:
+        await session.execute(update(Resource).where(Resource.id == a.id).values(rating_sum=18, rating_count=4))
+        await session.execute(update(Resource).where(Resource.id == b.id).values(rating_sum=5, rating_count=1))
+        await session.execute(update(Resource).where(Resource.id == d.id).values(rating_sum=6, rating_count=2))
+        await session.commit()
+    resp = await client.get("/api/v1/search", params={"sort_by": "top_rated"})
+    titles = [r["title"] for r in resp.json()["results"]]
+    assert titles == ["Bayes Four", "Bayes Single", "Bayes Two"]
+
+
+@pytest.mark.asyncio
+async def test_search_rejects_unknown_sort_by(client: AsyncClient):
+    resp = await client.get("/api/v1/search", params={"sort_by": "nope"})
+    assert resp.status_code == 422
