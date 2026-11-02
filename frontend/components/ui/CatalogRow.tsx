@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, ChevronRight as SeeAllIcon } from 'lucide-react'
 import { ResourceTileSkeleton } from './ResourceTile'
@@ -13,9 +13,11 @@ import { ResourceTileSkeleton } from './ResourceTile'
  * - `overflow-x: auto` + `snap-x snap-mandatory` + per-item `snap-start`
  *   (uniform card widths make mandatory snapping safe).
  * - The next card always peeks into view — the strongest scrollability cue.
- * - Arrows: always rendered (never injected on hover → no CLS), hidden on
- *   touch screens (swipe covers them), scroll ~85% of the row per press,
- *   disabled — not removed — at both ends.
+ * - Arrows exist only when the row actually overflows (fitting rows render
+ *   none — no dead overlays over card text), sit above the rail only while
+ *   scrolling, fade to invisible at the exact scroll ends (opacity, never
+ *   display toggles — no layout shift), stay real disabled buttons in the
+ *   DOM, and scroll ~85% of the row per press.
  * - The track is a focusable scrollable region with a labelled heading;
  *   on-screen readers get the plain-list semantic.
  * - No horizontal scrolljacking: `overscroll-x-contain` keeps the scroll
@@ -39,6 +41,15 @@ interface CatalogRowProps {
     children?: React.ReactNode
 }
 
+interface ScrollState {
+    /** Track content wider than the viewport (arrows only make sense then). */
+    overflow: boolean
+    canLeft: boolean
+    canRight: boolean
+}
+
+const IDLE_SCROLL: ScrollState = { overflow: false, canLeft: false, canRight: false }
+
 export function CatalogRow({
     title,
     seeAllHref,
@@ -53,8 +64,8 @@ export function CatalogRow({
         [title],
     )
     const trackRef = useRef<HTMLUListElement | null>(null)
-    const leftBtnRef = useRef<HTMLButtonElement | null>(null)
-    const rightBtnRef = useRef<HTMLButtonElement | null>(null)
+    const [scrollState, setScrollState] = useState<ScrollState>(IDLE_SCROLL)
+    const lastRef = useRef<ScrollState>(IDLE_SCROLL)
     const reducedMotion = useMemo(() => (
         typeof window !== 'undefined'
         && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -63,12 +74,15 @@ export function CatalogRow({
     const updateArrowState = useCallback(() => {
         const track = trackRef.current
         if (!track) return
-        const maxScroll = track.scrollWidth - track.clientWidth
-        if (leftBtnRef.current) {
-            leftBtnRef.current.disabled = track.scrollLeft <= 2
+        const next: ScrollState = {
+            overflow: track.scrollWidth > track.clientWidth + 1,
+            canLeft: track.scrollLeft > 2,
+            canRight: track.scrollLeft < track.scrollWidth - track.clientWidth - 2,
         }
-        if (rightBtnRef.current) {
-            rightBtnRef.current.disabled = track.scrollLeft >= maxScroll - 2
+        const prev = lastRef.current
+        if (prev.overflow !== next.overflow || prev.canLeft !== next.canLeft || prev.canRight !== next.canRight) {
+            lastRef.current = next
+            setScrollState(next)
         }
     }, [])
 
@@ -89,6 +103,13 @@ export function CatalogRow({
             left: direction * track.clientWidth * 0.85,
             behavior: reducedMotion ? 'auto' : 'smooth',
         })
+        // Safety net: smooth scrolling + mandatory CSS snapping can finish
+        // after the last scroll event on some engines (mobile WebViews throttle
+        // momentum scroll events), leaving arrow state stale at the scroll
+        // ends. Re-derive twice — once as the scroll settles, once later — so
+        // the end-state fade never lags one press behind.
+        window.setTimeout(updateArrowState, reducedMotion ? 150 : 450)
+        window.setTimeout(updateArrowState, 800)
     }
 
     const items = loading
@@ -102,6 +123,12 @@ export function CatalogRow({
                 {child}
             </li>
         ))
+
+    // Arrows render only while the rail can scroll, and only on pointer
+    // devices (md:grid — touch users swipe). At the exact scroll ends they
+    // fade out (opacity transition, no display change → zero layout shift):
+    // a grey disabled circle parked over the first card reads as a bug.
+    // Fitting rows (wide screens, short shelves) render no arrows at all.
 
     return (
         <section aria-label={ariaLabel ?? title}>
@@ -135,28 +162,32 @@ export function CatalogRow({
                     {items}
                 </ul>
 
-                {/* Scroll controls: rendered from first paint, disabled at the ends.
-                    Touch devices swipe natively, so arrows are desktop-only. */}
-                <button
-                    ref={leftBtnRef}
-                    type="button"
-                    onClick={() => scrollByPage(-1)}
-                    aria-label={`Scroll ${ariaLabel ?? title} backward`}
-                    disabled
-                    className="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-border-medium bg-background-secondary/95 text-text-primary disabled:pointer-events-none md:grid"
-                >
-                    <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-                </button>
-                <button
-                    ref={rightBtnRef}
-                    type="button"
-                    onClick={() => scrollByPage(1)}
-                    aria-label={`Scroll ${ariaLabel ?? title} forward`}
-                    disabled
-                    className="absolute right-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-border-medium bg-background-secondary/95 text-text-primary disabled:pointer-events-none md:grid"
-                >
-                    <ChevronRight className="h-5 w-5" aria-hidden="true" />
-                </button>
+                {scrollState.overflow && !loading && (
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => scrollByPage(-1)}
+                            aria-label={`Scroll ${ariaLabel ?? title} backward`}
+                            disabled={!scrollState.canLeft}
+                            className={`absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-border-medium bg-background-secondary/95 text-text-primary transition-opacity duration-200 disabled:pointer-events-none md:grid ${
+                                scrollState.canLeft ? 'opacity-100' : 'opacity-0'
+                            }`}
+                        >
+                            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => scrollByPage(1)}
+                            aria-label={`Scroll ${ariaLabel ?? title} forward`}
+                            disabled={!scrollState.canRight}
+                            className={`absolute right-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-border-medium bg-background-secondary/95 text-text-primary transition-opacity duration-200 disabled:pointer-events-none md:grid ${
+                                scrollState.canRight ? 'opacity-100' : 'opacity-0'
+                            }`}
+                        >
+                            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                    </>
+                )}
             </div>
         </section>
     )

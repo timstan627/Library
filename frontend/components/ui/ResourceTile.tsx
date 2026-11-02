@@ -48,8 +48,16 @@ export interface ResourceTileData {
 
 function formatSize(bytes?: number): string {
     if (!bytes || bytes <= 0) return ''
-    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    if (bytes < 1024 * 1024) {
+        const kb = Math.max(1, Math.round(bytes / 1024))
+        // Rounding can push a just-under-1-MB file to "1024 KB" — show MB then.
+        if (kb >= 1024) return '1.0 MB'
+        return `${kb} KB`
+    }
+    const MB = bytes / (1024 * 1024)
+    if (MB >= 1024) return `${(MB / 1024).toFixed(1)} GB`
+    if (MB >= 100) return `${Math.round(MB)} MB`
+    return `${MB.toFixed(1)} MB`
 }
 
 function extLabel(ext?: string): string {
@@ -88,13 +96,13 @@ export function ResourceTile({ resource, compact }: {
                 )}
             </div>
 
-            <h3 className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-text-primary">
+            <h3 className="mt-2 line-clamp-2 break-words text-sm font-medium leading-snug text-text-primary">
                 {resource.title}
             </h3>
 
             <div className="mt-auto pt-2">
                 {resource.course_code && (
-                    <span className="badge text-[11px] leading-none">{resource.course_code}</span>
+                    <span className="badge max-w-full truncate text-[11px] leading-none">{resource.course_code}</span>
                 )}
                 {!compact && (
                     <div className="mt-2 flex items-center gap-3 text-[11px] text-text-muted">
