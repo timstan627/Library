@@ -148,8 +148,17 @@ Search resources.
 - `q`: Search query
 - `course_code` (optional): Filter by course
 - `department` (optional): Filter by department
+- `branch` (optional): Filter by branch
+- `semester` (optional): Filter by semester
 - `tags` (optional): Comma-separated tags
-- `sort_by`: recent, downloads, rating, relevance
+- `min_rating` (optional): Minimum average rating (0–5); only rated items qualify
+- `min_ratings` (optional): Minimum number of individual ratings per item —
+  per-item floor that keeps a single 5-star from topping a rating-sorted list
+- `file_type` (optional): Filter by file extension
+- `sort_by`: `recent`, `downloads`, `rating` (plain average), `relevance`
+  (default), `views` (most-read, visitor-deduped count, recency tiebreak),
+  `top_rated` (IMDb-style Bayesian average; don't use without `min_ratings` —
+  one 5-star rating outranks everything at low vote counts otherwise)
 - `page`, `size`: Pagination
 
 **Response (200):**
