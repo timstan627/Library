@@ -1,14 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import {
-    Shield, ShieldCheck, User, Search, AlertCircle,
-    Star, ThumbsUp, Trash2, CheckCircle, Info
+    ToggleLeft, ToggleRight, Shield, ShieldCheck, User, Search, Star, ThumbsUp, Info, Loader2
 } from 'lucide-react'
 import { apiHelpers, api } from '@/lib/api'
-import { useAuth } from '@/lib/auth-context'
+import { AdminAuthGate } from '@/components/AuthGate'
 import { SkeletonTable } from '@/components/ui/Skeleton'
+import { AdminModal } from '@/components/ui/AdminModal'
 import FetchError from '@/components/ui/FetchError'
 
 interface TrustedUser {
@@ -23,10 +22,13 @@ interface TrustedUser {
     approved_count: number
 }
 
-export default function UserPromotionPage() {
-    const { user: currentUser, isAuthenticated, isLoading } = useAuth()
-    const router = useRouter()
+const ROLE_LABELS: Record<string, string> = {
+    admin: 'Admin',
+    moderator: 'Moderator',
+    user: 'Regular',
+}
 
+function TrustedListContent() {
     const [users, setUsers] = useState<TrustedUser[]>([])
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
@@ -34,17 +36,19 @@ export default function UserPromotionPage() {
     const [activeTab, setActiveTab] = useState<'trusted' | 'search'>('trusted')
     const [fetchError, setFetchError] = useState<string | null>(null)
 
-    useEffect(() => {
-        if (!isLoading && (!isAuthenticated || currentUser?.role !== 'admin')) {
-            router.push('/')
-        }
-    }, [isLoading, isAuthenticated, currentUser, router])
+    // "Change access" modal: one place to toggle Trusted Contributor and the
+    // per-user moderation exemption, with the consequences stated in words.
+    const [accessModal, setAccessModal] = useState<{ isOpen: boolean; user: any | null }>({
+        isOpen: false,
+        user: null,
+    })
+    const [draft, setDraft] = useState<{ trusted: boolean; exempt: boolean } | null>(null)
+    const [applying, setApplying] = useState(false)
+    const [modalError, setModalError] = useState('')
 
     useEffect(() => {
-        if (isAuthenticated && currentUser?.role === 'admin') {
-            fetchTrusted()
-        }
-    }, [isAuthenticated, currentUser])
+        fetchTrusted()
+    }, [])
 
     const fetchTrusted = async () => {
         setLoading(true)
@@ -77,38 +81,96 @@ export default function UserPromotionPage() {
         }
     }
 
-    const handleToggleTrust = async (userId: string, currentStatus: boolean) => {
-        const newStatus = !currentStatus
-        if (!confirm(`Are you sure you want to ${newStatus ? 'promote to Trusted' : 'remove Trusted status'}?`)) return
-
-        try {
-            await apiHelpers.promoteUser(userId, { is_trusted: newStatus })
-            if (activeTab === 'trusted') {
-                fetchTrusted()
-            } else {
-                setAllUsers(allUsers.map(u => u.id === userId ? { ...u, is_trusted: newStatus } : u))
-            }
-        } catch (error: any) {
-            alert(error.response?.data?.detail || 'Promotion failed')
-        }
+    const patchRow = (userId: string, changes: Partial<TrustedUser & { moderation_exempt: boolean }>) => {
+        setUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...changes } : u)))
+        setAllUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...changes } : u)))
     }
 
-    const handleToggleExempt = async (userId: string, currentStatus: boolean) => {
-        const newStatus = !currentStatus
-        try {
-            await apiHelpers.setUserModerationExempt(userId, newStatus)
-            if (activeTab === 'trusted') {
-                setUsers(users.map(u => u.id === userId ? { ...u, moderation_exempt: newStatus } : u))
-            } else {
-                setAllUsers(allUsers.map(u => u.id === userId ? { ...u, moderation_exempt: newStatus } : u))
-            }
-        } catch (error: any) {
-            alert(error.response?.data?.detail || 'Failed to update moderation exemption')
-        }
+    const openAccessModal = (user: any) => {
+        setAccessModal({ isOpen: true, user })
+        setDraft({ trusted: !!user.is_trusted, exempt: !!user.moderation_exempt })
+        setModalError('')
     }
 
-    if (isLoading || !isAuthenticated) {
-        return <div className="p-8"><SkeletonTable rows={5} columns={4} /></div>
+    const closeAccessModal = () => {
+        setAccessModal({ isOpen: false, user: null })
+        setDraft(null)
+        setModalError('')
+    }
+
+    const applyAccessChanges = async () => {
+        const target = accessModal.user
+        if (!target || !draft) return
+
+        const ops: { label: string; run: () => Promise<void>; done: boolean }[] = []
+        if (draft.trusted !== !!target.is_trusted) {
+            const nextTrusted = draft.trusted
+            ops.push({
+                label: 'Trusted Contributor status',
+                done: false,
+                run: async () => {
+                    await apiHelpers.promoteUser(target.id, { is_trusted: nextTrusted })
+                },
+            })
+        }
+        if (draft.exempt !== !!target.moderation_exempt) {
+            const nextExempt = draft.exempt
+            ops.push({
+                label: 'moderation exemption',
+                done: false,
+                run: async () => {
+                    await apiHelpers.setUserModerationExempt(target.id, nextExempt)
+                },
+            })
+        }
+
+        if (ops.length === 0) {
+            closeAccessModal()
+            return
+        }
+
+        setApplying(true)
+        setModalError('')
+        try {
+            const failures: string[] = []
+            for (const op of ops) {
+                try {
+                    await op.run()
+                    op.done = true
+                } catch (error: any) {
+                    console.error(`Failed to change ${op.label}:`, error)
+                    failures.push(`${op.label} — ${error.response?.data?.detail || 'failed'}`)
+                }
+            }
+
+            const finalTrusted = draft.trusted
+            const finalExempt = draft.exempt
+            // Reflect every op that landed on the server.
+            if (failures.length === 0) {
+                patchRow(target.id, { is_trusted: finalTrusted, moderation_exempt: finalExempt })
+                closeAccessModal()
+                // Revoking trust on the Trusted List removes the row — refresh
+                // that list instead of leaving a stale mark behind.
+                if (activeTab === 'trusted' && !!target.is_trusted !== finalTrusted) {
+                    fetchTrusted()
+                }
+            } else if (failures.length < ops.length) {
+                // Partial success: update what landed, keep the dialog open.
+                const landedTrusted = ops.find(op => op.label.startsWith('Trusted'))?.done ? finalTrusted : target.is_trusted
+                const landedExempt = ops.find(op => op.label.startsWith('Exempt') || op.label.startsWith('moderation'))?.done ? finalExempt : target.moderation_exempt
+                patchRow(target.id, { is_trusted: landedTrusted, moderation_exempt: landedExempt })
+                // Point the retry diff at what the server actually holds now.
+                setAccessModal({
+                    isOpen: true,
+                    user: { ...target, is_trusted: landedTrusted, moderation_exempt: landedExempt },
+                })
+                setModalError(`${failures.join('; ')} The applied changes are active; retry the rest.`)
+            } else {
+                setModalError(`${failures.join('; ')} No change was applied.`)
+            }
+        } finally {
+            setApplying(false)
+        }
     }
 
     return (
@@ -116,7 +178,7 @@ export default function UserPromotionPage() {
             <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-text-primary">Trusted Contributors</h1>
-                    <p className="text-text-secondary">Manage users who can bypass moderation</p>
+                    <p className="text-text-secondary">Trust grants and per-user review bypass</p>
                 </div>
                 <div className="flex gap-2 p-1 bg-background-secondary rounded-lg border border-border-subtle">
                     <button
@@ -183,7 +245,7 @@ export default function UserPromotionPage() {
                             ) : (activeTab === 'trusted' ? users : allUsers).length === 0 ? (
                                 <tr>
                                     <td colSpan={4} className="px-6 py-12 text-center text-text-secondary">
-                                        {activeTab === 'trusted' ? 'No trusted contributors yet.' : 'Search for users to promote.'}
+                                        {activeTab === 'trusted' ? 'No trusted contributors yet.' : 'Search for users to grant access.'}
                                     </td>
                                 </tr>
                             ) : (
@@ -203,50 +265,37 @@ export default function UserPromotionPage() {
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col gap-1">
                                                 <div className="flex items-center gap-2 text-xs">
-                                                    <Star className="w-3 h-3 text-yellow-500" />
+                                                    <Star className="w-3 h-3 text-warning-light" />
                                                     <span className="text-text-secondary">{u.upload_count || 0} Uploads</span>
                                                 </div>
                                                 <div className="flex items-center gap-2 text-xs">
-                                                    <ThumbsUp className="w-3 h-3 text-green-500" />
+                                                    <ThumbsUp className="w-3 h-3 text-success-light" />
                                                     <span className="text-text-secondary">{u.approved_count || 0} Approved</span>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
                                             {u.is_trusted ? (
-                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-success/10 border border-success/20 rounded-full w-fit">
+                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-success/10 border border-success/20 rounded-md w-fit">
                                                     <ShieldCheck className="w-3.5 h-3.5 text-success-light" />
                                                     <span className="text-[11px] font-semibold text-success-light">Trusted</span>
                                                 </div>
                                             ) : (
-                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background-tertiary border border-border-subtle rounded-full w-fit">
+                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background-tertiary border border-border-subtle rounded-md w-fit">
                                                     <Shield className="w-3.5 h-3.5 text-text-muted" />
                                                     <span className="text-[11px] font-semibold text-text-muted">Regular</span>
                                                 </div>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <div className="flex flex-col items-end gap-2">
-                                                {u.role !== 'admin' && (
-                                                    <button
-                                                        onClick={() => handleToggleTrust(u.id, u.is_trusted)}
-                                                        className={`px-4 py-1.5 rounded-md text-xs font-bold transition-[background-color,color,border-color,transform] active:scale-95 ${u.is_trusted ? 'bg-danger/10 text-danger-light border border-danger/20 hover:bg-danger hover:text-accent-ink' : 'bg-success/10 text-success-light border border-success/20 hover:bg-success hover:text-accent-ink'}`}
-                                                    >
-                                                        {u.is_trusted ? 'Revoke Trust' : 'Mark Trusted'}
-                                                    </button>
-                                                )}
-                                                {u.role === 'user' && (
-                                                    <div className="flex flex-col items-end gap-0.5">
-                                                        <span className="text-[10px] text-text-muted">Uploads skip review</span>
-                                                        <button
-                                                            onClick={() => handleToggleExempt(u.id, !!u.moderation_exempt)}
-                                                            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-[background-color,color,border-color,transform] active:scale-95 ${u.moderation_exempt ? 'bg-danger/10 text-danger-light border border-danger/20 hover:bg-danger hover:text-accent-ink' : 'bg-success/10 text-success-light border border-success/20 hover:bg-success hover:text-accent-ink'}`}
-                                                        >
-                                                            {u.moderation_exempt ? 'Remove Exemption' : 'Exempt from Moderation'}
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
+                                            {u.role !== 'admin' && (
+                                                <button
+                                                    onClick={() => openAccessModal(u)}
+                                                    className="btn btn-secondary px-3 py-1.5 text-xs"
+                                                >
+                                                    Change access
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))
@@ -256,24 +305,128 @@ export default function UserPromotionPage() {
                 </div>
             </div>
 
-            <div className="mt-8 p-6 bg-blue-500/5 border border-blue-500/20 rounded-xl relative overflow-hidden">
-                <div className="relative z-10 flex gap-4">
-                    <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center shrink-0">
-                        <Info className="w-6 h-6 text-blue-600" />
+            <div className="mt-8 p-6 bg-accent-primary/5 border border-accent-primary/20 rounded-xl">
+                <div className="flex gap-4">
+                    <div className="w-12 h-12 bg-accent-primary/10 rounded-lg flex items-center justify-center shrink-0">
+                        <Info className="w-6 h-6 text-accent-primary" />
                     </div>
                     <div>
                         <h3 className="text-lg font-bold text-text-primary mb-1">What is a Trusted Contributor?</h3>
                         <p className="text-sm text-text-secondary leading-relaxed max-w-2xl">
-                            Trusted contributors are users who have established a history of providing high-quality study materials.
-                            <strong> All their uploads will bypass the moderation queue and be published immediately.</strong>{' '}
-                            This status is typically granted to students who maintain a high approval-to-upload ratio.
+                            A Trusted Contributor is a person you have marked for a strong approval-to-upload history.
+                            <strong> The per-user “Publish without review” switch is what actually lets uploads publish without review</strong>{' '}
+                            — marking trusted status alone does not change moderation. Grant both when a user has earned zero-friction publishing.
                         </p>
                     </div>
                 </div>
-                <div className="absolute -right-8 -bottom-8 opacity-5">
-                    <Shield className="w-48 h-48" />
-                </div>
             </div>
+
+            <AdminModal
+                isOpen={accessModal.isOpen}
+                onClose={closeAccessModal}
+                title="Change access"
+                maxWidth="md"
+            >
+                <div className="p-6 space-y-4">
+                    {accessModal.user && (
+                        <>
+                            <div className="p-3 bg-background-tertiary rounded-lg border border-border-subtle">
+                                <p className="font-bold text-text-primary text-sm">{accessModal.user.display_name || accessModal.user.email}</p>
+                                <p className="text-xs text-text-muted">
+                                    {accessModal.user.email} — {ROLE_LABELS[accessModal.user.role] || accessModal.user.role} account
+                                </p>
+                            </div>
+
+                            {accessModal.user.role === 'admin' ? (
+                                <p className="text-sm text-text-secondary">
+                                    Admin accounts always publish without review, so trust and exemptions do not apply here.
+                                </p>
+                            ) : (
+                                <>
+                                    <div className="flex items-start justify-between gap-4 py-1">
+                                        <div>
+                                            <p className="text-sm font-semibold text-text-primary">Trusted Contributor</p>
+                                            <p className="text-xs text-text-secondary mt-0.5">
+                                                Marks them on the trusted list for their approval history. This alone does not change how uploads are moderated — pair it with the switch below for the publish effect.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setDraft(prev => prev ? { ...prev, trusted: !prev.trusted } : prev)}
+                                            role="switch"
+                                            aria-checked={!!draft?.trusted}
+                                            aria-label="Trusted Contributor"
+                                            disabled={applying}
+                                            className={`flex items-center gap-1 text-sm font-semibold shrink-0 transition-colors disabled:opacity-50 ${draft?.trusted ? 'text-success-light' : 'text-text-muted'}`}
+                                        >
+                                            {draft?.trusted ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                                            {draft?.trusted ? 'Yes' : 'No'}
+                                        </button>
+                                    </div>
+
+                                    {accessModal.user.role === 'user' ? (
+                                        <div className="flex items-start justify-between gap-4 py-1">
+                                            <div>
+                                                <p className="text-sm font-semibold text-text-primary">Publish without review</p>
+                                                <p className="text-xs text-text-secondary mt-0.5">
+                                                    All their future uploads publish immediately. This is the switch the upload flow checks — the trust mark above does not publish anything by itself.
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => setDraft(prev => prev ? { ...prev, exempt: !prev.exempt } : prev)}
+                                                role="switch"
+                                                aria-checked={!!draft?.exempt}
+                                                aria-label="Publish without review"
+                                                disabled={applying}
+                                                className={`flex items-center gap-1 text-sm font-semibold shrink-0 transition-colors disabled:opacity-50 ${draft?.exempt ? 'text-warning-light' : 'text-text-muted'}`}
+                                            >
+                                                {draft?.exempt ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                                                {draft?.exempt ? 'Yes' : 'No'}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-text-muted">
+                                            Moderators and admins review uploads themselves, so a per-user bypass is not needed here.
+                                        </p>
+                                    )}
+
+                                    {modalError && (
+                                        <div className="p-3 bg-danger/10 border border-danger/30 rounded-lg text-danger text-sm" role="alert">
+                                            {modalError}
+                                        </div>
+                                    )}
+
+                                    <div className="pt-2 flex justify-end gap-3 border-t border-border-subtle">
+                                        <button
+                                            onClick={closeAccessModal}
+                                            disabled={applying}
+                                            className="btn btn-secondary"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={applyAccessChanges}
+                                            disabled={applying || !draft || (draft.trusted === !!accessModal.user.is_trusted && draft.exempt === !!accessModal.user.moderation_exempt)}
+                                            className="btn btn-primary"
+                                        >
+                                            {applying ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                                            {applying ? 'Applying…' : 'Apply changes'}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </>
+                    )}
+                </div>
+            </AdminModal>
         </div>
+    )
+}
+
+// CRITICAL-002: same gate pattern as every other admin page
+export default function UserPromotionPage() {
+    return (
+        <AdminAuthGate>
+            <TrustedListContent />
+        </AdminAuthGate>
     )
 }

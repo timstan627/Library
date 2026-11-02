@@ -9,6 +9,7 @@ import { apiHelpers } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { AdminAuthGate } from '@/components/AuthGate'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { AdminModal } from '@/components/ui/AdminModal'
 import FetchError from '@/components/ui/FetchError'
 
 interface Shelf {
@@ -46,6 +47,7 @@ function CatalogContent() {
     const [error, setError] = useState('')
     const [departments, setDepartments] = useState<string[]>([])
     const [subjectOptions, setSubjectOptions] = useState<string>(`${new Date().getFullYear()}`)
+    const [notice, setNotice] = useState<string | null>(null)
 
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; shelf: Shelf | null }>({
         isOpen: false,
@@ -143,7 +145,7 @@ function CatalogContent() {
             const response = await apiHelpers.toggleShelf(shelf.id)
             setShelves(shelves.map(s => s.id === shelf.id ? { ...s, is_active: response.data.is_active } : s))
         } catch {
-            alert('Failed to toggle shelf status')
+            setNotice('Failed to change the shelf status. Check the connection and try again.')
         }
     }
 
@@ -152,20 +154,17 @@ function CatalogContent() {
             const response = await apiHelpers.moveShelf(shelf.id, direction)
             setShelves(response.data)
         } catch {
-            alert('Failed to move shelf')
+            setNotice(`Failed to move "${shelf.title}". The order is unchanged.`)
         }
     }
 
     const handleDelete = async () => {
         if (!deleteModal.shelf) return
-        try {
-            await apiHelpers.deleteShelf(deleteModal.shelf.id)
-            setDeleteModal({ isOpen: false, shelf: null })
-            fetchShelves()
-        } catch {
-            alert('Failed to delete shelf')
-            setDeleteModal({ isOpen: false, shelf: null })
-        }
+        // Errors propagate: ConfirmDeleteModal keeps itself open and shows
+        // the detail inline instead of swallowing them into alert().
+        await apiHelpers.deleteShelf(deleteModal.shelf.id)
+        setDeleteModal({ isOpen: false, shelf: null })
+        fetchShelves()
     }
 
     const activeShelves = shelves.filter(s => s.is_active)
@@ -198,6 +197,19 @@ function CatalogContent() {
 
             {fetchError && (
                 <FetchError message={fetchError} onRetry={fetchShelves} className="mb-6" />
+            )}
+
+            {notice && (
+                <div className="mb-4 flex items-start justify-between gap-3 p-3 rounded-md border bg-danger/10 border-danger/30 text-danger text-sm" role="alert">
+                    <span>{notice}</span>
+                    <button
+                        onClick={() => setNotice(null)}
+                        className="shrink-0 text-text-muted hover:text-text-primary"
+                        aria-label="Dismiss notice"
+                    >
+                        <AlertCircle className="w-4 h-4" />
+                    </button>
+                </div>
             )}
 
             <div className="card shadow-md overflow-hidden border border-border-subtle">
@@ -238,6 +250,7 @@ function CatalogContent() {
                                                     disabled={index === 0}
                                                     className="p-1.5 rounded-md transition-colors hover:bg-background-tertiary disabled:opacity-30 disabled:cursor-not-allowed text-text-secondary"
                                                     title="Move up"
+                                                    aria-label={`Move ${shelf.title} up`}
                                                 >
                                                     <ChevronUp className="w-4 h-4" />
                                                 </button>
@@ -249,6 +262,7 @@ function CatalogContent() {
                                                     disabled={index === shelves.length - 1}
                                                     className="p-1.5 rounded-md transition-colors hover:bg-background-tertiary disabled:opacity-30 disabled:cursor-not-allowed text-text-secondary"
                                                     title="Move down"
+                                                    aria-label={`Move ${shelf.title} down`}
                                                 >
                                                     <ChevronDown className="w-4 h-4" />
                                                 </button>
@@ -274,6 +288,7 @@ function CatalogContent() {
                                         <td className="px-6 py-4">
                                             <button
                                                 onClick={() => handleToggle(shelf)}
+                                                aria-label={shelf.is_active ? `Deactivate shelf "${shelf.title}"` : `Activate shelf "${shelf.title}"`}
                                                 className={`flex items-center gap-1 text-xs font-semibold transition-colors ${shelf.is_active ? 'text-success-light' : 'text-text-muted'}`}
                                             >
                                                 {shelf.is_active ? (
@@ -289,6 +304,7 @@ function CatalogContent() {
                                                     onClick={() => openModal(shelf)}
                                                     className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-md transition-colors"
                                                     title="Edit"
+                                                    aria-label={`Edit shelf "${shelf.title}"`}
                                                 >
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
@@ -296,6 +312,7 @@ function CatalogContent() {
                                                     onClick={() => setDeleteModal({ isOpen: true, shelf })}
                                                     className="p-2 text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
                                                     title="Delete"
+                                                    aria-label={`Delete shelf "${shelf.title}"`}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
@@ -310,19 +327,13 @@ function CatalogContent() {
             </div>
 
             {/* Shelf modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="card w-full max-w-lg p-0 animate-scale-in shadow-2xl overflow-hidden">
-                        <div className="bg-background-secondary p-6 border-b border-border-subtle flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-text-primary">
-                                {editingShelf ? 'Edit Shelf' : 'Create New Shelf'}
-                            </h2>
-                            <button onClick={closeModal} className="text-text-muted hover:text-text-primary" aria-label="Close">
-                                ✕
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <AdminModal
+                isOpen={showModal}
+                onClose={closeModal}
+                title={editingShelf ? 'Edit Shelf' : 'Create New Shelf'}
+                maxWidth="lg"
+            >
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div>
                                 <label className="label">Shelf Title *</label>
                                 <input
@@ -393,7 +404,7 @@ function CatalogContent() {
                             </div>
 
                             {error && (
-                                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-md text-red-600 text-sm">
+                                <div className="flex items-center gap-2 p-3 bg-danger/10 border border-danger/30 rounded-md text-danger text-sm">
                                     <AlertCircle className="w-4 h-4" />
                                     {error}
                                 </div>
@@ -410,9 +421,7 @@ function CatalogContent() {
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            )}
+            </AdminModal>
 
             <ConfirmDeleteModal
                 isOpen={deleteModal.isOpen}

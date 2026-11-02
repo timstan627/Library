@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth-context'
 import { SkeletonTable } from '@/components/ui/Skeleton'
 import { AdminAuthGate } from '@/components/AuthGate'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { AdminModal } from '@/components/ui/AdminModal'
 import FetchError from '@/components/ui/FetchError'
 
 interface Course {
@@ -266,6 +267,7 @@ function CoursesContent() {
                                                     onClick={() => openModal(course)}
                                                     className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-md transition-colors"
                                                     title="Edit"
+                                                    aria-label={`Edit course "${course.name}"`}
                                                 >
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
@@ -273,6 +275,7 @@ function CoursesContent() {
                                                     onClick={() => openDeleteModal(course)}
                                                     className="p-2 text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
                                                     title="Delete"
+                                                    aria-label={`Delete course "${course.name}"`}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
@@ -309,19 +312,13 @@ function CoursesContent() {
             </div>
 
             {/* Modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="card w-full max-w-lg p-0 animate-scale-in shadow-2xl overflow-hidden">
-                        <div className="bg-background-secondary p-6 border-b border-border-subtle flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-text-primary">
-                                {editingCourse ? 'Edit Course' : 'Create New Course'}
-                            </h2>
-                            <button onClick={closeModal} className="text-text-muted hover:text-text-primary">
-                                <Plus className="w-6 h-6 rotate-45" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <AdminModal
+                isOpen={showModal}
+                onClose={closeModal}
+                title={editingCourse ? 'Edit Course' : 'Create New Course'}
+                maxWidth="lg"
+            >
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="col-span-2">
                                     <label className="label">Course Name *</label>
@@ -374,7 +371,7 @@ function CoursesContent() {
                             </div>
 
                             {error && (
-                                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-md text-red-600 text-sm">
+                                <div className="flex items-center gap-2 p-3 bg-danger/10 border border-danger/30 rounded-md text-danger text-sm">
                                     <AlertCircle className="w-4 h-4" />
                                     {error}
                                 </div>
@@ -391,9 +388,7 @@ function CoursesContent() {
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            )}
+            </AdminModal>
 
             {/* Type-to-confirm delete modal */}
             <ConfirmDeleteModal

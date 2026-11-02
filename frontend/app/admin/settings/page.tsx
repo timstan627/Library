@@ -11,6 +11,7 @@ function SettingsContent() {
     const { user, isAuthenticated } = useAuth()
     const [autoApprove, setAutoApprove] = useState<boolean | null>(null) // null = loading
     const [saving, setSaving] = useState(false)
+    const [actionError, setActionError] = useState<string | null>(null)
     const [fetchError, setFetchError] = useState<string | null>(null)
 
     useEffect(() => {
@@ -30,19 +31,23 @@ function SettingsContent() {
         }
     }
 
+    // The switch reflects moderation being enabled: checked = ON.
     const handleToggle = async () => {
         if (autoApprove === null) return
         const next = !autoApprove
         setSaving(true)
+        setActionError(null)
         try {
             const response = await apiHelpers.setModerationAutoApprove(next)
             setAutoApprove(response.data.auto_approve_moderation)
         } catch {
-            alert('Failed to update moderation setting')
+            setActionError('Could not change the moderation setting. Nothing was saved — try again.')
         } finally {
             setSaving(false)
         }
     }
+
+    const moderationOn = autoApprove === false
 
     return (
         <div className="container-custom py-8">
@@ -58,44 +63,56 @@ function SettingsContent() {
             <div className="card p-6 border border-border-subtle">
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                     <div className="flex gap-3">
-                        {autoApprove ? (
-                            <ShieldAlert className="w-7 h-7 text-yellow-500 shrink-0" />
-                        ) : (
+                        {moderationOn ? (
                             <ShieldCheck className="w-7 h-7 text-success-light shrink-0" />
+                        ) : (
+                            <ShieldAlert className="w-7 h-7 text-warning-light shrink-0" />
                         )}
                         <div>
                             <h2 className="text-lg font-bold text-text-primary">Upload Moderation</h2>
-                            <p className="text-sm text-text-secondary mt-1">
+                            <p
+                                className="text-sm text-text-secondary mt-1"
+                                aria-live="polite"
+                            >
                                 {autoApprove === null
                                     ? 'Loading…'
-                                    : autoApprove
-                                        ? 'OFF — anyone can upload and content is published immediately, without review.'
-                                        : 'ON — uploads by regular users go to the moderation queue for review before appearing publicly.'}
+                                    : moderationOn
+                                        ? 'Moderation is ON — uploads by regular users wait in the moderation queue before appearing publicly.'
+                                        : 'Moderation is OFF — uploads by regular users publish immediately, without review.'}
                             </p>
                         </div>
                     </div>
                     <button
                         onClick={handleToggle}
                         disabled={autoApprove === null || saving}
-                        className={`flex items-center gap-1 text-sm font-semibold shrink-0 transition-colors disabled:opacity-50 ${autoApprove ? 'text-success-light' : 'text-text-muted'}`}
-                        aria-label={autoApprove ? 'Disable auto-approval (enable moderation)' : 'Enable auto-approval (disable moderation)'}
+                        role="switch"
+                        aria-checked={autoApprove === null ? undefined : moderationOn}
+                        aria-label={moderationOn ? 'Turn moderation off (publish without review)' : 'Turn moderation on (queue uploads for review)'}
+                        className={`flex items-center gap-1 text-sm font-semibold shrink-0 transition-colors disabled:opacity-50 ${moderationOn ? 'text-success-light' : 'text-warning-light'}`}
                     >
                         {(saving) ? (
                             <Loader2 className="w-6 h-6 animate-spin" />
-                        ) : autoApprove ? (
+                        ) : moderationOn ? (
                             <ToggleRight className="w-6 h-6" />
                         ) : (
                             <ToggleLeft className="w-6 h-6" />
                         )}
-                        {autoApprove ? 'Review before publishing' : 'Publish immediately'}
+                        {autoApprove === null ? 'Loading…' : moderationOn ? 'Moderation ON' : 'Moderation OFF'}
                     </button>
                 </div>
 
+                {actionError && (
+                    <div className="mt-4 flex gap-2 items-start p-3 bg-danger/10 border border-danger/30 rounded-md text-sm text-danger" role="alert">
+                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{actionError}</span>
+                    </div>
+                )}
+
                 {autoApprove && (
-                    <div className="flex gap-2 items-start mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-md text-sm text-yellow-500">
+                    <div className="flex gap-2 items-start mt-4 p-3 bg-warning/10 border border-warning/30 rounded-md text-sm text-warning-light">
                         <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                         <span>
-                            Public uploads appear instantly for all users. Individual trusted users can still be handled per-user on the Users page, and admins/moderators are unaffected either way.
+                            Every regular upload publishes instantly without review while moderation is OFF. Trusted Contributor grants on the Users page make no difference for these uploads, and admins/moderators are always unaffected.
                         </span>
                     </div>
                 )}
@@ -103,7 +120,7 @@ function SettingsContent() {
                 <div className="flex gap-2 items-start mt-4 p-3 bg-background-secondary border border-border-subtle rounded-md text-sm text-text-secondary">
                     <Info className="w-4 h-4 shrink-0 mt-0.5 text-text-muted" />
                     <span>
-                        When publishing immediately is enabled, every non-private upload by any user skips the queue. Private uploads are unaffected (only the uploader can see them), and admin/moderator uploads have always bypassed review.
+                        Individual users can publish without review at any time via the per-user switch on the Users page — it is not tied to this global setting. Private uploads stay visible only to the uploader, and admin/moderator uploads always skip review.
                     </span>
                 </div>
             </div>

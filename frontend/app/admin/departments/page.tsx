@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth-context'
 import { SkeletonTable } from '@/components/ui/Skeleton'
 import { AdminAuthGate } from '@/components/AuthGate'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { AdminModal } from '@/components/ui/AdminModal'
 import FetchError from '@/components/ui/FetchError'
 
 interface Department {
@@ -37,6 +38,7 @@ function DepartmentsContent() {
     const [formData, setFormData] = useState({ name: '', code: '', description: '' })
     const [error, setError] = useState('')
     const [fetchError, setFetchError] = useState<string | null>(null)
+    const [notice, setNotice] = useState<string | null>(null)
 
     // HIGH-003 & HIGH-004: Delete modal state
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; dept: Department | null }>({
@@ -90,7 +92,7 @@ function DepartmentsContent() {
                 d.id === id ? { ...d, is_active: !d.is_active } : d
             ))
         } catch (error) {
-            alert('Failed to toggle department status')
+            setNotice('Failed to change the department status. Check the connection and try again.')
         }
     }
 
@@ -166,6 +168,19 @@ function DepartmentsContent() {
                 <FetchError message={fetchError} onRetry={fetchDepartments} className="mb-6" />
             )}
 
+            {notice && (
+                <div className="mb-4 flex items-start justify-between gap-3 p-3 rounded-md border bg-danger/10 border-danger/30 text-danger text-sm" role="alert">
+                    <span>{notice}</span>
+                    <button
+                        onClick={() => setNotice(null)}
+                        className="shrink-0 text-text-muted hover:text-text-primary"
+                        aria-label="Dismiss notice"
+                    >
+                        <AlertCircle className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+
             <div className="card shadow-md overflow-hidden border border-border-subtle">
                 <div className="overflow-x-auto">
                     <table className="w-full">
@@ -209,6 +224,7 @@ function DepartmentsContent() {
                                         <td className="px-6 py-4">
                                             <button
                                                 onClick={() => handleToggle(dept.id)}
+                                                aria-label={dept.is_active ? `Deactivate department "${dept.name}"` : `Activate department "${dept.name}"`}
                                                 className={`flex items-center gap-1 text-xs font-semibold transition-colors ${dept.is_active ? 'text-success-light' : 'text-text-muted'}`}
                                             >
                                                 {dept.is_active ? (
@@ -224,6 +240,7 @@ function DepartmentsContent() {
                                                     onClick={() => openModal(dept)}
                                                     className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-md transition-colors"
                                                     title="Edit"
+                                                    aria-label={`Edit department "${dept.name}"`}
                                                 >
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
@@ -231,6 +248,7 @@ function DepartmentsContent() {
                                                     onClick={() => openDeleteModal(dept)}
                                                     className="p-2 text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
                                                     title="Delete"
+                                                    aria-label={`Delete department "${dept.name}"`}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
@@ -245,19 +263,13 @@ function DepartmentsContent() {
             </div>
 
             {/* Modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="card w-full max-w-lg p-0 animate-scale-in shadow-2xl overflow-hidden">
-                        <div className="bg-background-secondary p-6 border-b border-border-subtle flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-text-primary">
-                                {editingDept ? 'Edit Department' : 'Create New Department'}
-                            </h2>
-                            <button onClick={closeModal} className="text-text-muted hover:text-text-primary">
-                                <Plus className="w-6 h-6 rotate-45" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <AdminModal
+                isOpen={showModal}
+                onClose={closeModal}
+                title={editingDept ? 'Edit Department' : 'Create New Department'}
+                maxWidth="lg"
+            >
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="col-span-2">
                                     <label className="label">Department Name *</label>
@@ -295,7 +307,7 @@ function DepartmentsContent() {
                             </div>
 
                             {error && (
-                                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-md text-red-600 text-sm">
+                                <div className="flex items-center gap-2 p-3 bg-danger/10 border border-danger/30 rounded-md text-danger text-sm">
                                     <AlertCircle className="w-4 h-4" />
                                     {error}
                                 </div>
@@ -312,9 +324,7 @@ function DepartmentsContent() {
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            )}
+            </AdminModal>
 
             {/* HIGH-004: Type-to-confirm delete modal */}
             <ConfirmDeleteModal

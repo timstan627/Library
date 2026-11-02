@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
-    Trash2, Search, FileText, Download, Eye, Edit2, Loader2, RefreshCcw, CheckSquare, Square
+    Trash2, Search, FileText, Download, Eye, Edit2, Loader2, RefreshCcw, CheckSquare, Square, X
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { ModeratorAuthGate } from '@/components/AuthGate'
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import FetchError from '@/components/ui/FetchError'
 
 interface Resource {
@@ -24,6 +25,8 @@ interface Resource {
     created_at: string
 }
 
+const BULK_TYPE_THRESHOLD = 3
+
 function ResourcesContent() {
     const { user } = useAuth()
     const [resources, setResources] = useState<Resource[]>([])
@@ -34,23 +37,31 @@ function ResourcesContent() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [deleting, setDeleting] = useState(false)
     const [fetchError, setFetchError] = useState<string | null>(null)
+    const [deleteTarget, setDeleteTarget] = useState<Resource | null>(null)
+    const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
+    const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
     useEffect(() => {
         fetchResources()
     }, [page])
 
-    const fetchResources = async () => {
+    // Returns the freshly fetched list so bulk-delete can retarget the
+    // selection at whatever rows are still alive (the failed ones).
+    const fetchResources = async (): Promise<Resource[]> => {
         setLoading(true)
         try {
             const response = await api.get('/admin/resources', {
                 params: { page, page_size: 50 }
             })
-            setResources(response.data.results || [])
+            const list: Resource[] = response.data.results || []
+            setResources(list)
             setTotalPages(Math.ceil((response.data.total || 0) / 50))
             setFetchError(null)
+            return list
         } catch (error) {
             console.error('Failed to fetch resources:', error)
             setFetchError('Failed to load resources. The list may not actually be empty.')
+            return []
         } finally {
             setLoading(false)
         }
@@ -76,31 +87,48 @@ function ResourcesContent() {
         }
     }
 
-    const handleDeleteSingle = async (id: string) => {
-        setDeleting(true)
-        try {
-            await api.delete(`/admin/resources/${id}`)
-            setResources(prev => prev.filter(r => r.id !== id))
-            selectedIds.delete(id)
-            setSelectedIds(new Set(selectedIds))
-        } catch (error) {
-            console.error('Delete failed:', error)
-            alert('Delete failed')
-        } finally {
-            setDeleting(false)
-        }
+    const performSingleDelete = async (resource: Resource) => {
+        // Errors propagate: ConfirmDeleteModal keeps itself open and shows
+        // the detail inline instead of a page-level notice duplicating it.
+        await api.delete(`/admin/resources/${resource.id}`)
+        setResources(prev => prev.filter(r => r.id !== resource.id))
+        setSelectedIds(prev => {
+            const next = new Set(prev)
+            next.delete(resource.id)
+            return next
+        })
+        setNotice({ type: 'success', text: `Deleted "${resource.title}".` })
     }
 
-    const handleBulkDelete = async () => {
+    const performBulkDelete = async () => {
         if (selectedIds.size === 0) return
+        const requested = selectedIds.size
         setDeleting(true)
+        setNotice(null)
         try {
-            await api.post('/admin/resources/bulk-delete', Array.from(selectedIds))
-            setResources(prev => prev.filter(r => !selectedIds.has(r.id)))
-            setSelectedIds(new Set())
-        } catch (error) {
+            const response = await api.post('/admin/resources/bulk-delete', Array.from(selectedIds))
+            const deleted = typeof response.data?.deleted === 'number' ? response.data.deleted : requested
+            const failed = typeof response.data?.failed === 'number' ? response.data.failed : 0
+            // The endpoint reports counts, not IDs: the rows that remain in the
+            // fresh list are exactly the failed ones, so reselect those and
+            // let the operator try again without re-ticking anything.
+            const stillListed = await fetchResources()
+            const aliveIds = new Set(stillListed.map(r => r.id))
+            setSelectedIds(new Set(Array.from(selectedIds).filter(id => aliveIds.has(id))))
+            if (failed > 0) {
+                setNotice({
+                    type: 'error',
+                    text: `${deleted} of ${requested} deleted. ${failed} could not be deleted and remain selected.`,
+                })
+            } else {
+                setNotice({ type: 'success', text: `Deleted ${deleted} resource${deleted === 1 ? '' : 's'}.` })
+            }
+        } catch (error: any) {
             console.error('Bulk delete failed:', error)
-            alert('Some deletes failed')
+            setNotice({
+                type: 'error',
+                text: error.response?.data?.detail || 'Bulk delete failed. Nothing was removed this time.',
+            })
         } finally {
             setDeleting(false)
         }
@@ -137,7 +165,7 @@ function ResourcesContent() {
             </div>
 
             {/* Search and Bulk Actions */}
-            <div className="card mb-6 p-4">
+            <div className="card mb-4 p-4">
                 <div className="flex flex-col md:flex-row gap-4">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
@@ -151,9 +179,9 @@ function ResourcesContent() {
                     </div>
                     {selectedIds.size > 0 && (
                         <button
-                            onClick={handleBulkDelete}
+                            onClick={() => setBulkConfirmOpen(true)}
                             disabled={deleting}
-                            className="btn bg-red-600 hover:bg-red-700 text-white"
+                            className="btn btn-danger"
                         >
                             {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
                             Delete Selected ({selectedIds.size})
@@ -161,6 +189,27 @@ function ResourcesContent() {
                     )}
                 </div>
             </div>
+
+            {/* Action notices — replaces alert() so feedback is visible and announced */}
+            {notice && (
+                <div
+                    className={`mb-4 flex items-start justify-between gap-3 p-3 rounded-md border text-sm ${
+                        notice.type === 'error'
+                            ? 'bg-danger/10 border-danger/30 text-danger'
+                            : 'bg-success/10 border-success/20 text-success-light'
+                    }`}
+                    role={notice.type === 'error' ? 'alert' : 'status'}
+                >
+                    <span>{notice.text}</span>
+                    <button
+                        onClick={() => setNotice(null)}
+                        className="shrink-0 text-text-muted hover:text-text-primary"
+                        aria-label="Dismiss notice"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
 
             {/* Resources Table */}
             {fetchError && (
@@ -173,7 +222,11 @@ function ResourcesContent() {
                         <thead className="bg-background-secondary border-b border-border-subtle">
                             <tr>
                                 <th className="px-4 py-4 text-left">
-                                    <button onClick={selectAll} className="text-text-muted hover:text-text-primary">
+                                    <button
+                                        onClick={selectAll}
+                                        className="text-text-muted hover:text-text-primary"
+                                        aria-label={selectedIds.size === filteredResources.length && filteredResources.length > 0 ? 'Clear selection' : 'Select all on this page'}
+                                    >
                                         {selectedIds.size === filteredResources.length && filteredResources.length > 0 ? (
                                             <CheckSquare className="w-5 h-5" />
                                         ) : (
@@ -203,7 +256,11 @@ function ResourcesContent() {
                                 filteredResources.map((resource) => (
                                     <tr key={resource.id} className="hover:bg-background-tertiary transition-colors">
                                         <td className="px-4 py-4">
-                                            <button onClick={() => toggleSelect(resource.id)} className="text-text-muted hover:text-text-primary">
+                                            <button
+                                                onClick={() => toggleSelect(resource.id)}
+                                                className="text-text-muted hover:text-text-primary"
+                                                aria-label={selectedIds.has(resource.id) ? `Deselect ${resource.title}` : `Select ${resource.title}`}
+                                            >
                                                 {selectedIds.has(resource.id) ? (
                                                     <CheckSquare className="w-5 h-5 text-accent-primary" />
                                                 ) : (
@@ -237,15 +294,15 @@ function ResourcesContent() {
                                                 <Link
                                                     href={`/resources/${resource.slug}/edit`}
                                                     className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-md transition-colors"
-                                                    title="Edit"
+                                                    aria-label={`Edit ${resource.title}`}
                                                 >
                                                     <Edit2 className="w-4 h-4" />
                                                 </Link>
                                                 <button
-                                                    onClick={() => handleDeleteSingle(resource.id)}
+                                                    onClick={() => setDeleteTarget(resource)}
                                                     disabled={deleting}
                                                     className="p-2 text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
-                                                    title="Delete"
+                                                    aria-label={`Delete ${resource.title}`}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
@@ -267,6 +324,43 @@ function ResourcesContent() {
                     <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn btn-secondary">Next</button>
                 </div>
             )}
+
+            {/* Single delete — soft outcome stated honestly instead of "cannot be undone" */}
+            <ConfirmDeleteModal
+                isOpen={!!deleteTarget}
+                onClose={() => setDeleteTarget(null)}
+                onConfirm={() => deleteTarget ? performSingleDelete(deleteTarget) : Promise.resolve()}
+                title="Delete Resource"
+                itemName={deleteTarget?.title || ''}
+                itemType="resource"
+                subtitle="This hides the resource from students; it can't be reversed from this console"
+                typeToConfirm={false}
+                itemLabel={deleteTarget ? (
+                    <div>
+                        <p className="font-mono font-bold text-text-primary">{deleteTarget.title}</p>
+                        <p className="text-xs text-text-muted font-mono mt-1">{deleteTarget.file_name} — {formatFileSize(deleteTarget.file_size)}</p>
+                    </div>
+                ) : undefined}
+            />
+
+            {/* Bulk delete — typed confirmation once the blast radius grows */}
+            <ConfirmDeleteModal
+                isOpen={bulkConfirmOpen}
+                onClose={() => setBulkConfirmOpen(false)}
+                onConfirm={performBulkDelete}
+                title={`Delete ${selectedIds.size} selected resource${selectedIds.size === 1 ? '' : 's'}?`}
+                itemName=""
+                itemType={`batch of ${selectedIds.size} resource${selectedIds.size === 1 ? '' : 's'}`}
+                subtitle="This hides them from students; it can't be reversed from this console"
+                typeToConfirm={selectedIds.size > BULK_TYPE_THRESHOLD}
+                confirmToken="DELETE"
+                itemLabel={
+                    <div>
+                        <p className="font-bold text-text-primary">{selectedIds.size} selected resource{selectedIds.size === 1 ? '' : 's'}</p>
+                        <p className="text-sm text-text-secondary mt-1">Sending view and download stats off the student pages with them.</p>
+                    </div>
+                }
+            />
         </div>
     )
 }

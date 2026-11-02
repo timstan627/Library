@@ -1,13 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import {
-    LayoutDashboard, Users, FileText, Flag, BarChart3, Settings,
-    TrendingUp, Download, Eye, HardDrive, AlertTriangle, CheckCircle,
-    XCircle, Search, Shield, BookOpen, Layers, Activity, ChevronRight
-} from 'lucide-react'
+import { TrendingUp, Info, ChevronRight } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { api, apiHelpers } from '@/lib/api'
 import { SkeletonGrid } from '@/components/ui/Skeleton'
@@ -75,73 +70,19 @@ function AdminDashboardContent() {
         return null
     }
 
-    const adminSections = [
-        {
-            title: 'Resources',
-            desc: 'Manage all uploads',
-            icon: FileText,
-            href: '/admin/resources',
-            color: 'text-accent-primary',
-            bg: 'bg-accent-primary/10'
-        },
-        {
-            title: 'Moderation',
-            desc: 'Review pending uploads',
-            icon: Shield,
-            count: stats?.pending_moderation || 0,
-            href: '/admin/moderation',
-            color: 'text-yellow-500',
-            bg: 'bg-yellow-500/10'
-        },
-        {
-            title: 'Departments',
-            desc: 'Manage faculty units',
-            icon: Layers,
-            href: '/admin/departments',
-            color: 'text-blue-500',
-            bg: 'bg-blue-500/10'
-        },
-        {
-            title: 'Courses',
-            desc: 'Manage study programs',
-            icon: BookOpen,
-            href: '/admin/courses',
-            color: 'text-purple-500',
-            bg: 'bg-purple-500/10'
-        },
-        {
-            title: 'Trusted Users',
-            desc: 'Manage contributors',
-            icon: Users,
-            href: '/admin/users',
-            color: 'text-green-500',
-            bg: 'bg-green-500/10'
-        },
-        {
-            title: 'Audit Logs',
-            desc: 'Track admin actions',
-            icon: Activity,
-            href: '/admin/audit',
-            color: 'text-orange-500',
-            bg: 'bg-orange-500/10'
-        },
-        {
-            title: 'Reports',
-            desc: 'Resolve user reports',
-            icon: Flag,
-            count: stats?.pending_reports || 0,
-            href: '/admin/reports',
-            color: 'text-red-500',
-            bg: 'bg-red-500/10'
-        }
-    ]
+    // Only work that actually waits on a human gets a signal. The sidebar
+    // is the wayfinding system; the dashboard does not re-list every section.
+    const needsAttention = [
+        { label: 'Moderation queue', href: '/admin/moderation', count: stats?.pending_moderation ?? 0 },
+        { label: 'Open reports', href: '/admin/reports', count: stats?.pending_reports ?? 0 },
+    ].filter(item => item.count > 0)
 
     return (
         <div className="container-custom py-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-text-primary">Admin Control Center</h1>
-                    <p className="text-text-secondary">System-wide monitoring and management</p>
+                    <h1 className="text-3xl font-bold text-text-primary">Dashboard</h1>
+                    <p className="text-text-secondary">System-wide overview for the library</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-text-muted">Logged in as</span>
@@ -157,104 +98,81 @@ function AdminDashboardContent() {
                 />
             )}
 
-            {/* Quick Stats Grid */}
+            {/* Needs attention — the only place a colored signal appears */}
+            <div className="card p-4 mb-8">
+                {needsAttention.length === 0 ? (
+                    <p className="text-sm text-text-secondary px-2 py-1">
+                        Nothing needs attention right now.
+                    </p>
+                ) : (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+                        <span className="text-xs font-medium text-text-muted uppercase tracking-wide px-1">
+                            Needs attention
+                        </span>
+                        {needsAttention.map(item => (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-background-tertiary"
+                            >
+                                <span className="w-2 h-2 rounded-full bg-warning-light shrink-0" aria-hidden="true" />
+                                <span className="text-sm font-semibold text-text-primary tabular-nums">{item.count}</span>
+                                <span className="text-sm text-text-secondary">{item.label}</span>
+                                <ChevronRight className="w-4 h-4 text-text-muted" />
+                            </Link>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-                <div className="card p-6 border-l-4 border-blue-500">
+                <div className="card p-6">
                     <p className="text-text-secondary text-xs font-medium mb-1">Total Users</p>
                     <p className="text-3xl font-bold font-display text-text-primary tabular-nums">{stats?.total_users.toLocaleString()}</p>
-                    <p className="text-green-500 text-xs mt-2 flex items-center gap-1">
+                    <p className="text-success-light text-xs mt-2 flex items-center gap-1">
                         <TrendingUp className="w-3 h-3" />
                         +{stats?.new_users_7d} this week
                     </p>
                 </div>
-                <div className="card p-6 border-l-4 border-purple-500">
+                <div className="card p-6">
                     <p className="text-text-secondary text-xs font-medium mb-1">Total Resources</p>
                     <p className="text-3xl font-bold font-display text-text-primary tabular-nums">{stats?.total_resources.toLocaleString()}</p>
-                    <p className="text-green-500 text-xs mt-2 flex items-center gap-1">
+                    <p className="text-success-light text-xs mt-2 flex items-center gap-1">
                         <TrendingUp className="w-3 h-3" />
                         +{stats?.new_resources_7d} this week
                     </p>
                 </div>
-                <div className="card p-6 border-l-4 border-green-500">
+                <div className="card p-6">
                     <p className="text-text-secondary text-xs font-medium mb-1">Downloads</p>
                     <p className="text-3xl font-bold font-display text-text-primary tabular-nums">{stats?.total_downloads.toLocaleString()}</p>
                     <p className="text-text-muted text-xs mt-2">Aggregated across all files</p>
                 </div>
-                <div className="card p-6 border-l-4 border-orange-500">
+                <div className="card p-6">
                     <p className="text-text-secondary text-xs font-medium mb-1">Storage Usage</p>
                     <p className="text-3xl font-bold font-display text-text-primary tabular-nums">
                         {(stats?.total_storage_mb || 0).toFixed(2)} MB
                     </p>
-                    <p className="text-text-muted text-xs mt-2">Cloud storage footprint</p>
+                    <p className="text-text-muted text-xs mt-2">Telegram storage footprint</p>
                 </div>
             </div>
 
-            {/* Management Hub */}
-            <h2 className="text-xl font-bold text-text-primary mb-6 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-accent-primary" />
-                Management Hub
-            </h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {adminSections.map((section) => (
-                    <Link
-                        key={section.title}
-                        href={section.href}
-                        className="group card card-interactive p-6 relative overflow-hidden"
-                    >
-                        <div className="flex items-start justify-between relative z-10">
-                            <div className={`p-3 rounded-xl ${section.bg} ${section.color} mb-4`}>
-                                <section.icon className="w-6 h-6" />
-                            </div>
-                            {section.count !== undefined && section.count > 0 && (
-                                <span className="bg-danger text-accent-ink text-xs font-semibold px-2 py-0.5 rounded-full tabular-nums">
-                                    {section.count}
-                                </span>
-                            )}
-                        </div>
-                        <h3 className="text-lg font-bold text-text-primary">
-                            {section.title}
-                        </h3>
-                        <p className="text-sm text-text-secondary mt-1">
-                            {section.desc}
-                        </p>
-                        <div className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-accent-primary">
-                            Manage Section
-                            <ChevronRight className="w-4 h-4 transition-transform duration-200 ease-expo group-hover:translate-x-1" />
-                        </div>
-
-                        {/* Decorative background icon */}
-                        <section.icon className="absolute -right-4 -bottom-4 w-24 h-24 opacity-[0.03]" />
-                    </Link>
-                ))}
-            </div>
-
-            {/* Platform Status */}
-            <div className="mt-12 p-8 bg-background-secondary rounded-2xl border border-border-subtle relative overflow-hidden">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
-                    <div className="flex items-center gap-6">
-                        <div className="w-16 h-16 bg-success/20 rounded-full flex items-center justify-center">
-                            <Activity className="w-8 h-8 text-success-light" />
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-bold text-text-primary">System Health: Operational</h3>
-                            <p className="text-text-secondary">All services are running normally. No active issues detected.</p>
-                        </div>
+            {/* Service bindings — stated as facts; runtime health is not instrumented yet */}
+            <div className="card p-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-accent-primary/10 rounded-lg flex items-center justify-center shrink-0">
+                        <Info className="w-5 h-5 text-accent-primary" />
                     </div>
-                    <div className="flex flex-wrap gap-4">
-                        <div className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border-subtle">
-                            <div className="w-2 h-2 rounded-full bg-success-light" />
-                            <span className="text-xs font-medium text-text-secondary">Telegram API</span>
-                        </div>
-                        <div className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border-subtle">
-                            <div className="w-2 h-2 rounded-full bg-success-light" />
-                            <span className="text-xs font-medium text-text-secondary">In-Memory Cache</span>
-                        </div>
-                        <div className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border-subtle">
-                            <div className="w-2 h-2 rounded-full bg-success-light" />
-                            <span className="text-xs font-medium text-text-secondary">SQLite DB</span>
-                        </div>
+                    <div>
+                        <h3 className="font-bold text-text-primary">Service bindings</h3>
+                        <p className="text-xs text-text-muted">Runtime metrics are not instrumented yet.</p>
                     </div>
                 </div>
+                <ul className="text-sm text-text-secondary space-y-1.5">
+                    <li><span className="font-semibold text-text-primary">File storage</span> — bound to a Telegram channel; no storage bill.</li>
+                    <li><span className="font-semibold text-text-primary">Rate limiting, lockout, stats</span> — in-memory in one process; restart resets counters.</li>
+                    <li><span className="font-semibold text-text-primary">Database</span> — SQLite, single file.</li>
+                </ul>
             </div>
         </div>
     )
