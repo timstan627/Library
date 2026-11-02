@@ -93,6 +93,20 @@ export default function UserPromotionPage() {
         }
     }
 
+    const handleToggleExempt = async (userId: string, currentStatus: boolean) => {
+        const newStatus = !currentStatus
+        try {
+            await apiHelpers.setUserModerationExempt(userId, newStatus)
+            if (activeTab === 'trusted') {
+                setUsers(users.map(u => u.id === userId ? { ...u, moderation_exempt: newStatus } : u))
+            } else {
+                setAllUsers(allUsers.map(u => u.id === userId ? { ...u, moderation_exempt: newStatus } : u))
+            }
+        } catch (error: any) {
+            alert(error.response?.data?.detail || 'Failed to update moderation exemption')
+        }
+    }
+
     if (isLoading || !isAuthenticated) {
         return <div className="p-8"><SkeletonTable rows={5} columns={4} /></div>
     }
@@ -212,14 +226,27 @@ export default function UserPromotionPage() {
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            {u.role !== 'admin' && (
-                                                <button
-                                                    onClick={() => handleToggleTrust(u.id, u.is_trusted)}
-                                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-[background-color,color,border-color,transform] active:scale-95 ${u.is_trusted ? 'bg-danger/10 text-danger-light border border-danger/20 hover:bg-danger hover:text-accent-ink' : 'bg-success/10 text-success-light border border-success/20 hover:bg-success hover:text-accent-ink'}`}
-                                                >
-                                                    {u.is_trusted ? 'Revoke Trust' : 'Mark Trusted'}
-                                                </button>
-                                            )}
+                                            <div className="flex flex-col items-end gap-2">
+                                                {u.role !== 'admin' && (
+                                                    <button
+                                                        onClick={() => handleToggleTrust(u.id, u.is_trusted)}
+                                                        className={`px-4 py-1.5 rounded-md text-xs font-bold transition-[background-color,color,border-color,transform] active:scale-95 ${u.is_trusted ? 'bg-danger/10 text-danger-light border border-danger/20 hover:bg-danger hover:text-accent-ink' : 'bg-success/10 text-success-light border border-success/20 hover:bg-success hover:text-accent-ink'}`}
+                                                    >
+                                                        {u.is_trusted ? 'Revoke Trust' : 'Mark Trusted'}
+                                                    </button>
+                                                )}
+                                                {u.role === 'user' && (
+                                                    <div className="flex flex-col items-end gap-0.5">
+                                                        <span className="text-[10px] text-text-muted">Uploads skip review</span>
+                                                        <button
+                                                            onClick={() => handleToggleExempt(u.id, !!u.moderation_exempt)}
+                                                            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-[background-color,color,border-color,transform] active:scale-95 ${u.moderation_exempt ? 'bg-danger/10 text-danger-light border border-danger/20 hover:bg-danger hover:text-accent-ink' : 'bg-success/10 text-success-light border border-success/20 hover:bg-success hover:text-accent-ink'}`}
+                                                        >
+                                                            {u.moderation_exempt ? 'Remove Exemption' : 'Exempt from Moderation'}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

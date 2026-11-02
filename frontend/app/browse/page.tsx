@@ -93,6 +93,48 @@ const unwrapResults = (data: unknown): Resource[] => {
     return Array.isArray(d?.results) ? (d.results as Resource[]) : Array.isArray(data) ? (data as Resource[]) : []
 }
 
+interface ConfiguredShelf {
+    id: string
+    title: string
+    source_type: string
+    source_value: string | null
+    item_limit: number
+}
+
+interface ConfiguredRow {
+    title: string
+    seeAll: string
+    items: Resource[]
+}
+
+/** Search params for one configured shelf (mirrors admin source_type values). */
+function shelfSearchParams(def: ConfiguredShelf) {
+    const size = Math.min(Math.max(def.item_limit, 1), 48)
+    switch (def.source_type) {
+        case 'recent': return { sort_by: 'recent', size, page: 1 }
+        case 'most_read': return { sort_by: 'views', size, page: 1 }
+        case 'most_downloaded': return { sort_by: 'downloads', size, page: 1 }
+        case 'top_rated': return { sort_by: 'top_rated', min_ratings: 3, size, page: 1 }
+        case 'tag': return { tags: def.source_value ?? '', sort_by: 'views', size, page: 1 }
+        case 'branch': return { branch: def.source_value ?? '', sort_by: 'views', size, page: 1 }
+        case 'subject': return { department: def.source_value ?? '', sort_by: 'views', size, page: 1 }
+        default: return { sort_by: 'recent', size, page: 1 }
+    }
+}
+
+function shelfSeeAllHref(def: ConfiguredShelf): string {
+    switch (def.source_type) {
+        case 'recent': return '/browse?sort_by=recent'
+        case 'most_read': return '/browse?sort_by=views'
+        case 'most_downloaded': return '/browse?sort_by=downloads'
+        case 'top_rated': return '/browse?sort_by=top_rated'
+        case 'tag': return `/browse?tags=${encodeURIComponent(def.source_value ?? '')}&sort_by=views`
+        case 'branch': return `/browse?branch=${encodeURIComponent(def.source_value ?? '')}&sort_by=views`
+        case 'subject': return `/browse?department=${encodeURIComponent(def.source_value ?? '')}&sort_by=views`
+        default: return '/browse?sort_by=recent'
+    }
+}
+
 function ChipRow({ label, options, isOptionActive, onSelect }: {
     label: string
     options: { value: string; label: string }[]
@@ -259,6 +301,10 @@ function BrowseContent() {
     const [resultsNonce, setResultsNonce] = useState(0)
 
     const [discovery, setDiscovery] = useState<DiscoveryState | null>(null)
+    // Admin-configured catalog shelves; null = still loading, [] = not
+    // configured (built-in discovery rows render), non-empty = configured
+    // rows replace the built-ins.
+    const [configured, setConfigured] = useState<ConfiguredRow[] | null>(null)
 
     const [view, setView] = useState<'grid' | 'list'>('grid')
     const [showMoreFilters, setShowMoreFilters] = useState(false)
@@ -438,6 +484,33 @@ function BrowseContent() {
         return () => { cancelled = true }
     }, [isResultsMode, facets])
 
+    // ---- Admin-configured catalog rows (discovery mode only) ----
+    useEffect(() => {
+        if (isResultsMode) { setConfigured(null); return }
+        let cancelled = false
+        ;(async () => {
+            let defs: ConfiguredShelf[] = []
+            try {
+                const res = await apiHelpers.getCatalogShelves()
+                defs = Array.isArray(res.data) ? res.data : []
+            } catch {
+                defs = []
+            }
+            if (cancelled) return
+            if (defs.length === 0) { setConfigured([]); return }
+            const settled = await Promise.allSettled(
+                defs.map(def => apiHelpers.search(shelfSearchParams(def))),
+            )
+            if (cancelled) return
+            setConfigured(defs.map((def, i) => ({
+                title: def.title,
+                seeAll: shelfSeeAllHref(def),
+                items: settled[i].status === 'fulfilled' ? unwrapResults(settled[i].value.data) : [],
+            })))
+        })()
+        return () => { cancelled = true }
+    }, [isResultsMode])
+
     // ---- Derived UI data ----
     const branchChips = useMemo(
         () => (facets?.branches ?? []).map(b => ({ value: b, label: b })),
@@ -501,10 +574,12 @@ function BrowseContent() {
             : {}),
     })
 
+    const hasConfiguredItems = !!configured?.some(row => row.items.length > 0)
     const emptyLibrary = discovery !== null
         && discovery.recent.length === 0
         && discovery.mostRead.length === 0
         && discovery.topRated.length === 0
+        && !hasConfiguredItems
 
     const moreFilterCount = (semesterParam ? 1 : 0) + (fileTypeParam ? 1 : 0)
 
@@ -759,6 +834,18 @@ function BrowseContent() {
                         </>
                     ) : (
                         <>
+                            {configured !== null && configured.length > 0 ? (
+                                configured.map(row => (
+                                    <CatalogRow
+                                        key={`sh-${row.title}`}
+                                        title={row.title}
+                                        seeAllHref={row.seeAll}
+                                    >
+                                        {row.items.map(r => <ResourceTile key={r.slug} resource={toTile(r, false)} />)}
+                                    </CatalogRow>
+                                ))
+                            ) : (
+                                <>
                             <CatalogRow title="Recently added">
                                 {discovery.recent.map(r => <ResourceTile key={r.slug} resource={toTile(r, false)} />)}
                             </CatalogRow>
@@ -790,6 +877,8 @@ function BrowseContent() {
                                     {row.items.map(r => <ResourceTile key={r.slug} resource={toTile(r, false)} />)}
                                 </CatalogRow>
                             ))}
+                                </>
+                            )}
 
                             {emptyLibrary && (
                                 <div className="card p-8 text-center md:p-12">

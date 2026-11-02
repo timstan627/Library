@@ -35,6 +35,48 @@ interface CatalogState {
     tagRows: { key: string; label: string; items: ResourceTileData[] }[]
 }
 
+interface ConfiguredShelf {
+    id: string
+    title: string
+    source_type: string
+    source_value: string | null
+    item_limit: number
+}
+
+interface ConfiguredRow {
+    title: string
+    seeAll: string
+    items: ResourceTileData[]
+}
+
+/** Search params for one configured shelf (mirrors admin source_type values). */
+function shelfSearchParams(def: ConfiguredShelf) {
+    const size = Math.min(Math.max(def.item_limit, 1), 48)
+    switch (def.source_type) {
+        case 'recent': return { sort_by: 'recent', size, page: 1 }
+        case 'most_read': return { sort_by: 'views', size, page: 1 }
+        case 'most_downloaded': return { sort_by: 'downloads', size, page: 1 }
+        case 'top_rated': return { sort_by: 'top_rated', min_ratings: 3, size, page: 1 }
+        case 'tag': return { tags: def.source_value ?? '', sort_by: 'views', size, page: 1 }
+        case 'branch': return { branch: def.source_value ?? '', sort_by: 'views', size, page: 1 }
+        case 'subject': return { department: def.source_value ?? '', sort_by: 'views', size, page: 1 }
+        default: return { sort_by: 'recent', size, page: 1 }
+    }
+}
+
+function shelfSeeAllHref(def: ConfiguredShelf): string {
+    switch (def.source_type) {
+        case 'recent': return '/browse?sort_by=recent'
+        case 'most_read': return '/browse?sort_by=views'
+        case 'most_downloaded': return '/browse?sort_by=downloads'
+        case 'top_rated': return '/browse?sort_by=top_rated'
+        case 'tag': return `/browse?tags=${encodeURIComponent(def.source_value ?? '')}&sort_by=views`
+        case 'branch': return `/browse?branch=${encodeURIComponent(def.source_value ?? '')}&sort_by=views`
+        case 'subject': return `/browse?department=${encodeURIComponent(def.source_value ?? '')}&sort_by=views`
+        default: return '/browse?sort_by=recent'
+    }
+}
+
 interface SavedState {
     name: string
     items: ResourceTileData[]
@@ -64,6 +106,9 @@ export default function HomePage() {
     const [catalog, setCatalog] = useState<CatalogState | null>(null) // null = still loading main rows
     const [secondaryLoading, setSecondaryLoading] = useState(true)
     const [saved, setSaved] = useState<SavedState | null>(null)
+    // null = shelf config still loading; [] = not configured (built-ins render);
+    // non-empty = admin-configured rows replace the built-ins.
+    const [configuredRows, setConfiguredRows] = useState<ConfiguredRow[] | null>(null)
     const [greeting, setGreeting] = useState('')
     const { user } = useAuth()
     const router = useRouter()
@@ -72,6 +117,33 @@ export default function HomePage() {
         api.get('/stats')
             .then(res => setStats(res.data))
             .catch(() => setStats(null))
+    }, [])
+
+    // Admin-configured catalog shelves (public endpoint; empty/failed read
+    // keeps the built-in default rows — the config is purely additive).
+    useEffect(() => {
+        let cancelled = false
+        ;(async () => {
+            let defs: ConfiguredShelf[] = []
+            try {
+                const res = await apiHelpers.getCatalogShelves()
+                defs = Array.isArray(res.data) ? res.data : []
+            } catch {
+                defs = []
+            }
+            if (cancelled) return
+            if (defs.length === 0) { setConfiguredRows([]); return }
+            const settled = await Promise.allSettled(
+                defs.map(def => apiHelpers.search(shelfSearchParams(def))),
+            )
+            if (cancelled) return
+            setConfiguredRows(defs.map((def, i) => ({
+                title: def.title,
+                seeAll: shelfSeeAllHref(def),
+                items: settled[i].status === 'fulfilled' ? unwrapResults(settled[i].value.data) : [],
+            })))
+        })()
+        return () => { cancelled = true }
     }, [])
 
     // Time-based greeting set after mount (avoids SSR/CSR hydration mismatch).
@@ -347,6 +419,18 @@ export default function HomePage() {
                             </CatalogRow>
                         )}
 
+                        {configuredRows !== null && configuredRows.length > 0 ? (
+                            configuredRows.map(row => (
+                                <CatalogRow
+                                    key={`sh-${row.title}`}
+                                    title={row.title}
+                                    seeAllHref={row.seeAll}
+                                >
+                                    {toTiles(row.items).map(r => <ResourceTile key={r.slug} resource={r} />)}
+                                </CatalogRow>
+                            ))
+                        ) : (
+                            <>
                         <CatalogRow title="Recently added" seeAllHref="/browse?sort_by=recent">
                             {toTiles(catalog.recent).map(r => <ResourceTile key={r.slug} resource={r} />)}
                         </CatalogRow>
@@ -378,6 +462,8 @@ export default function HomePage() {
                                 {toTiles(row.items).map(r => <ResourceTile key={r.slug} resource={r} />)}
                             </CatalogRow>
                         ))}
+                            </>
+                        )}
                     </>
                 )}
             </section>

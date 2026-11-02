@@ -8,10 +8,12 @@ const sections = [
     { href: '/admin/moderation', label: 'Moderation' },
     { href: '/admin/resources', label: 'Resources' },
     { href: '/admin/users', label: 'Users' },
+    { href: '/admin/catalog', label: 'Catalog' },
     { href: '/admin/departments', label: 'Departments' },
     { href: '/admin/courses', label: 'Courses' },
     { href: '/admin/reports', label: 'Reports' },
     { href: '/admin/audit', label: 'Audit' },
+    { href: '/admin/settings', label: 'Settings' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

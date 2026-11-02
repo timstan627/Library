@@ -199,4 +199,27 @@ export const apiHelpers = {
         api.get('/admin/reports', { params: { report_status: reportStatus || undefined, page, page_size: size } }),
     resolveReport: (id: string, data: { action: 'resolved' | 'dismissed'; resolution_note?: string }) =>
         api.put(`/admin/reports/${id}`, data),
+
+    // Catalog shelves (public discovery rows; empty list → frontend defaults)
+    getCatalogShelves: () => api.get('/catalog/shelves'),
+
+    // Admin - Catalog shelf management
+    getShelvesAdmin: () => api.get('/admin/catalog/shelves'),
+    createShelf: (data: { title: string; source_type: string; source_value?: string | null; item_limit?: number; position?: number; is_active?: boolean }) =>
+        api.post('/admin/catalog/shelves', data),
+    updateShelf: (id: string, data: { title: string; source_type: string; source_value?: string | null; item_limit?: number; position?: number; is_active?: boolean }) =>
+        api.put(`/admin/catalog/shelves/${id}`, data),
+    toggleShelf: (id: string) => api.patch(`/admin/catalog/shelves/${id}/toggle`),
+    moveShelf: (id: string, direction: 'up' | 'down') =>
+        api.patch(`/admin/catalog/shelves/${id}/move`, { direction }),
+    deleteShelf: (id: string) => api.delete(`/admin/catalog/shelves/${id}`),
+
+    // Admin - Site settings (global moderation policy)
+    getModerationSetting: () => api.get('/admin/settings/moderation'),
+    setModerationAutoApprove: (auto_approve_moderation: boolean) =>
+        api.patch('/admin/settings/moderation', { auto_approve_moderation }),
+
+    // Admin - Per-user moderation exemption
+    setUserModerationExempt: (userId: string, moderation_exempt: boolean) =>
+        api.patch(`/admin/users/${userId}/moderation-exempt`, { moderation_exempt }),
 }
