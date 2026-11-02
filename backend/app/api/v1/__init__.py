@@ -36,4 +36,8 @@ from app.api.v1.courses import router as courses_router
 api_router.include_router(departments_router, tags=["Departments"])
 api_router.include_router(courses_router, tags=["Courses"])
 
+# Configured catalog shelves (homepage /browse)
+from app.api.v1.catalog import router as catalog_router
+api_router.include_router(catalog_router, prefix="/catalog", tags=["Catalog"])
+
 # Admin APIs are already included via admin_router, no need to double-mount

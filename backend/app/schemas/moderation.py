@@ -34,6 +34,11 @@ class UserPromotionRequest(BaseModel):
     reason: Optional[str] = Field(None, max_length=500)
 
 
+class ModerationExemptRequest(BaseModel):
+    """Schema for toggling a user's moderation exemption."""
+    moderation_exempt: bool
+
+
 class UserPromotionResponse(BaseModel):
     """Schema for user promotion response."""
     user_id: str
@@ -45,8 +50,11 @@ class UserPromotionResponse(BaseModel):
     # the shape valid wherever a display lookup is not performed.
     display_name: Optional[str] = None
     role: Optional[str] = None  # 'admin' | 'moderator' | 'user' (listing convention)
+    # Per-user upload moderation bypass (admin toggle); admins/moderators
+    # always bypass regardless of this flag.
+    moderation_exempt: bool = False
     upload_count: int = 0
     approved_count: int = 0
-    
+
     class Config:
         from_attributes = True

@@ -10,6 +10,8 @@ from app.models.rating import Rating
 from app.models.download import Download
 from app.models.report import Report
 from app.models.audit_log import AuditLog
+from app.models.settings import AppSetting
+from app.models.catalog import CatalogShelf
 from app.models.base import TimestampMixin
 
 __all__ = [
@@ -25,5 +27,7 @@ __all__ = [
     "Download",
     "Report",
     "AuditLog",
+    "AppSetting",
+    "CatalogShelf",
     "TimestampMixin",
 ]

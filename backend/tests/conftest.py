@@ -94,6 +94,8 @@ _TABLES_IN_DELETE_ORDER = [
     "sessions",
     "api_keys",
     "resources",
+    "catalog_shelves",
+    "app_settings",
     "courses",
     "departments",
     "users",
@@ -123,6 +125,8 @@ async def _db_isolated():
     password_reset_tokens.clear()
     _email_requests.clear()
     resources_module._view_tracker.clear()
+    from app.services.settings import clear_settings_cache  # noqa: E402
+    clear_settings_cache()
     yield
     await _wipe_tables()
 

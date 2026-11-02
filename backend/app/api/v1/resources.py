@@ -289,10 +289,23 @@ async def upload_resource(
     # Determine moderation status:
     # - Private → auto-approved (only uploader sees it)
     # - Admin/moderator → auto-approved
+    # - Moderation-exempt user (admin-per-user toggle) → auto-approved
+    # - Global auto-approve setting (admin toggle) → everything approved
     # - Everyone else → pending
+    global_auto_approve = False
+    if current_user.role not in ["admin", "moderator"] and visibility != "private":
+        # Only hit the settings read when a standard user might need it;
+        # the service caches the row in memory between writes.
+        from app.services.settings import get_bool_setting
+        global_auto_approve = await get_bool_setting(db, "moderation_auto_approve", default=False)
+
     if visibility == "private":
         mod_status = "approved"
     elif current_user.role in ["admin", "moderator"]:
+        mod_status = "approved"
+    elif current_user.moderation_exempt:
+        mod_status = "approved"
+    elif global_auto_approve:
         mod_status = "approved"
     else:
         mod_status = "pending"

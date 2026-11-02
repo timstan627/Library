@@ -16,6 +16,8 @@ from app.api.v1.admin.seed import router as seed_router
 from app.api.v1.admin.users import router as users_router
 from app.api.v1.admin.resources import router as resources_router
 from app.api.v1.admin.reports import router as reports_router
+from app.api.v1.admin.catalog import router as catalog_admin_router
+from app.api.v1.admin.settings import router as settings_router
 
 # Include all sub-routers
 router.include_router(departments_router, prefix="/departments", tags=["Admin - Departments"])
@@ -26,6 +28,8 @@ router.include_router(resources_router, prefix="/resources", tags=["Admin - Reso
 router.include_router(dashboard_router, prefix="/dashboard", tags=["Admin - Dashboard"])
 router.include_router(reports_router, prefix="/reports", tags=["Admin - Reports"])
 router.include_router(seed_router, prefix="/system", tags=["Admin - System"])
+router.include_router(catalog_admin_router, prefix="/catalog/shelves", tags=["Admin - Catalog"])
+router.include_router(settings_router, prefix="/settings", tags=["Admin - Settings"])
 
 __all__ = ["router"]
 

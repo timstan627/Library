@@ -288,6 +288,7 @@ async def _ensure_schema_upgrades():
     Current upgrades:
     - ratings: dedupe (user_id, resource_id) rows, then enforce uniqueness
       with a unique index (backed by the model's unique Index for fresh DBs).
+    - users: add `moderation_exempt` (per-user moderation bypass) if missing.
     """
     try:
         async with engine.begin() as conn:
@@ -308,6 +309,15 @@ async def _ensure_schema_upgrades():
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_ratings_user_resource "
                 "ON ratings (user_id, resource_id)"
             ))
+            # users.moderation_exempt — only for pre-existing tables that
+            # lack the column (a fresh DB gets it via create_all; PRAGMA on
+            # a non-existent table returns no rows, so the check skips).
+            cols = await conn.execute(db_text("PRAGMA table_info(users)"))
+            user_cols = {row[1] for row in cols.fetchall()}
+            if user_cols and "moderation_exempt" not in user_cols:
+                await conn.execute(db_text(
+                    "ALTER TABLE users ADD COLUMN moderation_exempt BOOLEAN NOT NULL DEFAULT 0"
+                ))
     except Exception as e:
         logger.warning(f"Schema upgrade check failed (non-fatal): {e}")
 

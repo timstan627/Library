@@ -32,6 +32,11 @@ class User(Base, TimestampMixin):
     is_trusted: Mapped[bool] = mapped_column(Boolean, default=False)
     promoted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     promoted_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # Per-user moderation bypass (admin-toggled): uploads by this user are
+    # auto-approved regardless of the global moderation setting. Admins and
+    # moderators always bypass anyway.
+    moderation_exempt: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # MFA
     mfa_secret: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)

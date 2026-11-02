@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.user import User
 from app.models.resource import Resource
-from app.schemas.moderation import UserPromotionRequest, UserPromotionResponse
+from app.schemas.moderation import UserPromotionRequest, UserPromotionResponse, ModerationExemptRequest
 from app.api.v1.deps import require_admin
 from app.models.audit_log import AuditLog
 
@@ -104,6 +104,7 @@ async def list_users(
             "display_name": user.display_name,
             "role": "admin" if user.is_admin else ("moderator" if user.is_moderator else "user"),
             "is_trusted": user.is_trusted, "is_banned": user.is_banned,
+            "moderation_exempt": bool(user.moderation_exempt),
             "upload_count": upload_counts.get(user.id, 0),
             "approved_count": approved_counts.get(user.id, 0),
             "created_at": user.created_at.isoformat() if user.created_at else None,
@@ -130,6 +131,7 @@ async def get_user_promotion_status(
         is_trusted=user.is_trusted, promoted_at=user.promoted_at,
         promoted_by=user.promoted_by,
         display_name=user.display_name, role=_role_label(user),
+        moderation_exempt=bool(user.moderation_exempt),
         upload_count=uploads, approved_count=approved,
     )
 
@@ -183,6 +185,54 @@ async def promote_user(
         is_trusted=user.is_trusted, promoted_at=user.promoted_at,
         promoted_by=user.promoted_by,
         display_name=user.display_name, role=_role_label(user),
+        moderation_exempt=bool(user.moderation_exempt),
+        upload_count=uploads, approved_count=approved,
+    )
+
+
+@router.patch("/{user_id}/moderation-exempt", response_model=UserPromotionResponse)
+async def set_user_moderation_exempt(
+    user_id: str,
+    data: ModerationExemptRequest,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Toggle a user's per-user upload moderation exemption (idempotent).
+
+    Exempt users' public uploads are auto-approved without review,
+    regardless of the global moderation setting. Admins/moderators do not
+    need this flag (they always bypass), and self-modification is blocked.
+    """
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if str(user.id) == str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot modify your own moderation exemption")
+    if user.is_admin or user.is_moderator:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Admins/moderators do not need a moderation exemption")
+
+    user.moderation_exempt = data.moderation_exempt
+
+    # Audit failure must never fail the user action (unified policy).
+    try:
+        audit = AuditLog(
+            action="set_moderation_exempt", actor_id=current_user.id, target_type="user", target_id=user_id,
+            details_json=json.dumps({"email": user.email, "moderation_exempt": data.moderation_exempt})
+        )
+        db.add(audit)
+    except Exception:
+        logger.exception("Audit log error on moderation exemption toggle")
+    await db.flush()
+
+    uploads, approved = await _contribution_counts(db, str(user.id))
+    return UserPromotionResponse(
+        user_id=str(user.id), email=user.email,
+        is_trusted=user.is_trusted, promoted_at=user.promoted_at,
+        promoted_by=user.promoted_by,
+        display_name=user.display_name, role=_role_label(user),
+        moderation_exempt=bool(user.moderation_exempt),
         upload_count=uploads, approved_count=approved,
     )
 
@@ -239,6 +289,7 @@ async def list_trusted_users(
                 is_trusted=user.is_trusted, promoted_at=user.promoted_at,
                 promoted_by=user.promoted_by,
                 display_name=user.display_name, role=_role_label(user),
+                moderation_exempt=bool(user.moderation_exempt),
                 upload_count=upload_counts.get(str(user.id), 0),
                 approved_count=approved_counts.get(str(user.id), 0),
             ).model_dump(mode="json")
