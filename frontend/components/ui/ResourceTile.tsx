@@ -13,6 +13,9 @@ import { Star, Eye, Download } from 'lucide-react'
  *   "explicit differences" rule for near-duplicate material.
  * - Whole tile is one link; saved-collection items carry no stats and fall
  *   back to file size + format only.
+ * - `variant="browse"` (additive) is the denser results-grid tile for
+ *   /browse: it may render a description line, uploader and up to two tags
+ *   when the data has them. Shelf defaults stay unchanged.
  */
 
 const EXT_STYLES: Record<string, string> = {
@@ -44,9 +47,13 @@ export interface ResourceTileData {
     average_rating?: number | null
     uploader_name?: string
     added_at?: string
+    /** Browse-results tiles only: trimmed description line. */
+    description?: string
+    /** Browse-results tiles only: at most two shown, rest counts. */
+    tags?: string[]
 }
 
-function formatSize(bytes?: number): string {
+export function formatSize(bytes?: number): string {
     if (!bytes || bytes <= 0) return ''
     if (bytes < 1024 * 1024) {
         const kb = Math.max(1, Math.round(bytes / 1024))
@@ -64,10 +71,12 @@ function extLabel(ext?: string): string {
     return (ext || 'file').toUpperCase()
 }
 
-export function ResourceTile({ resource, compact }: {
+export function ResourceTile({ resource, compact, variant = 'shelf' }: {
     resource: ResourceTileData
     /** Saved-collection items: no public stats available — smaller, statless tile. */
     compact?: boolean
+    /** 'shelf' (default): homepage catalog tile. 'browse': results-grid tile with description, uploader and tags. */
+    variant?: 'shelf' | 'browse'
 }) {
     const ext = resource.file_extension?.toLowerCase()
     const extStyle = EXT_STYLES[ext ?? ''] ?? DEFAULT_EXT_STYLE
@@ -75,6 +84,8 @@ export function ResourceTile({ resource, compact }: {
         && typeof resource.rating_count === 'number'
         && resource.rating_count >= 3
         && typeof resource.average_rating === 'number'
+    // Browse tiles are the only ones with room for description/uploader/tags.
+    const decorated = variant === 'browse' && !compact
 
     return (
         <Link
@@ -100,9 +111,42 @@ export function ResourceTile({ resource, compact }: {
                 {resource.title}
             </h3>
 
+            {decorated && resource.description && (
+                <p className="mt-1.5 line-clamp-2 break-words text-[11px] leading-relaxed text-text-muted">
+                    {resource.description}
+                </p>
+            )}
+
             <div className="mt-auto pt-2">
-                {resource.course_code && (
-                    <span className="badge max-w-full truncate text-[11px] leading-none">{resource.course_code}</span>
+                {(resource.course_code || (decorated && resource.uploader_name)) && (
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                        {resource.course_code && (
+                            <span className="badge max-w-full truncate text-[11px] leading-none">{resource.course_code}</span>
+                        )}
+                        {decorated && resource.uploader_name && (
+                            <span
+                                className={`min-w-0 truncate text-[11px] text-text-muted ${resource.course_code ? '' : 'pt-0.5'}`}
+                                title={resource.uploader_name}
+                            >
+                                by {resource.uploader_name}
+                            </span>
+                        )}
+                    </div>
+                )}
+                {decorated && (resource.tags?.length ?? 0) > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                        {resource.tags!.slice(0, 2).map(tag => (
+                            <span
+                                key={tag}
+                                className="max-w-full truncate rounded bg-background-tertiary px-1.5 py-0.5 text-[10px] leading-none text-text-muted"
+                            >
+                                {tag}
+                            </span>
+                        ))}
+                        {resource.tags!.length > 2 && (
+                            <span className="self-center text-[10px] text-text-muted">+{resource.tags!.length - 2}</span>
+                        )}
+                    </div>
                 )}
                 {!compact && (
                     <div className="mt-2 flex items-center gap-3 text-[11px] text-text-muted">
