@@ -314,6 +314,18 @@ a:hover {
   .animate-slide-in-right {
     animation: slideInRight var(--dur-base) var(--ease-standard) both;
   }
+
+  /* Horizontal catalog shelves: hide the scrollbar while arrows + the
+     peeking next card keep signaling scrollability (the affordances are
+     always visible; scrollbar hiding without them fails mouse users). */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @keyframes fadeIn {

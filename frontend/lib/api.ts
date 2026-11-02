@@ -146,6 +146,8 @@ export const apiHelpers = {
     getFilterOptions: () => api.get('/search/filters'), // Alias for getFilters
     getPopular: (limit?: number) => api.get('/search/popular', { params: { limit } }),
     getRecent: (limit?: number) => api.get('/search/recent', { params: { limit } }),
+    getCollections: () => api.get('/library/collections'),
+    getCollection: (id: string) => api.get(`/library/collections/${id}`),
 
     // Ratings
     createRating: (resourceId: string, data: { value: number; review?: string }) =>

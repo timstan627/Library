@@ -44,23 +44,29 @@ function BrowseContent() {
     // Search state
     const [query, setQuery] = useState(searchParams.get('q') || '')
     const [department, setDepartment] = useState(searchParams.get('department') || '')
+    const [branch, setBranch] = useState(searchParams.get('branch') || '')
+    const [tags, setTags] = useState(searchParams.get('tags') || '')
     const [sortBy, setSortBy] = useState(searchParams.get('sort_by') || 'recent')
 
     // Sync state with URL params when they change (e.g. from Header search)
     useEffect(() => {
         const q = searchParams.get('q') || ''
         const dept = searchParams.get('department') || ''
+        const branchParam = searchParams.get('branch') || ''
+        const tagsParam = searchParams.get('tags') || ''
         const sort = searchParams.get('sort_by') || 'recent'
 
         setQuery(q)
         setDepartment(dept)
+        setBranch(branchParam)
+        setTags(tagsParam)
         setSortBy(sort)
     }, [searchParams])
 
     useEffect(() => {
         fetchResources()
         fetchFilters()
-    }, [page, sortBy, query, department]) // Add query and department to dependencies
+    }, [page, sortBy, query, department, branch, tags])
 
     const fetchFilters = async () => {
         try {
@@ -85,6 +91,8 @@ function BrowseContent() {
             const params = {
                 q: query || undefined,
                 department: department || undefined,
+                branch: branch || undefined,
+                tags: tags || undefined,
                 sort_by: sortBy,
                 page,
                 size: 20,
@@ -107,6 +115,8 @@ function BrowseContent() {
         const params = new URLSearchParams()
         if (query) params.set('q', query)
         if (department) params.set('department', department)
+        if (branch) params.set('branch', branch)
+        if (tags) params.set('tags', tags)
         if (sortBy !== 'recent') params.set('sort_by', sortBy)
         const newUrl = params.toString() ? `/browse?${params.toString()}` : '/browse'
         router.push(newUrl, { scroll: false })
@@ -198,6 +208,8 @@ function BrowseContent() {
                                     <option value="recent">Most Recent</option>
                                     <option value="downloads">Most Downloaded</option>
                                     <option value="rating">Highest Rated</option>
+                                    <option value="views">Most Read</option>
+                                    <option value="top_rated">Top Rated</option>
                                     <option value="relevance">Relevance</option>
                                 </select>
                             </div>
@@ -207,6 +219,8 @@ function BrowseContent() {
                                     onClick={() => {
                                         setQuery('')
                                         setDepartment('')
+                                        setBranch('')
+                                        setTags('')
                                         setSortBy('recent')
                                     }}
                                     className="btn btn-ghost"
