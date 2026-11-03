@@ -34,7 +34,7 @@ export default function UploadPage() {
     const [selectedDepartment, setSelectedDepartment] = useState('')
     const [selectedCourse, setSelectedCourse] = useState('')
     const [semester, setSemester] = useState('')
-    const [branch, setBranch] = useState('')
+    const [program, setProgram] = useState('')
     const [tags, setTags] = useState('')
     const [visibility, setVisibility] = useState('public')
     const [password, setPassword] = useState('')
@@ -139,10 +139,6 @@ export default function UploadPage() {
             setError('Title is required')
             return
         }
-        if (!selectedDepartment) {
-            setError('Please select a department')
-            return
-        }
         if (visibility === 'password' && !password) {
             setError('Password is required for password-protected resources')
             return
@@ -173,7 +169,7 @@ export default function UploadPage() {
                 if (deptName) formData.append('department', deptName)
             }
             if (semester.trim()) formData.append('semester', semester.trim())
-            if (branch.trim()) formData.append('branch', branch.trim())
+            if (program.trim()) formData.append('program', program.trim())
             if (tags.trim()) {
                 formData.append('tags', tags.split(',').map(t => t.trim()).filter(Boolean).join(','))
             }
@@ -229,7 +225,7 @@ export default function UploadPage() {
         setSelectedDepartment('')
         setSelectedCourse('')
         setSemester('')
-        setBranch('')
+        setProgram('')
         setTags('')
         setVisibility('public')
         setPassword('')
@@ -357,10 +353,10 @@ export default function UploadPage() {
                             />
                         </div>
 
-                        {/* Department */}
+                        {/* Department (= branch / specialization) */}
                         <div>
                             <label htmlFor="department" className="label">
-                                Department (optional)
+                                Department / Branch (optional)
                             </label>
                             {fetchError && (
                                 <FetchError message={fetchError} className="mb-2" />
@@ -377,6 +373,9 @@ export default function UploadPage() {
                                     <option key={dept.id} value={dept.id}>{dept.name}</option>
                                 ))}
                             </select>
+                            <p className="text-xs text-text-muted mt-1">
+                                Your branch or specialization, e.g. Electronics and Communication Engineering (ECE).
+                            </p>
                         </div>
 
                         {/* Course */}
@@ -409,7 +408,7 @@ export default function UploadPage() {
                         {/* Semester */}
                         <div>
                             <label htmlFor="semester" className="label">
-                                Semester
+                                Semester (optional)
                             </label>
                             <select
                                 id="semester"
@@ -430,20 +429,26 @@ export default function UploadPage() {
                             </select>
                         </div>
 
-                        {/* Branch */}
+                        {/* Program (degree level) — departments above own the branch concept */}
                         <div>
-                            <label htmlFor="branch" className="label">
-                                Branch / Specialization
+                            <label htmlFor="program" className="label">
+                                Program (optional)
                             </label>
                             <input
-                                id="branch"
+                                id="program"
                                 type="text"
-                                value={branch}
-                                onChange={(e) => setBranch(e.target.value)}
-                                placeholder="e.g., Computer Science, Electrical Engineering"
+                                value={program}
+                                onChange={(e) => setProgram(e.target.value)}
+                                list="program-options"
+                                placeholder="e.g., B.Tech, Diploma, M.Tech"
                                 className="input"
                                 disabled={isSubmitting}
                             />
+                            <datalist id="program-options">
+                                {['B.Tech', 'M.Tech', 'B.E.', 'M.E.', 'Diploma', 'B.Sc.', 'M.Sc.', 'BCA', 'MCA', 'B.A.', 'M.A.', 'B.Com', 'M.Com', 'PhD', 'Certificate'].map(p => (
+                                    <option key={p} value={p} />
+                                ))}
+                            </datalist>
                         </div>
 
                         {/* Description */}

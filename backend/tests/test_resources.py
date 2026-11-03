@@ -217,6 +217,50 @@ async def test_upload_happy_path(client: AsyncClient, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_upload_persists_program(client: AsyncClient, monkeypatch):
+    """Program/level (B.Tech, Diploma, M.Tech…) is its own optional field,
+    distinct from the department = branch dropdown."""
+    owner = await make_user()
+    fake_telegram_upload(monkeypatch)
+    headers = await auth_headers(client, owner)
+    resp = await client.post(
+        "/api/v1/resources/upload",
+        files=_upload_files(),
+        data=_upload_data(program="B.Tech"),
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    rid = resp.json()["id"]
+
+    detail = await client.get(f"/api/v1/resources/{rid}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["program"] == "B.Tech"
+
+
+@pytest.mark.asyncio
+async def test_update_resource_program_set_and_clear(client: AsyncClient, monkeypatch):
+    owner = await make_user()
+    fake_telegram_upload(monkeypatch)
+    headers = await auth_headers(client, owner)
+    resp = await client.post(
+        "/api/v1/resources/upload",
+        files=_upload_files(),
+        data=_upload_data(program="B.Tech"),
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    rid = resp.json()["id"]
+
+    upd = await client.put(f"/api/v1/resources/{rid}", json={"program": "M.Tech"}, headers=headers)
+    assert upd.status_code == 200, upd.text
+    assert upd.json()["program"] == "M.Tech"
+
+    clear = await client.put(f"/api/v1/resources/{rid}", json={"program": None}, headers=headers)
+    assert clear.status_code == 200, clear.text
+    assert clear.json()["program"] is None
+
+
+@pytest.mark.asyncio
 async def test_upload_rejects_bad_extension(client: AsyncClient, monkeypatch):
     owner = await make_user()
     fake_telegram_upload(monkeypatch)

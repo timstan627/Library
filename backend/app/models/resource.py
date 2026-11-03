@@ -33,7 +33,8 @@ class Resource(Base, TimestampMixin):
     course_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("courses.id"), nullable=True)
     course_code: Mapped[str] = mapped_column(String(50), nullable=False)
     semester: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    branch: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    branch: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # legacy free text; departments table owns branch/specialization now
+    program: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # program/level: B.Tech, Diploma, M.Tech…
     
     # Tags (stored as comma-separated string)
     tags_str: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

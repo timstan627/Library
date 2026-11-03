@@ -16,6 +16,7 @@ class ResourceCreate(BaseModel):
     department: Optional[str] = Field(None, max_length=100)
     semester: Optional[str] = Field(None, max_length=20)
     branch: Optional[str] = Field(None, max_length=100)
+    program: Optional[str] = Field(None, max_length=50)
     tags: Optional[List[str]] = Field(default_factory=list, max_length=10)
     visibility: str = Field(default="public", pattern="^(public|unlisted|private)$")
     password: Optional[str] = Field(None, min_length=4, max_length=50)
@@ -51,6 +52,7 @@ class ResourceUpdate(BaseModel):
     department: Optional[str] = Field(None, max_length=100)
     semester: Optional[str] = Field(None, max_length=20)
     branch: Optional[str] = Field(None, max_length=100)
+    program: Optional[str] = Field(None, max_length=50)
     tags: Optional[List[str]] = Field(None, max_length=10)
     visibility: Optional[str] = Field(None, pattern="^(public|unlisted|private|password)$")
     # Only valid when visibility is "password"; switching visibility away
@@ -87,6 +89,7 @@ class ResourceResponse(BaseModel):
     course_id: Optional[str] = None
     semester: Optional[str] = None
     branch: Optional[str] = None
+    program: Optional[str] = None
     tags: Optional[List[str]] = []
 
     # File info
