@@ -45,6 +45,8 @@ export function PdfPreview({ blobUrl, fileName, password }: PdfPreviewProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const renderTaskRef = useRef<RenderTask | null>(null)
+    const [pageAttempt, setPageAttempt] = useState(0)
+    const [renderError, setRenderError] = useState<string | null>(null)
 
     /* Load the document once, from the blob: URL bytes */
     useEffect(() => {
@@ -56,7 +58,19 @@ export function PdfPreview({ blobUrl, fileName, password }: PdfPreviewProps) {
                 const response = await fetch(blobUrl)
                 if (!response.ok) throw new Error(`failed to read file (${response.status})`)
                 const bytes = new Uint8Array(await response.arrayBuffer())
-                const doc = await pdfjs.getDocument(password ? { data: bytes, password } : { data: bytes }).promise
+                // CMaps + standard fonts are required: Word/Docs exports use
+                // CID fonts, and without them the paint silently produces an
+                // all-white page. Served same-origin from /vendor/pdfjs.
+                // isEvalSupported=false keeps rendering compatible with
+                // strict Content-Security-Policy environments on every build.
+                const doc = await pdfjs.getDocument({
+                    data: bytes,
+                    ...(password ? { password } : {}),
+                    cMapUrl: '/vendor/pdfjs/cmaps/',
+                    cMapPacked: true,
+                    standardFontDataUrl: '/vendor/pdfjs/standard_fonts/',
+                    isEvalSupported: false,
+                }).promise
                 if (cancelled) {
                     void doc.destroy()
                     return
@@ -112,6 +126,7 @@ export function PdfPreview({ blobUrl, fileName, password }: PdfPreviewProps) {
     useEffect(() => {
         if (!document || !canvasRef.current || containerWidth === 0) return
         let cancelled = false
+        setRenderError(null)
 
         const render = async () => {
             try {
@@ -146,6 +161,7 @@ export function PdfPreview({ blobUrl, fileName, password }: PdfPreviewProps) {
                 const name = err instanceof Error ? err.name : ''
                 if (!cancelled && name !== 'RenderingCancelledException') {
                     console.warn('[PdfPreview] page render failed:', err)
+                    setRenderError('This page could not be rendered. Retry or download the file.')
                 }
             } finally {
                 if (!cancelled) renderTaskRef.current = null
@@ -154,7 +170,7 @@ export function PdfPreview({ blobUrl, fileName, password }: PdfPreviewProps) {
 
         void render()
         return () => { cancelled = true }
-    }, [document, pageNumber, zoom, containerWidth])
+    }, [document, pageNumber, zoom, containerWidth, pageAttempt])
 
     const goToPage = useCallback(
         (target: number) => setPageNumber(p => Math.min(Math.max(target, 1), Math.max(pageCount, 1) || 1)),
@@ -237,6 +253,20 @@ export function PdfPreview({ blobUrl, fileName, password }: PdfPreviewProps) {
                     </button>
                 </div>
             </div>
+
+            {/* Render failure banner (retries re-attempt the same page) */}
+            {renderError && (
+                <div className="shrink-0 flex items-center justify-between gap-3 px-3 sm:px-4 py-2 bg-danger/10 border-b border-danger/30 text-xs text-danger" role="alert">
+                    <span>{renderError}</span>
+                    <button
+                        type="button"
+                        onClick={() => setPageAttempt(n => n + 1)}
+                        className="shrink-0 underline underline-offset-2 hover:text-danger/80"
+                    >
+                        Retry page
+                    </button>
+                </div>
+            )}
 
             {/* Page — vertical scroll, centered */}
             <div ref={containerRef} className="flex-1 overflow-auto p-2 flex flex-col items-center gap-4 bg-background-primary min-h-0">
