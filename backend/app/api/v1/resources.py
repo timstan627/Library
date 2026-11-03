@@ -136,6 +136,14 @@ async def resolve_department(db: AsyncSession, name_or_code: str) -> Department:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unknown department: {name_or_code}",
         )
+    if not department.is_active:
+        # The upload UIs pick names from the active-department list, so a
+        # deactivated department here is stale client data — reject instead
+        # of binding a new resource to a retired row.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Department '{department.name}' is inactive and is not accepting uploads",
+        )
     return department
 
 

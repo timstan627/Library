@@ -22,6 +22,7 @@ interface Course {
     department_name?: string
     description?: string
     is_active: boolean
+    resource_count: number
 }
 
 interface Department {
@@ -56,6 +57,7 @@ function CoursesContent() {
     })
     const [error, setError] = useState('')
     const [fetchError, setFetchError] = useState<string | null>(null)
+    const [notice, setNotice] = useState<string | null>(null)
 
     // Delete modal state
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; course: Course | null }>({
@@ -123,8 +125,17 @@ function CoursesContent() {
         }
     }
 
-    // Open delete modal instead of using confirm()
+    // Open delete modal instead of using confirm() — but only when the
+    // backend would actually accept it: the H2 guard 409s courses whose
+    // bound resources (soft-deleted included) still reference the row.
     const openDeleteModal = (course: Course) => {
+        if (course.resource_count > 0) {
+            setNotice(
+                `This course can't be deleted — ${course.resource_count} resource(s) stay bound to it, ` +
+                'even hidden ones. Deactivate it to hide it from new uploads, or reassign or delete those resources first.'
+            )
+            return
+        }
         setDeleteModal({ isOpen: true, course })
     }
 
@@ -215,6 +226,19 @@ function CoursesContent() {
                 />
             )}
 
+            {notice && (
+                <div className="mb-4 flex items-start justify-between gap-3 p-3 rounded-md border bg-danger/10 border-danger/30 text-danger text-sm" role="alert">
+                    <span>{notice}</span>
+                    <button
+                        onClick={() => setNotice(null)}
+                        className="shrink-0 text-text-muted hover:text-text-primary"
+                        aria-label="Dismiss notice"
+                    >
+                        <AlertCircle className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+
             <div className="card shadow-md overflow-hidden border border-border-subtle">
                 <div className="overflow-x-auto">
                     <table className="w-full">
@@ -223,6 +247,7 @@ function CoursesContent() {
                             <tr>
                                 <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Course</th>
                                 <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Department</th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Resources</th>
                                 <th className="px-6 py-4 text-left text-xs font-medium text-text-muted">Status</th>
                                 <th className="px-6 py-4 text-right text-xs font-medium text-text-muted">Actions</th>
                             </tr>
@@ -231,11 +256,11 @@ function CoursesContent() {
                         <tbody className="divide-y divide-border-subtle">
                             {loading ? (
                                 [...Array(5)].map((_, i) => (
-                                    <tr key={i}><td colSpan={4} className="px-6 py-4"><div className="h-6 bg-background-tertiary animate-pulse rounded" /></td></tr>
+                                    <tr key={i}><td colSpan={5} className="px-6 py-4"><div className="h-6 bg-background-tertiary animate-pulse rounded" /></td></tr>
                                 ))
                             ) : courses.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-text-secondary">
+                                    <td colSpan={5} className="px-6 py-12 text-center text-text-secondary">
                                         No courses found. Add one to get started!
                                     </td>
                                 </tr>
@@ -244,8 +269,8 @@ function CoursesContent() {
                                     <tr key={course.id} className="hover:bg-background-tertiary transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-purple-500/10 rounded flex items-center justify-center">
-                                                    <BookOpen className="w-4 h-4 text-purple-600" />
+                                                <div className="w-8 h-8 bg-accent-primary/10 rounded flex items-center justify-center">
+                                                    <BookOpen className="w-4 h-4 text-accent-primary" />
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-text-primary text-sm">{course.name}</span>
@@ -255,6 +280,9 @@ function CoursesContent() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className="text-sm text-text-secondary">{course.department_name || 'N/A'}</span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="text-sm text-text-secondary tabular-nums">{course.resource_count}</span>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`text-xs font-semibold ${course.is_active ? 'text-success-light' : 'text-text-muted'}`}>
@@ -398,7 +426,6 @@ function CoursesContent() {
                 title="Delete Course"
                 itemName={deleteModal.course?.name || ''}
                 itemType="course"
-                cascadeWarning="This will also delete all resources associated with this course!"
             />
         </div>
     )

@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.department import Department
 from app.models.course import Course
+from app.models.resource import Resource
 from app.schemas.department import DepartmentCreate, DepartmentUpdate, DepartmentResponse, DepartmentListResponse
 from app.api.v1.deps import require_admin
 from app.models.audit_log import AuditLog
@@ -46,8 +47,11 @@ async def list_departments(
     )
     departments = result.scalars().all()
 
-    # Batch course counts for the page (single GROUP BY query)
+    # Batch child counts for the page (single GROUP BY queries): courses plus
+    # resources bound directly to the department without a course row — the
+    # delete guard and the UI gate both need the real blast radius.
     course_counts: dict = {}
+    resource_counts: dict = {}
     if departments:
         counts_result = await db.execute(
             select(Course.department_id, func.count())
@@ -55,11 +59,18 @@ async def list_departments(
             .group_by(Course.department_id)
         )
         course_counts = {dept_id: count for dept_id, count in counts_result.all()}
+        res_counts_result = await db.execute(
+            select(Resource.department_id, func.count())
+            .where(Resource.department_id.in_([d.id for d in departments]))
+            .group_by(Resource.department_id)
+        )
+        resource_counts = {dept_id: count for dept_id, count in res_counts_result.all()}
 
     return DepartmentListResponse(
         results=[DepartmentResponse(id=str(d.id), name=d.name, code=d.code,
                 description=d.description, is_active=d.is_active, display_order=d.display_order,
                 course_count=course_counts.get(d.id, 0),
+                resource_count=resource_counts.get(d.id, 0),
                 created_at=d.created_at, updated_at=d.updated_at)
                 for d in departments],
         total=total, page=page, page_size=page_size,
@@ -158,12 +169,31 @@ async def delete_department(id: str, current_user: User = Depends(require_admin)
         )
     ).scalar()
 
+    # Uploads bind department_id directly (no course row), so resources are
+    # children too. With foreign_keys=ON, deleting the parent row would raise
+    # an IntegrityError (a 500) — reject with an honest 409 instead, counting
+    # every child row, soft-deleted included, to mirror the course guard.
+    resource_count = (
+        await db.execute(
+            select(func.count()).select_from(Resource).where(Resource.department_id == id)
+        )
+    ).scalar()
+
     if course_count:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 f"Department '{department.code}' has {course_count} course(s); "
                 "move or delete its courses before deleting the department"
+            ),
+        )
+
+    if resource_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Department '{department.code}' still has {resource_count} resource(s) "
+                "filed under it; reassign or delete those resources first"
             ),
         )
 
@@ -174,6 +204,7 @@ async def delete_department(id: str, current_user: User = Depends(require_admin)
                         target_id=id, details_json=json.dumps({
                             "name": department.name, "code": department.code,
                             "course_count": course_count,
+                            "resource_count": resource_count,
                         }))
         db.add(audit)
     except Exception as e:

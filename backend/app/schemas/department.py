@@ -33,6 +33,7 @@ class DepartmentResponse(DepartmentBase):
     id: str
     is_active: bool
     course_count: int = 0
+    resource_count: int = 0  # Batched count of resources bound to this department directly
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     

@@ -21,6 +21,7 @@ interface Department {
     description?: string
     is_active: boolean
     course_count: number
+    resource_count: number
 }
 
 function DepartmentsContent() {
@@ -96,8 +97,21 @@ function DepartmentsContent() {
         }
     }
 
-    // HIGH-004: Open type-to-confirm delete modal instead of using confirm()
+    // HIGH-004: type-to-confirm delete — but only when the backend would
+    // actually accept it (the H2 guard 409s departments that still have
+    // courses or directly-bound resources). State the block where the
+    // decision is made instead of opening a ritual that always fails.
     const openDeleteModal = (dept: Department) => {
+        const blockers: string[] = []
+        if (dept.course_count > 0) blockers.push(`${dept.course_count} course(s)`)
+        if (dept.resource_count > 0) blockers.push(`${dept.resource_count} resource(s) filed under it`)
+        if (blockers.length > 0) {
+            setNotice(
+                `This department can't be deleted — it still has ${blockers.join(' and ')}. ` +
+                'Deactivate it to hide it from new uploads, or remove those items first.'
+            )
+            return
+        }
         setDeleteModal({ isOpen: true, dept })
     }
 
@@ -215,11 +229,18 @@ function DepartmentsContent() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="text-sm font-medium tabular-nums">
-                                                {typeof dept.course_count === 'number'
-                                                    ? `${dept.course_count} active course${dept.course_count === 1 ? '' : 's'}`
-                                                    : '—'}
-                                            </span>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-medium tabular-nums">
+                                                    {typeof dept.course_count === 'number'
+                                                        ? `${dept.course_count} course${dept.course_count === 1 ? '' : 's'}`
+                                                        : '—'}
+                                                </span>
+                                                {dept.resource_count > 0 && (
+                                                    <span className="text-xs text-text-muted tabular-nums">
+                                                        {dept.resource_count} resource{dept.resource_count === 1 ? '' : 's'} bound
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4">
                                             <button
@@ -334,10 +355,6 @@ function DepartmentsContent() {
                 title="Delete Department"
                 itemName={deleteModal.dept?.name || ''}
                 itemType="department"
-                cascadeWarning={deleteModal.dept?.course_count && deleteModal.dept.course_count > 0
-                    ? `This will also delete ${deleteModal.dept.course_count} course(s) and all their resources!`
-                    : undefined}
-                cascadeCount={deleteModal.dept?.course_count}
             />
         </div>
     )

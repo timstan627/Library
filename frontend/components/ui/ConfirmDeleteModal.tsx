@@ -11,8 +11,6 @@ interface ConfirmDeleteModalProps {
     title: string
     itemName: string
     itemType: string
-    cascadeWarning?: string
-    cascadeCount?: number
     /** Header line under the title. Defaults to "This action cannot be undone". */
     subtitle?: string
     /** When false the confirm button is enabled immediately (no typing). */
@@ -27,7 +25,6 @@ interface ConfirmDeleteModalProps {
  * HIGH-004: Type-to-Confirm Delete Modal
  *
  * Requires the user to type the item name to confirm deletion.
- * Shows cascade warning if deleting will affect other items.
  * Renders through AdminModal for one shared dialog scaffold.
  */
 export function ConfirmDeleteModal({
@@ -37,8 +34,6 @@ export function ConfirmDeleteModal({
     title,
     itemName,
     itemType,
-    cascadeWarning,
-    cascadeCount,
     subtitle = 'This action cannot be undone',
     typeToConfirm = true,
     confirmToken,
@@ -97,19 +92,6 @@ export function ConfirmDeleteModal({
                 <div className="p-3 bg-background-tertiary rounded-lg border border-border-subtle">
                     {itemLabel ?? <p className="font-mono font-bold text-text-primary">{itemName}</p>}
                 </div>
-
-                {cascadeWarning && (
-                    <div className="p-4 bg-danger/10 border border-danger/30 rounded-lg">
-                        <p className="text-sm text-danger font-medium">
-                            {cascadeWarning}
-                        </p>
-                        {cascadeCount !== undefined && cascadeCount > 0 && (
-                            <p className="text-xs text-danger mt-1">
-                                {cascadeCount} item(s) will be deleted
-                            </p>
-                        )}
-                    </div>
-                )}
 
                 {typeToConfirm && (
                     <div>

@@ -38,6 +38,7 @@ class CourseResponse(CourseBase):
     department_id: Optional[str] = None
     department_name: Optional[str] = None  # Populated from join
     is_active: bool
+    resource_count: int = 0  # Batched count of resources bound to this course
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     

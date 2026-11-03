@@ -3,6 +3,7 @@
 Red-first per ECC tdd-workflow: every test here fails against the pre-fix code
 and encodes the contract the fix must satisfy.
 """
+import io
 import json
 from datetime import datetime, timezone
 
@@ -12,7 +13,7 @@ from sqlalchemy import select, event
 from app.models.audit_log import AuditLog
 from app.models.course import Course
 from app.models.resource import Resource
-from tests.conftest import make_resource, auth_headers
+from tests.conftest import make_resource, auth_headers, make_user, make_department, fake_telegram_upload
 
 
 async def _make_dept_course(client: AsyncClient, headers, dept_code="DPT"):
@@ -114,6 +115,105 @@ async def test_department_delete_succeeds_when_empty(
 
     resp = await client.delete(f"/api/v1/admin/departments/{dept_id}", headers=headers)
     assert resp.status_code == 204, resp.text
+
+
+async def test_department_delete_refuses_when_resources_bound_directly(
+    client: AsyncClient, admin_user, student_user
+):
+    """Uploads bind department_id directly (no course row). The delete guard
+    must count those children too — pre-fix this hits the enforced FK and
+    returns a 500 IntegrityError instead of a 409."""
+    headers = await auth_headers(client, admin_user)
+    dept = await make_department(name="Direct Bind Dept", code="DBR")
+    res = await make_resource(student_user, department_id=dept.id)
+
+    resp = await client.delete(f"/api/v1/admin/departments/{dept.id}", headers=headers)
+
+    assert resp.status_code == 409, f"expected 409, got {resp.status_code}: {resp.text}"
+    assert "resource" in resp.json()["detail"].lower()
+
+    # The department row survives and so does the resource.
+    listed = await client.get("/api/v1/admin/departments", headers=headers)
+    assert dept.code in [d["code"] for d in listed.json()["results"]]
+    assert str(res.id) in [
+        r["id"] for r in (await client.get("/api/v1/admin/resources", headers=headers)).json()["results"]
+    ]
+
+
+async def test_department_delete_refuses_on_soft_deleted_resources(
+    client: AsyncClient, admin_user, student_user
+):
+    """H2 rule for courses counts every child row, soft-deleted included;
+    the direct-binding guard must behave the same (the FK still dangles)."""
+    headers = await auth_headers(client, admin_user)
+    dept = await make_department(name="Soft Bound Dept", code="SBD")
+    await make_resource(student_user, department_id=dept.id, is_deleted=True)
+
+    resp = await client.delete(f"/api/v1/admin/departments/{dept.id}", headers=headers)
+
+    assert resp.status_code == 409, f"expected 409, got {resp.status_code}: {resp.text}"
+    assert "resource" in resp.json()["detail"].lower()
+
+
+async def test_admin_courses_list_reports_resource_count(
+    client: AsyncClient, admin_user, student_user
+):
+    """The course page gates deletion on real blast radius, so the list
+    response must carry a batched resource_count (additive contract)."""
+    headers = await auth_headers(client, admin_user)
+    _, bound_course = await _make_dept_course(client, headers, "RCC")
+    _, empty_course = await _make_dept_course(client, headers, "RCX")
+    await make_resource(student_user, course_id=bound_course)
+    await make_resource(student_user, course_id=bound_course, title="Second Notes")
+
+    resp = await client.get("/api/v1/admin/courses", headers=headers)
+    assert resp.status_code == 200, resp.text
+    by_code = {c["code"]: c["resource_count"] for c in resp.json()["results"]}
+    assert by_code["RCC101"] == 2
+    assert by_code["RCX101"] == 0
+
+
+async def test_upload_rejects_inactive_department(
+    client: AsyncClient, admin_user, monkeypatch
+):
+    """A deactivated department is hidden from the upload form, so its name
+    in an upload request is stale client data — reject with 400 instead of
+    binding a fresh resource to a retired department."""
+    headers = await auth_headers(client, admin_user)
+    dept_resp = await client.post(
+        "/api/v1/admin/departments",
+        json={"name": "Retired Dept", "code": "RTD"},
+        headers=headers,
+    )
+    assert dept_resp.status_code == 201, dept_resp.text
+    upd = await client.put(
+        f"/api/v1/admin/departments/{dept_resp.json()['id']}",
+        json={"is_active": False},
+        headers=headers,
+    )
+    assert upd.status_code == 200, upd.text
+
+    owner = await make_user()
+    fake_telegram_upload(monkeypatch)
+    own_headers = await auth_headers(client, owner)
+    resp = await client.post(
+        "/api/v1/resources/upload",
+        files={"file": ("notes.pdf", io.BytesIO(b"%PDF-1.4 test"), "application/pdf")},
+        data={
+            "title": "Bound Notes",
+            "course_code": "CS101",
+            "description": "",
+            "visibility": "public",
+            "department": "Retired Dept",
+        },
+        headers=own_headers,
+    )
+    assert resp.status_code == 400, f"expected 400, got {resp.status_code}: {resp.text}"
+    assert "inactive" in resp.json()["detail"].lower()
+
+    # No resource row was created for the retired department.
+    fresh = (await client.get("/api/v1/admin/resources", headers=headers)).json()["results"]
+    assert all(r["title"] != "Bound Notes" for r in fresh)
 
 
 # --------------------------------------------------------------------------

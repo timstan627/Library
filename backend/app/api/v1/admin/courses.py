@@ -56,6 +56,17 @@ async def list_courses(
         dept_result = await db.execute(select(Department).where(Department.id.in_(dept_ids)))
         dept_map = {d.id: d for d in dept_result.scalars().all()}
     
+    # Batch resource counts for the page (single GROUP BY query) so the UI can
+    # gate course deletion on real blast radius and never promise a cascade.
+    resource_counts: dict = {}
+    if courses:
+        counts_result = await db.execute(
+            select(Resource.course_id, func.count())
+            .where(Resource.course_id.in_([c.id for c in courses]))
+            .group_by(Resource.course_id)
+        )
+        resource_counts = {course_id: count for course_id, count in counts_result.all()}
+
     results = []
     for course in courses:
         dept = dept_map.get(course.department_id)
@@ -65,6 +76,7 @@ async def list_courses(
             credits=course.credits, is_active=course.is_active,
             department_id=course.department_id,
             department_name=dept.name if dept else None,
+            resource_count=resource_counts.get(course.id, 0),
             created_at=course.created_at, updated_at=course.updated_at,
         ))
     
