@@ -77,25 +77,6 @@ async def test_filters_returns_options(client: AsyncClient, admin_user):
 
 
 @pytest.mark.asyncio
-async def test_filter_options_include_programs(client: AsyncClient, admin_user):
-    await make_resource(admin_user, title="Prog Doc", program="B.Tech")
-    resp = await client.get("/api/v1/search/filters")
-    assert resp.status_code == 200
-    assert "B.Tech" in resp.json()["programs"]
-
-
-@pytest.mark.asyncio
-async def test_search_filters_by_program(client: AsyncClient, admin_user):
-    await make_resource(admin_user, title="BTech Notes", program="B.Tech")
-    await make_resource(admin_user, title="Diploma Notes", program="Diploma")
-    resp = await client.get("/api/v1/search", params={"program": "B.Tech"})
-    assert resp.status_code == 200
-    titles = [r["title"] for r in resp.json()["results"]]
-    assert "BTech Notes" in titles
-    assert "Diploma Notes" not in titles
-
-
-@pytest.mark.asyncio
 async def test_popular_orders_by_downloads_and_respects_limit(client: AsyncClient, admin_user):
     made = [await make_resource(admin_user, title=f"Pop {i}") for i in range(3)]
     async with async_session() as session:

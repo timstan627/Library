@@ -195,7 +195,6 @@ async def upload_resource(
     department: Optional[str] = Form(None),
     semester: Optional[str] = Form(None),
     branch: Optional[str] = Form(None),
-    program: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
     visibility: str = Form("public"),
     password: Optional[str] = Form(None),
@@ -327,7 +326,6 @@ async def upload_resource(
         department_id=department_id,
         semester=semester.strip() if semester else None,
         branch=branch.strip() if branch else None,
-        program=program.strip()[:50] if program and program.strip() else None,
         tags_str=",".join(tag_list) if tag_list else None,
 
         # Telegram storage

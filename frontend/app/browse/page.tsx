@@ -57,7 +57,6 @@ interface Facets {
     departments: string[]
     semesters: string[]
     branches: string[]
-    programs: string[]
     file_types: string[]
     tags: string[]
 }
@@ -269,7 +268,6 @@ function BrowseContent() {
     const qParam = searchParams.get('q') ?? ''
     const departmentParam = searchParams.get('department') ?? ''
     const branchParam = searchParams.get('branch') ?? ''
-    const programParam = searchParams.get('program') ?? ''
     const tagsParam = searchParams.get('tags') ?? ''
     const semesterParam = searchParams.get('semester') ?? ''
     const fileTypeParam = searchParams.get('file_type') ?? ''
@@ -284,7 +282,7 @@ function BrowseContent() {
     const effectiveSort = sortByParam || (qParam ? 'relevance' : 'recent')
 
     const isResultsMode = Boolean(
-        qParam || departmentParam || branchParam || programParam || tagsParam || semesterParam || fileTypeParam || sortByParam,
+        qParam || departmentParam || branchParam || tagsParam || semesterParam || fileTypeParam || sortByParam,
     )
 
     // ---- Local state ----
@@ -333,7 +331,7 @@ function BrowseContent() {
         router.replace('/browse', { scroll: false })
     }, [router])
 
-    const toggleFilterParam = (key: 'department' | 'branch' | 'program' | 'semester' | 'file_type', value: string) => {
+    const toggleFilterParam = (key: 'department' | 'branch' | 'semester' | 'file_type', value: string) => {
         setParam(key, (searchParams.get(key) ?? '') === value ? null : value)
     }
 
@@ -364,7 +362,6 @@ function BrowseContent() {
                 departments: d.departments ?? [],
                 semesters: d.semesters ?? [],
                 branches: d.branches ?? [],
-                programs: d.programs ?? [],
                 file_types: d.file_types ?? [],
                 tags: d.tags ?? [],
             })
@@ -386,7 +383,6 @@ function BrowseContent() {
             q: qParam || undefined,
             department: departmentParam || undefined,
             branch: branchParam || undefined,
-            program: programParam || undefined,
             tags: activeTags.length ? activeTags.join(',') : undefined,
             semester: semesterParam || undefined,
             file_type: fileTypeParam || undefined,
@@ -416,7 +412,7 @@ function BrowseContent() {
         })()
         return () => { cancelled = true }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [qParam, departmentParam, branchParam, programParam, tagsParam, semesterParam, fileTypeParam, effectiveSort, resultsNonce])
+    }, [qParam, departmentParam, branchParam, tagsParam, semesterParam, fileTypeParam, effectiveSort, resultsNonce])
 
     const loadMore = useCallback(async () => {
         if (loadingMore || resultsLoading) return
@@ -520,10 +516,6 @@ function BrowseContent() {
         () => (facets?.branches ?? []).map(b => ({ value: b, label: b })),
         [facets],
     )
-    const programChips = useMemo(
-        () => (facets?.programs ?? []).map(p => ({ value: p, label: p })),
-        [facets],
-    )
     const subjectChips = useMemo(
         () => (facets?.departments ?? []).map(d => ({ value: d, label: d })),
         [facets],
@@ -536,7 +528,6 @@ function BrowseContent() {
     const titleParts = [
         qParam && `“${qParam}”`,
         branchParam,
-        programParam,
         departmentParam,
         activeTags.length > 0 && activeTags.map(t => `#${t}`).join(' '),
         semesterParam && `Semester ${semesterParam}`,
@@ -553,7 +544,6 @@ function BrowseContent() {
     const pills: { key: string; label: string; onRemove: () => void }[] = []
     if (qParam) pills.push({ key: 'q', label: `“${qParam}”`, onRemove: () => setParam('q', null) })
     if (branchParam) pills.push({ key: 'branch', label: branchParam, onRemove: () => setParam('branch', null) })
-    if (programParam) pills.push({ key: 'program', label: programParam, onRemove: () => setParam('program', null) })
     if (departmentParam) pills.push({ key: 'department', label: departmentParam, onRemove: () => setParam('department', null) })
     if (activeTags.length > 0) {
         pills.push({
@@ -648,14 +638,6 @@ function BrowseContent() {
                         options={branchChips}
                         isOptionActive={v => v === branchParam}
                         onSelect={v => toggleFilterParam('branch', v)}
-                    />
-                )}
-                {programChips.length > 0 && (
-                    <ChipRow
-                        label="Program"
-                        options={programChips}
-                        isOptionActive={v => v === programParam}
-                        onSelect={v => toggleFilterParam('program', v)}
                     />
                 )}
                 {subjectChips.length > 0 && (

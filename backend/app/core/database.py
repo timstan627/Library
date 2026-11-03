@@ -318,14 +318,6 @@ async def _ensure_schema_upgrades():
                 await conn.execute(db_text(
                     "ALTER TABLE users ADD COLUMN moderation_exempt BOOLEAN NOT NULL DEFAULT 0"
                 ))
-            # resources.program — program/level (B.Tech, Diploma, M.Tech…),
-            # distinct from the departments table (= branch/specialization).
-            res_cols = await conn.execute(db_text("PRAGMA table_info(resources)"))
-            resource_cols = {row[1] for row in res_cols.fetchall()}
-            if resource_cols and "program" not in resource_cols:
-                await conn.execute(db_text(
-                    "ALTER TABLE resources ADD COLUMN program VARCHAR(50)"
-                ))
     except Exception as e:
         logger.warning(f"Schema upgrade check failed (non-fatal): {e}")
 

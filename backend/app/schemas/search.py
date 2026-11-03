@@ -37,7 +37,6 @@ class FilterOptions(BaseModel):
     departments: List[str]
     semesters: List[str]
     branches: List[str]
-    programs: List[str] = Field(default_factory=list)
     tags: List[str]
     file_types: List[str]
 

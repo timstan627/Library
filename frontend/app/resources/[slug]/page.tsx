@@ -36,7 +36,6 @@ interface Resource {
     course_code: string
     department_name?: string
     semester?: string
-    program?: string
     branch?: string
     file_name: string
     file_size: number
@@ -152,7 +151,6 @@ export default function ResourceDetailPage() {
         course_code: '',
         department: '',
         semester: '',
-        program: '',
         tags: '',
         visibility: 'public',
     })
@@ -431,7 +429,6 @@ export default function ResourceDetailPage() {
             course_code: resource.course_code || '',
             department: resource.department_name || '',
             semester: resource.semester || '',
-            program: resource.program || '',
             tags: resource.tags?.join(', ') || '',
             visibility: resource.visibility || 'public',
         })
@@ -456,8 +453,6 @@ export default function ResourceDetailPage() {
                 updateData.department = editForm.department.trim() || ''
             if (editForm.semester !== (resource.semester || ''))
                 updateData.semester = editForm.semester.trim() || null
-            if (editForm.program !== (resource.program || ''))
-                updateData.program = editForm.program.trim() || null
             if (editForm.visibility !== resource.visibility)
                 updateData.visibility = editForm.visibility
 
@@ -550,7 +545,6 @@ export default function ResourceDetailPage() {
                         {/* Course badge + metadata */}
                         <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-text-secondary mt-1">
                             {resource.course_code && <span className="badge badge-primary text-xs break-words">{resource.course_code}</span>}
-                            {resource.program && <span>{resource.program}</span>}
                             {resource.department_name && <span>{resource.department_name}</span>}
                             {resource.semester && <span>{/^sem/i.test(resource.semester) ? resource.semester : `Semester ${resource.semester}`}</span>}
                         </div>
@@ -1164,7 +1158,7 @@ export default function ResourceDetailPage() {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="label">Semester (optional)</label>
+                                    <label className="label">Semester</label>
                                     <input
                                         type="text"
                                         value={editForm.semester}
@@ -1174,34 +1168,17 @@ export default function ResourceDetailPage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="label">Program (optional)</label>
-                                    <input
-                                        type="text"
-                                        value={editForm.program}
-                                        onChange={(e) => setEditForm(f => ({ ...f, program: e.target.value }))}
+                                    <label className="label">Visibility</label>
+                                    <select
+                                        value={editForm.visibility}
+                                        onChange={(e) => setEditForm(f => ({ ...f, visibility: e.target.value }))}
                                         className="input"
-                                        list="edit-program-options"
-                                        placeholder="e.g., B.Tech, Diploma, M.Tech"
-                                    />
-                                    <datalist id="edit-program-options">
-                                        {['B.Tech', 'M.Tech', 'B.E.', 'M.E.', 'Diploma', 'B.Sc.', 'M.Sc.', 'BCA', 'MCA', 'B.A.', 'M.A.', 'B.Com', 'M.Com', 'PhD', 'Certificate'].map(p => (
-                                            <option key={p} value={p} />
-                                        ))}
-                                    </datalist>
+                                    >
+                                        <option value="public">Public</option>
+                                        <option value="unlisted">Unlisted</option>
+                                        <option value="private">Private</option>
+                                    </select>
                                 </div>
-                            </div>
-
-                            <div>
-                                <label className="label">Visibility</label>
-                                <select
-                                    value={editForm.visibility}
-                                    onChange={(e) => setEditForm(f => ({ ...f, visibility: e.target.value }))}
-                                    className="input"
-                                >
-                                    <option value="public">Public</option>
-                                    <option value="unlisted">Unlisted</option>
-                                    <option value="private">Private</option>
-                                </select>
                             </div>
 
                             <div>

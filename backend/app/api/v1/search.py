@@ -39,7 +39,6 @@ async def search_resources(
     department: Optional[str] = None,
     semester: Optional[str] = None,
     branch: Optional[str] = None,
-    program: Optional[str] = None,
     tags: Optional[str] = None,
     min_rating: Optional[float] = Query(None, ge=0, le=5),
     min_ratings: Optional[int] = Query(None, ge=0),
@@ -82,8 +81,6 @@ async def search_resources(
         filters.append(Resource.semester == semester)
     if branch:
         filters.append(Resource.branch == branch)
-    if program:
-        filters.append(Resource.program == program)
     if file_type:
         filters.append(Resource.file_extension == file_type.lower())
     if tags:
@@ -192,7 +189,6 @@ async def get_filter_options(
         courses = await get_distinct(Resource.course_code)
         semesters = await get_distinct(Resource.semester)
         branches = await get_distinct(Resource.branch)
-        programs = await get_distinct(Resource.program)
         file_types = await get_distinct(Resource.file_extension)
 
         # Departments come from the Departments table (the upload UI's
@@ -212,14 +208,13 @@ async def get_filter_options(
             departments=departments,
             semesters=semesters,
             branches=branches,
-            programs=programs,
             tags=tags_list,
             file_types=file_types,
         )
     except Exception:
         logger.exception("Failed to load filter options")
         return FilterOptions(
-            courses=[], departments=[], semesters=[], branches=[], programs=[], tags=[], file_types=[]
+            courses=[], departments=[], semesters=[], branches=[], tags=[], file_types=[]
         )
 
 
