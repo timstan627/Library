@@ -16,7 +16,6 @@ import { ProgressBar } from '@/components/ui/ProgressBar'
 import {
     DocxPreview, XlsxPreview, PptxPreview, ZipPreview, MarkdownPreview,
 } from '@/components/preview/FilePreview'
-import { PdfPreview } from '@/components/preview/PdfPreview'
 
 // Modals render through a portal to document.body: keeps the overlays outside
 // every page-level stacking context (page-enter animation, transforms on any
@@ -92,6 +91,22 @@ export default function ResourceDetailPage() {
     // additionally drops the outer gutters and max-width so the document
     // fills the viewport edge to edge.
     const [previewFullscreen, setPreviewFullscreen] = useState(false)
+
+    // Browsers without an in-page PDF viewer (Android Chrome, iOS/iPadOS
+    // Safari, desktop Safari) show an interstitial for blob URLs instead of
+    // rendering the document — and blob: URLs can't be handed off to an
+    // external viewer either, so the "Open" on the interstitial is dead.
+    // Route those to the fallback card instead; desktop Chrome/Edge/Firefox
+    // keep the in-modal iframe. Computed once on mount.
+    const [mobilePdfFallback] = useState(() => {
+        if (typeof navigator === 'undefined') return false
+        const { userAgent, platform, maxTouchPoints } = navigator
+        const isIos = /iP(hone|od|ad)/.test(userAgent) ||
+            (platform === 'MacIntel' && maxTouchPoints > 1) // iPadOS desktop UA
+        const isAndroid = /Android/i.test(userAgent)
+        const isDesktopSafari = /Safari/.test(userAgent) && !/Chrome|Chromium|CriOS|FxiOS/i.test(userAgent)
+        return isIos || isAndroid || isDesktopSafari
+    })
 
     // Revoke the previous preview blob whenever it is replaced or on unmount,
     // so large file buffers don't stay pinned for the page lifetime.
@@ -972,11 +987,29 @@ export default function ResourceDetailPage() {
 
                         {/* Modal Content */}
                         <div className="flex-1 bg-gray-100 dark:bg-gray-950 overflow-auto flex items-center justify-center p-2 sm:p-4">
-                            {/* PDF — pdf.js renders actual pages on every device (mobile
-                                browsers can't render PDFs in iframes) */}
-                            {(resource.mime_type === 'application/pdf' ||
-                                resource.file_extension?.toLowerCase() === 'pdf') && previewUrl ? (
-                                <PdfPreview blobUrl={previewUrl} fileName={resource.file_name} password={password || undefined} />
+                            {/* PDF */}
+                            {resource.mime_type === 'application/pdf' && previewUrl && mobilePdfFallback ? (
+                                <div className="text-center p-8 bg-background-secondary border border-border-subtle rounded-lg max-w-md">
+                                    <FileText className="w-16 h-16 text-text-muted mx-auto mb-4" aria-hidden="true" />
+                                    <p className="text-lg font-medium text-text-primary mb-2">{resource.file_name}</p>
+                                    <p className="text-sm text-text-secondary mb-6">
+                                        This browser can&rsquo;t preview PDFs inline. Download the file to view it in your PDF viewer.
+                                    </p>
+                                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                        <button
+                                            onClick={() => { setShowPreviewModal(false); handleDownload(); }}
+                                            className="btn btn-primary px-5 py-2.5 inline-flex items-center justify-center gap-2"
+                                        >
+                                            <Download className="w-4 h-4" /> Download to View
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : resource.mime_type === 'application/pdf' && previewUrl ? (
+                                <iframe
+                                    src={previewUrl}
+                                    className="w-full h-full min-h-[500px] border-0 rounded bg-white"
+                                    title={`PDF preview of ${resource.file_name}`}
+                                />
                             ) : resource.mime_type.startsWith('image/') && previewUrl ? (
                                 <img
                                     src={previewUrl}

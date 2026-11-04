@@ -119,7 +119,7 @@ export function DocxPreview({ blobUrl }: { blobUrl: string }) {
                     [&_img]:max-w-full [&_img]:h-auto [&_img]:my-3 [&_img]:rounded
                     [&_a]:text-accent-primary [&_a]:underline
                     [&_strong]:font-semibold [&_em]:italic
-                    [&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 dark:[&_blockquote]:border-gray-700 [&_blockquote]:pl-4 [&_blockquote]:my-3 [&_blockquote]:text-gray-600 dark:[&_blockquote]:text-gray-400"
+                    [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 dark:[&_blockquote]:border-gray-700 [&_blockquote]:pl-4 [&_blockquote]:my-3 [&_blockquote]:text-gray-600 dark:[&_blockquote]:text-gray-400"
                 dangerouslySetInnerHTML={{ __html: html }}
             />
         </div>
@@ -515,7 +515,7 @@ export function MarkdownPreview({ content }: { content: string }) {
                     [&_th]:border [&_th]:border-gray-300 dark:[&_th]:border-gray-700 [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:bg-gray-100 dark:[&_th]:bg-gray-800
                     [&_img]:max-w-full [&_img]:rounded
                     [&_a]:text-accent-primary [&_a]:underline
-                    [&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 dark:[&_blockquote]:border-gray-700 [&_blockquote]:pl-4 [&_blockquote]:my-3 [&_blockquote]:text-gray-600 dark:[&_blockquote]:text-gray-400
+                    [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 dark:[&_blockquote]:border-gray-700 [&_blockquote]:pl-4 [&_blockquote]:my-3 [&_blockquote]:text-gray-600 dark:[&_blockquote]:text-gray-400
                     [&_hr]:my-6 [&_hr]:border-gray-200 dark:[&_hr]:border-gray-800"
                 dangerouslySetInnerHTML={{ __html: html }}
             />
