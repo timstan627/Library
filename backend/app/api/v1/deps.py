@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import security_manager
 from app.core.database import get_db
 from app.models.user import User
+from app.models.resource import Resource
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +51,20 @@ async def get_current_user(
 
 
 async def get_current_active_user(
-    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """Get current active user (required authentication)."""
+    if not credentials:
+        # RFC 9110: missing credentials → 401 with WWW-Authenticate, matching
+        # the invalid/expired-token path below (never a bare 403, which the
+        # frontend correctly interprets as a permissions error).
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     token = credentials.credentials
     payload = security_manager.verify_token(token, token_type="access")
     
@@ -128,3 +139,29 @@ async def get_moderator_user(
 # because several routers import them (single implementation, no drift).
 require_admin = get_admin_user
 require_moderator = get_moderator_user
+
+
+def ensure_resource_viewable(resource: Resource, current_user: Optional[User]) -> bool:
+    """Raise 404/403 unless the caller may view this resource.
+
+    - Pending/rejected resources are visible only to their owner and the
+      moderation team until approved — existence is hidden from everyone
+      else, matching the public search index (search.py).
+    - Private resources stay owner/moderator-only.
+    Returns True when the caller is owner or moderator (password bypass).
+
+    Shared by the resource detail/preview/download routes and the ratings
+    routes so visibility gating cannot drift between them.
+    """
+    is_owner = current_user is not None and resource.uploader_id == current_user.id
+    is_mod = current_user is not None and current_user.is_moderator
+
+    if resource.moderation_status != "approved" and not (is_owner or is_mod):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found"
+        )
+    if resource.visibility == "private" and not (is_owner or is_mod):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="This resource is private"
+        )
+    return is_owner or is_mod

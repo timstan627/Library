@@ -14,6 +14,7 @@ from app.models.user import User
 from app.models.resource import Resource
 from app.api.v1.deps import require_admin
 from app.models.audit_log import AuditLog
+from app.schemas.moderation import AdminResourceListResponse
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ router = APIRouter()
 BULK_DELETE_MAX_IDS = 100
 
 
-@router.get("")
+@router.get("", response_model=AdminResourceListResponse)
 async def list_all_resources(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),

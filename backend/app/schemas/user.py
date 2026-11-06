@@ -7,6 +7,8 @@ from typing import Optional, List
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 import re
 
+from app.core.config import settings
+
 
 class UserCreate(BaseModel):
     """Schema for user registration."""
@@ -61,7 +63,11 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    expires_in: int = Field(default=900)  # 15 minutes in seconds
+    # Derived from the configured access-token lifetime so the documented
+    # default can never drift from the actual setting again.
+    expires_in: int = Field(
+        default_factory=lambda: settings.access_token_expire_minutes * 60
+    )
     requires_mfa: bool = False
 
 

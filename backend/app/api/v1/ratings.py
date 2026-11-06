@@ -13,7 +13,7 @@ from app.models.user import User
 from app.models.resource import Resource
 from app.models.rating import Rating
 from app.schemas.rating import RatingCreate, RatingResponse
-from app.api.v1.deps import get_current_active_user, get_current_user
+from app.api.v1.deps import get_current_active_user, get_current_user, ensure_resource_viewable
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,10 @@ async def create_or_update_rating(
     if not resource or resource.moderation_status != "approved":
         # Unapproved content is unratable (and its existence stays hidden)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
+
+    # Visibility gate: private resources are owner/moderator-only — do not
+    # let others rate content they cannot view.
+    ensure_resource_viewable(resource, current_user)
 
     if resource.uploader_id == current_user.id:
         raise HTTPException(
@@ -150,12 +154,10 @@ async def get_resource_ratings(
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
-    if resource.moderation_status != "approved":
-        # Non-approved resources: ratings visible only to owner/moderators
-        is_owner = current_user is not None and resource.uploader_id == current_user.id
-        is_mod = current_user is not None and current_user.is_moderator
-        if not (is_owner or is_mod):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
+    # Same moderation + visibility gate as the resource endpoints: pending
+    # resources stay hidden (404) and private resources owner/moderator-only
+    # (403) — ratings must not leak what the resource itself withholds.
+    ensure_resource_viewable(resource, current_user)
     
     # Count
     count_result = await db.execute(

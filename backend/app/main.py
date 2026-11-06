@@ -76,6 +76,11 @@ async def lifespan(app: FastAPI):
     await stop_backup_scheduler()
     await stop_cleanup_scheduler()
     await cache_service.stop()
+
+    # Disconnect Telegram (closes the pyrogram client's network resources)
+    from app.services.telegram import telegram_service
+    await telegram_service.disconnect()
+
     await close_db()
     logger.info("Database connections closed")
 
@@ -90,6 +95,15 @@ app = FastAPI(
     openapi_url="/openapi.json" if settings.debug else None,
     lifespan=lifespan,
 )
+
+# Rate limiting middleware — registered BEFORE the CORS/header middleware on
+# purpose: in Starlette the first-added middleware is the innermost one, so
+# its 429 responses flow back out through CORS/security/request-id layers
+# (headers applied), and CORS preflights are answered before reaching it
+# (never counted against the limit).
+if settings.enable_rate_limiting:
+    app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.rate_limit_per_minute)
+
 
 # CORS middleware
 allowed_origins = [
@@ -132,10 +146,6 @@ app.add_middleware(RequestIdMiddleware)
 
 # Request timing middleware
 app.add_middleware(RequestTimingMiddleware)
-
-# Rate limiting middleware
-if settings.enable_rate_limiting:
-    app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.rate_limit_per_minute)
 
 
 # HTTPException handler with CORS headers
@@ -192,14 +202,3 @@ app.include_router(api_router, prefix="/api/v1")
 @app.get("/", tags=["Root"])
 async def root():
     return {"name": settings.app_name, "version": "1.0.0", "docs": "/docs" if settings.debug else "Disabled"}
-
-
-# Public stats endpoint for home page live counts (cached 60s)
-@app.get("/api/v1/stats", tags=["Public"])
-async def get_public_stats():
-    from app.services.cache import cache_service
-    from app.services.stats import fetch_public_stats
-    data = await cache_service.get_stats("public_stats")
-    if data:
-        return data
-    return await fetch_public_stats()

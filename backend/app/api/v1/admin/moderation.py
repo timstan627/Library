@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.user import User
 from app.models.resource import Resource
-from app.schemas.moderation import ModerationAction, ResourceModerationStatus
+from app.schemas.moderation import (
+    ModerationAction,
+    ResourceModerationStatus,
+    PendingResourceListResponse,
+    ModerationHistoryResponse,
+    AdminAuditLogListResponse,
+)
 from app.api.v1.deps import require_moderator
 from app.models.audit_log import AuditLog
 
@@ -21,7 +27,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.get("/pending")
+@router.get("/pending", response_model=PendingResourceListResponse)
 async def get_pending_resources(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -173,7 +179,7 @@ async def moderate_resource(
     )
 
 
-@router.get("/history")
+@router.get("/history", response_model=ModerationHistoryResponse)
 async def get_moderation_history(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
@@ -254,7 +260,7 @@ async def get_moderation_stats(
     return {"pending": pending, "approved": approved, "rejected": rejected, "total": pending + approved + rejected}
 
 
-@router.get("/audit-logs")
+@router.get("/audit-logs", response_model=AdminAuditLogListResponse)
 async def get_audit_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),

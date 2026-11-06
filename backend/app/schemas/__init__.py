@@ -22,7 +22,6 @@ from app.schemas.rating import (
     RatingResponse,
 )
 from app.schemas.search import (
-    SearchQuery,
     SearchResponse,
 )
 
@@ -45,6 +44,5 @@ __all__ = [
     "RatingCreate",
     "RatingResponse",
     # Search
-    "SearchQuery",
     "SearchResponse",
 ]

@@ -9,7 +9,7 @@
 
 - **Pre-launch.** No live student community; runs locally or in test deployments (`PRODUCT.md` owns positioning).
 - Backend (:8000) and frontend (:3000) healthy; health endpoints and resource pages return 200.
-- Test suite: **137 passed** (2026-10-30). CI runs the same reality-based suite.
+- Test suite: **166 passed** (2026-11-05). CI runs the same reality-based suite.
 - Security: 22 confirmed findings fixed + 2 backend dependency CVEs fixed; runtime re-probed (`audit/security-report.md`).
 - Preview: **9 formats** render client-side (PDF, DOCX, PPTX, XLSX, TXT, MD, JPG, PNG, ZIP→listing) with a fullscreen study mode; PPTX last-slide scroll verified fixed on all viewports.
 - Upgrade campaign: all 33 audit findings closed or owner-deferred (`tasks/findings.md`, loop complete `a91aaca`).

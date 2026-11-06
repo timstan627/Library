@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.user import User
 from app.models.resource import Resource
-from app.schemas.moderation import UserPromotionRequest, UserPromotionResponse, ModerationExemptRequest
+from app.schemas.moderation import (
+    UserPromotionRequest,
+    UserPromotionResponse,
+    ModerationExemptRequest,
+    AdminUserListResponse,
+    UserPromotionListResponse,
+)
 from app.api.v1.deps import require_admin
 from app.models.audit_log import AuditLog
 
@@ -44,7 +50,7 @@ async def _contribution_counts(db: AsyncSession, user_id: str) -> tuple:
     return int(upload_rows.scalar_one() or 0), int(approved_rows.scalar_one() or 0)
 
 
-@router.get("")
+@router.get("", response_model=AdminUserListResponse)
 async def list_users(
     q: Optional[str] = Query(None, max_length=200),
     page: int = Query(1, ge=1),
@@ -237,7 +243,7 @@ async def set_user_moderation_exempt(
     )
 
 
-@router.get("/trusted")
+@router.get("/trusted", response_model=UserPromotionListResponse)
 async def list_trusted_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),

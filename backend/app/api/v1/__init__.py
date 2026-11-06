@@ -40,4 +40,8 @@ api_router.include_router(courses_router, tags=["Courses"])
 from app.api.v1.catalog import router as catalog_router
 api_router.include_router(catalog_router, prefix="/catalog", tags=["Catalog"])
 
+# Public website stats (homepage live counts)
+from app.api.v1.stats import router as stats_router
+api_router.include_router(stats_router, tags=["Public"])
+
 # Admin APIs are already included via admin_router, no need to double-mount

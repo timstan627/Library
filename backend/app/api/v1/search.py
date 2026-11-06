@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.resource import Resource
 from app.models.department import Department
-from app.schemas.search import SearchQuery, SearchResponse, FilterOptions, ResourceSummaryListResponse
+from app.schemas.search import SearchResponse, FilterOptions, ResourceSummaryListResponse
 
 import logging
 logger = logging.getLogger(__name__)

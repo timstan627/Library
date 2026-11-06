@@ -92,20 +92,12 @@ export default function ResourceDetailPage() {
     // fills the viewport edge to edge.
     const [previewFullscreen, setPreviewFullscreen] = useState(false)
 
-    // Browsers without an in-page PDF viewer (Android Chrome, iOS/iPadOS
-    // Safari, desktop Safari) show an interstitial for blob URLs instead of
-    // rendering the document — and blob: URLs can't be handed off to an
-    // external viewer either, so the "Open" on the interstitial is dead.
-    // Route those to the fallback card instead; desktop Chrome/Edge/Firefox
-    // keep the in-modal iframe. Computed once on mount.
-    const [mobilePdfFallback] = useState(() => {
+    // iOS Safari cannot render PDFs inside iframes — remember the device so
+    // the preview can offer a fallback card instead of a blank frame.
+    const [iosDevice] = useState(() => {
         if (typeof navigator === 'undefined') return false
-        const { userAgent, platform, maxTouchPoints } = navigator
-        const isIos = /iP(hone|od|ad)/.test(userAgent) ||
-            (platform === 'MacIntel' && maxTouchPoints > 1) // iPadOS desktop UA
-        const isAndroid = /Android/i.test(userAgent)
-        const isDesktopSafari = /Safari/.test(userAgent) && !/Chrome|Chromium|CriOS|FxiOS/i.test(userAgent)
-        return isIos || isAndroid || isDesktopSafari
+        return /iP(hone|od|ad)/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
     })
 
     // Revoke the previous preview blob whenever it is replaced or on unmount,
@@ -988,19 +980,27 @@ export default function ResourceDetailPage() {
                         {/* Modal Content */}
                         <div className="flex-1 bg-gray-100 dark:bg-gray-950 overflow-auto flex items-center justify-center p-2 sm:p-4">
                             {/* PDF */}
-                            {resource.mime_type === 'application/pdf' && previewUrl && mobilePdfFallback ? (
+                            {resource.mime_type === 'application/pdf' && previewUrl && iosDevice ? (
                                 <div className="text-center p-8 bg-background-secondary border border-border-subtle rounded-lg max-w-md">
                                     <FileText className="w-16 h-16 text-text-muted mx-auto mb-4" aria-hidden="true" />
                                     <p className="text-lg font-medium text-text-primary mb-2">{resource.file_name}</p>
                                     <p className="text-sm text-text-secondary mb-6">
-                                        This browser can&rsquo;t preview PDFs inline. Download the file to view it in your PDF viewer.
+                                        Inline PDF preview is not supported on this device. Open it in a new tab or download it to view.
                                     </p>
                                     <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                        <a
+                                            href={previewUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="btn btn-primary px-5 py-2.5"
+                                        >
+                                            <Eye className="w-4 h-4 mr-2" /> Open in new tab
+                                        </a>
                                         <button
                                             onClick={() => { setShowPreviewModal(false); handleDownload(); }}
-                                            className="btn btn-primary px-5 py-2.5 inline-flex items-center justify-center gap-2"
+                                            className="btn btn-outline px-5 py-2.5"
                                         >
-                                            <Download className="w-4 h-4" /> Download to View
+                                            <Download className="w-4 h-4 mr-2" /> Download to View
                                         </button>
                                     </div>
                                 </div>

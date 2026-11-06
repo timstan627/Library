@@ -15,7 +15,7 @@ Students-main/
 │   │   ├── models/             # SQLAlchemy models — the schema source of truth
 │   │   ├── schemas/            # Pydantic request/response contracts
 │   │   ├── api/v1/             # routers: resources, search, auth, users, ratings,
-│   │   │   │                   #   library, password_reset, reports + admin/*
+│   │   │   │                   #   library, password_reset, reports, stats + admin/*
 │   │   │   └── admin/          # moderation, resources, courses, departments,
 │   │   │                       #   users, reports, dashboard, seed
 │   │   ├── services/           # telegram (blob storage), download_manager (disk

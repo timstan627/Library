@@ -27,6 +27,11 @@ from app.core.config import settings
 
 # Tests fire many requests quickly; the per-IP limiter would 429 them.
 settings.enable_rate_limiting = False
+# Keep the bootstrap/lifespan path deterministic and dev-safe regardless of
+# what the local .env contains: never production, never seed an admin.
+settings.environment = "test"
+settings.initial_admin_email = None
+settings.initial_admin_password = None
 # Deterministic secrets so tokens survive across fixtures within the run.
 settings.secret_key = "test-secret-key"
 settings.jwt_secret_key = "test-jwt-secret-key"

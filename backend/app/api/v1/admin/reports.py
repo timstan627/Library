@@ -18,6 +18,7 @@ from app.models.user import User
 from app.models.report import Report
 from app.models.audit_log import AuditLog
 from app.api.v1.deps import require_admin
+from app.schemas.moderation import AdminReportListResponse
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class ReportActionRequest(BaseModel):
     resolution_note: Optional[str] = Field(None, max_length=2000)
 
 
-@router.get("")
+@router.get("", response_model=AdminReportListResponse)
 async def list_reports(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),

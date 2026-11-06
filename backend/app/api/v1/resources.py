@@ -19,18 +19,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.security import security_manager
 from app.core.database import get_db
+from app.core.middleware import get_client_ip
 from app.models.user import User
 from app.models.resource import Resource
 from app.models.department import Department
 from app.models.download import Download
 from app.schemas.resource import (
-    ResourceCreate,
     ResourceResponse,
     ResourceUpdate,
     ResourceListResponse,
     ResourceUploadResponse,
+    normalize_course_code,
 )
-from app.api.v1.deps import get_current_user, get_current_active_user
+from app.api.v1.deps import get_current_user, get_current_active_user, ensure_resource_viewable
 from app.services.telegram import telegram_service
 from app.services.download_manager import download_manager, FileNotFoundInTelegram
 
@@ -38,29 +39,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def _ensure_viewable(resource: Resource, current_user: Optional[User]) -> bool:
-    """Raise 404/403 unless the caller may view this resource.
-
-    - Pending/rejected resources are visible only to their owner and the
-      moderation team until approved — existence is hidden from everyone
-      else, matching the public search index (search.py).
-    - Private resources stay owner/moderator-only.
-    Returns True when the caller is owner or moderator (password bypass).
-    """
-    is_owner = current_user is not None and resource.uploader_id == current_user.id
-    is_mod = current_user is not None and current_user.is_moderator
-
-    if resource.moderation_status != "approved" and not (is_owner or is_mod):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found"
-        )
-    if resource.visibility == "private" and not (is_owner or is_mod):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="This resource is private"
-        )
-    return is_owner or is_mod
 
 
 def _content_disposition(file_name: Optional[str], inline: bool) -> str:
@@ -92,8 +70,10 @@ def _should_count_view(resource_id: str, request: Request) -> bool:
         for k in expired:
             del _view_tracker[k]
     
-    # Create a unique hash from resource_id + visitor IP + User-Agent
-    client_ip = request.client.host if request.client else 'unknown'
+    # Create a unique hash from resource_id + visitor IP + User-Agent.
+    # get_client_ip honours X-Forwarded-For only from trusted proxies, so
+    # behind the production reverse proxy distinct visitors stay distinct.
+    client_ip = get_client_ip(request)
     user_agent = request.headers.get('user-agent', 'unknown')
     key = hashlib.md5(f"{resource_id}:{client_ip}:{user_agent}".encode()).hexdigest()
     
@@ -189,15 +169,15 @@ async def get_my_resources(
 @router.post("/upload", response_model=ResourceUploadResponse)
 async def upload_resource(
     file: UploadFile = File(...),
-    title: str = Form(...),
-    course_code: str = Form(""),
-    description: Optional[str] = Form(None),
-    department: Optional[str] = Form(None),
-    semester: Optional[str] = Form(None),
-    branch: Optional[str] = Form(None),
-    tags: Optional[str] = Form(None),
+    title: str = Form(..., min_length=3, max_length=255),
+    course_code: str = Form("", max_length=20),
+    description: Optional[str] = Form(None, max_length=2000),
+    department: Optional[str] = Form(None, max_length=100),
+    semester: Optional[str] = Form(None, max_length=20),
+    branch: Optional[str] = Form(None, max_length=100),
+    tags: Optional[str] = Form(None, max_length=500),
     visibility: str = Form("public"),
-    password: Optional[str] = Form(None),
+    password: Optional[str] = Form(None, min_length=4, max_length=50),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -233,6 +213,23 @@ async def upload_resource(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password is required for password-protected visibility",
         )
+
+    # Multipart forms bypass the ResourceCreate/ResourceUpdate Pydantic schemas,
+    # so the same field rules are enforced here (create/update cannot drift):
+    #   - whitespace-only (or <3 char) titles are rejected
+    #   - course_code must match the shared CS101-style format
+    title = title.strip()
+    if len(title) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Title must be at least 3 characters",
+        )
+    try:
+        course_code = normalize_course_code(course_code)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        )
     
     # Check storage quota
     if current_user.storage_used_bytes + file_size > current_user.storage_quota_bytes:
@@ -248,7 +245,12 @@ async def upload_resource(
         department_row = await resolve_department(db, department)
         department_id = department_row.id
     
-    # Validate file extension
+    # Validate file extension (a missing filename is a client error, not a 500)
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is missing a filename",
+        )
     file_extension = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
     if file_extension not in settings.allowed_extensions_list:
         raise HTTPException(
@@ -278,12 +280,15 @@ async def upload_resource(
         telegram_result = await telegram_service.upload_file(
             file_bytes=file_bytes,
             filename=file.filename,
-            caption=f"{title} | {course_code}" if course_code.strip() else title,
+            caption=f"{title} | {course_code}" if course_code else title,
         )
-    except Exception as e:
+    except Exception:
+        # Internal failure text (proxy errors, credentials, paths) must not
+        # reach the client — log it, return a generic detail.
+        logger.exception("Telegram upload failed for %s", file.filename)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload file: {str(e)}",
+            detail="Failed to upload file to storage",
         )
     
     # Parse tags
@@ -319,10 +324,10 @@ async def upload_resource(
         mod_status = "pending"
 
     resource = Resource(
-        title=title.strip(),
+        title=title,
         slug=generate_slug(title),
         description=description.strip() if description else None,
-        course_code=course_code.upper().strip(),
+        course_code=course_code,
         department_id=department_id,
         semester=semester.strip() if semester else None,
         branch=branch.strip() if branch else None,
@@ -409,7 +414,7 @@ async def preview_resource(
     # Moderation + visibility gate: pending/rejected resources are hidden
     # (404) from everyone but their owner and the moderation team; private
     # resources remain owner/moderator-only.
-    is_owner_or_admin = _ensure_viewable(resource, current_user)
+    is_owner_or_admin = ensure_resource_viewable(resource, current_user)
     
     # Check password for password-protected resources
     if resource.visibility == "password" and not is_owner_or_admin:
@@ -465,7 +470,7 @@ async def download_resource(
     # Moderation + visibility gate: pending/rejected resources are hidden
     # (404) from everyone but their owner and the moderation team; private
     # resources remain owner/moderator-only.
-    is_owner_or_admin = _ensure_viewable(resource, current_user)
+    is_owner_or_admin = ensure_resource_viewable(resource, current_user)
     
     # Check password for password-protected resources
     if resource.visibility == "password" and not is_owner_or_admin:
@@ -545,7 +550,7 @@ async def preview_text_resource(
     # Moderation + visibility gate: pending/rejected resources are hidden
     # (404) from everyone but their owner and the moderation team; private
     # resources remain owner/moderator-only.
-    is_owner_or_admin = _ensure_viewable(resource, current_user)
+    is_owner_or_admin = ensure_resource_viewable(resource, current_user)
     
     # Check password for password-protected resources
     if resource.visibility == "password" and not is_owner_or_admin:
@@ -618,7 +623,7 @@ async def get_resource(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
     # Moderation + visibility gate (pending/rejected hidden, private owner-only)
-    _ensure_viewable(resource, current_user)
+    ensure_resource_viewable(resource, current_user)
     
     # Increment view count (deduplicated by IP + User-Agent, 1 hour window)
     # Atomic UPDATE: a read-modify-write `resource.views += 1` loses
@@ -652,7 +657,7 @@ async def get_resource_by_slug(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
     
     # Moderation + visibility gate (pending/rejected hidden, private owner-only)
-    _ensure_viewable(resource, current_user)
+    ensure_resource_viewable(resource, current_user)
     
     # Increment view count (deduplicated by IP + User-Agent, 1 hour window)
     # Atomic UPDATE (see get_resource).
